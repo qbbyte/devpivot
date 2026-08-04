@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.ai.mapper.AiPromptTemplateMapper">
+    
+    <resultMap type="AiPromptTemplate" id="AiPromptTemplateResult">
+        <result property="templateId"    column="template_id"    />
+        <result property="templateCode"    column="template_code"    />
+        <result property="sceneType"    column="scene_type"    />
+        <result property="templateName"    column="template_name"    />
+        <result property="templateContent"    column="template_content"    />
+        <result property="modelSpecific"    column="model_specific"    />
+        <result property="isDefault"    column="is_default"    />
+        <result property="isEnabled"    column="is_enabled"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectAiPromptTemplateVo">
+        select template_id, template_code, scene_type, template_name, template_content, model_specific, is_default, is_enabled, create_by, create_time, update_by, update_time, remark from ai_prompt_template
+    </sql>
+
+    <select id="selectAiPromptTemplateList" parameterType="AiPromptTemplate" resultMap="AiPromptTemplateResult">
+        <include refid="selectAiPromptTemplateVo"/>
+        <where>  
+            <if test="templateCode != null  and templateCode != ''"> and template_code = #{templateCode}</if>
+            <if test="sceneType != null  and sceneType != ''"> and scene_type = #{sceneType}</if>
+            <if test="templateName != null  and templateName != ''"> and template_name like concat('%', #{templateName}, '%')</if>
+            <if test="templateContent != null  and templateContent != ''"> and template_content = #{templateContent}</if>
+            <if test="modelSpecific != null  and modelSpecific != ''"> and model_specific = #{modelSpecific}</if>
+            <if test="isDefault != null  and isDefault != ''"> and is_default = #{isDefault}</if>
+            <if test="isEnabled != null  and isEnabled != ''"> and is_enabled = #{isEnabled}</if>
+        </where>
+    </select>
+    
+    <select id="selectAiPromptTemplateByTemplateId" parameterType="Long" resultMap="AiPromptTemplateResult">
+        <include refid="selectAiPromptTemplateVo"/>
+        where template_id = #{templateId}
+    </select>
+
+    <insert id="insertAiPromptTemplate" parameterType="AiPromptTemplate" useGeneratedKeys="true" keyProperty="templateId">
+        insert into ai_prompt_template
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="templateCode != null and templateCode != ''">template_code,</if>
+            <if test="sceneType != null">scene_type,</if>
+            <if test="templateName != null">template_name,</if>
+            <if test="templateContent != null">template_content,</if>
+            <if test="modelSpecific != null">model_specific,</if>
+            <if test="isDefault != null">is_default,</if>
+            <if test="isEnabled != null">is_enabled,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="templateCode != null and templateCode != ''">#{templateCode},</if>
+            <if test="sceneType != null">#{sceneType},</if>
+            <if test="templateName != null">#{templateName},</if>
+            <if test="templateContent != null">#{templateContent},</if>
+            <if test="modelSpecific != null">#{modelSpecific},</if>
+            <if test="isDefault != null">#{isDefault},</if>
+            <if test="isEnabled != null">#{isEnabled},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAiPromptTemplate" parameterType="AiPromptTemplate">
+        update ai_prompt_template
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="templateCode != null and templateCode != ''">template_code = #{templateCode},</if>
+            <if test="sceneType != null">scene_type = #{sceneType},</if>
+            <if test="templateName != null">template_name = #{templateName},</if>
+            <if test="templateContent != null">template_content = #{templateContent},</if>
+            <if test="modelSpecific != null">model_specific = #{modelSpecific},</if>
+            <if test="isDefault != null">is_default = #{isDefault},</if>
+            <if test="isEnabled != null">is_enabled = #{isEnabled},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where template_id = #{templateId}
+    </update>
+
+    <delete id="deleteAiPromptTemplateByTemplateId" parameterType="Long">
+        delete from ai_prompt_template where template_id = #{templateId}
+    </delete>
+
+    <delete id="deleteAiPromptTemplateByTemplateIds" parameterType="String">
+        delete from ai_prompt_template where template_id in 
+        <foreach item="templateId" collection="array" open="(" separator="," close=")">
+            #{templateId}
+        </foreach>
+    </delete>
+</mapper>

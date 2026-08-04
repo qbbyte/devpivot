@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.ai.mapper.AiUserApiKeyMapper">
+    
+    <resultMap type="AiUserApiKey" id="AiUserApiKeyResult">
+        <result property="keyId"    column="key_id"    />
+        <result property="userId"    column="user_id"    />
+        <result property="provider"    column="provider"    />
+        <result property="apiKey"    column="api_key"    />
+        <result property="isActive"    column="is_active"    />
+        <result property="dailyQuota"    column="daily_quota"    />
+        <result property="usedTokens"    column="used_tokens"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectAiUserApiKeyVo">
+        select key_id, user_id, provider, api_key, is_active, daily_quota, used_tokens, create_by, create_time, update_by, update_time, remark from ai_user_api_key
+    </sql>
+
+    <select id="selectAiUserApiKeyList" parameterType="AiUserApiKey" resultMap="AiUserApiKeyResult">
+        <include refid="selectAiUserApiKeyVo"/>
+        <where>  
+            <if test="userId != null "> and user_id = #{userId}</if>
+            <if test="provider != null  and provider != ''"> and provider = #{provider}</if>
+            <if test="apiKey != null  and apiKey != ''"> and api_key = #{apiKey}</if>
+            <if test="isActive != null  and isActive != ''"> and is_active = #{isActive}</if>
+            <if test="dailyQuota != null "> and daily_quota = #{dailyQuota}</if>
+            <if test="usedTokens != null "> and used_tokens = #{usedTokens}</if>
+        </where>
+    </select>
+    
+    <select id="selectAiUserApiKeyByKeyId" parameterType="Long" resultMap="AiUserApiKeyResult">
+        <include refid="selectAiUserApiKeyVo"/>
+        where key_id = #{keyId}
+    </select>
+
+    <insert id="insertAiUserApiKey" parameterType="AiUserApiKey" useGeneratedKeys="true" keyProperty="keyId">
+        insert into ai_user_api_key
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="userId != null">user_id,</if>
+            <if test="provider != null">provider,</if>
+            <if test="apiKey != null">api_key,</if>
+            <if test="isActive != null">is_active,</if>
+            <if test="dailyQuota != null">daily_quota,</if>
+            <if test="usedTokens != null">used_tokens,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="userId != null">#{userId},</if>
+            <if test="provider != null">#{provider},</if>
+            <if test="apiKey != null">#{apiKey},</if>
+            <if test="isActive != null">#{isActive},</if>
+            <if test="dailyQuota != null">#{dailyQuota},</if>
+            <if test="usedTokens != null">#{usedTokens},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAiUserApiKey" parameterType="AiUserApiKey">
+        update ai_user_api_key
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="provider != null">provider = #{provider},</if>
+            <if test="apiKey != null">api_key = #{apiKey},</if>
+            <if test="isActive != null">is_active = #{isActive},</if>
+            <if test="dailyQuota != null">daily_quota = #{dailyQuota},</if>
+            <if test="usedTokens != null">used_tokens = #{usedTokens},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where key_id = #{keyId}
+    </update>
+
+    <delete id="deleteAiUserApiKeyByKeyId" parameterType="Long">
+        delete from ai_user_api_key where key_id = #{keyId}
+    </delete>
+
+    <delete id="deleteAiUserApiKeyByKeyIds" parameterType="String">
+        delete from ai_user_api_key where key_id in 
+        <foreach item="keyId" collection="array" open="(" separator="," close=")">
+            #{keyId}
+        </foreach>
+    </delete>
+</mapper>

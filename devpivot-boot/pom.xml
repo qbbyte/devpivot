@@ -163,6 +163,13 @@
                 <version>${ruoyi.version}</version>
             </dependency>
 
+            <!-- AI智能模块-->
+            <dependency>
+                <groupId>com.ruoyi</groupId>
+                <artifactId>ruoyi-ai</artifactId>
+                <version>${ruoyi.version}</version>
+            </dependency>
+
             <!-- 通用工具-->
             <dependency>
                 <groupId>com.ruoyi</groupId>
@@ -179,6 +186,7 @@
         <module>ruoyi-system</module>
         <module>ruoyi-quartz</module>
         <module>ruoyi-generator</module>
+        <module>ruoyi-ai</module>
         <module>ruoyi-common</module>
     </modules>
     <packaging>pom</packaging>

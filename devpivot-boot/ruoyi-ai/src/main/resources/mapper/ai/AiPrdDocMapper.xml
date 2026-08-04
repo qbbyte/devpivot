@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.ai.mapper.AiPrdDocMapper">
+    
+    <resultMap type="AiPrdDoc" id="AiPrdDocResult">
+        <result property="docId"    column="doc_id"    />
+        <result property="projectId"    column="project_id"    />
+        <result property="docName"    column="doc_name"    />
+        <result property="templateType"    column="template_type"    />
+        <result property="content"    column="content"    />
+        <result property="diffResult"    column="diff_result"    />
+        <result property="multiSource"    column="multi_source"    />
+        <result property="status"    column="status"    />
+        <result property="sourceModel"    column="source_model"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectAiPrdDocVo">
+        select doc_id, project_id, doc_name, template_type, content, diff_result, multi_source, status, source_model, create_by, create_time, update_by, update_time, remark from ai_prd_doc
+    </sql>
+
+    <select id="selectAiPrdDocList" parameterType="AiPrdDoc" resultMap="AiPrdDocResult">
+        <include refid="selectAiPrdDocVo"/>
+        <where>  
+            <if test="projectId != null "> and project_id = #{projectId}</if>
+            <if test="docName != null  and docName != ''"> and doc_name like concat('%', #{docName}, '%')</if>
+            <if test="templateType != null  and templateType != ''"> and template_type = #{templateType}</if>
+            <if test="content != null  and content != ''"> and content = #{content}</if>
+            <if test="diffResult != null  and diffResult != ''"> and diff_result = #{diffResult}</if>
+            <if test="multiSource != null  and multiSource != ''"> and multi_source = #{multiSource}</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+            <if test="sourceModel != null  and sourceModel != ''"> and source_model = #{sourceModel}</if>
+        </where>
+    </select>
+    
+    <select id="selectAiPrdDocByDocId" parameterType="Long" resultMap="AiPrdDocResult">
+        <include refid="selectAiPrdDocVo"/>
+        where doc_id = #{docId}
+    </select>
+
+    <insert id="insertAiPrdDoc" parameterType="AiPrdDoc" useGeneratedKeys="true" keyProperty="docId">
+        insert into ai_prd_doc
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">project_id,</if>
+            <if test="docName != null">doc_name,</if>
+            <if test="templateType != null">template_type,</if>
+            <if test="content != null">content,</if>
+            <if test="diffResult != null">diff_result,</if>
+            <if test="multiSource != null">multi_source,</if>
+            <if test="status != null">status,</if>
+            <if test="sourceModel != null">source_model,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">#{projectId},</if>
+            <if test="docName != null">#{docName},</if>
+            <if test="templateType != null">#{templateType},</if>
+            <if test="content != null">#{content},</if>
+            <if test="diffResult != null">#{diffResult},</if>
+            <if test="multiSource != null">#{multiSource},</if>
+            <if test="status != null">#{status},</if>
+            <if test="sourceModel != null">#{sourceModel},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAiPrdDoc" parameterType="AiPrdDoc">
+        update ai_prd_doc
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="projectId != null">project_id = #{projectId},</if>
+            <if test="docName != null">doc_name = #{docName},</if>
+            <if test="templateType != null">template_type = #{templateType},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="diffResult != null">diff_result = #{diffResult},</if>
+            <if test="multiSource != null">multi_source = #{multiSource},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sourceModel != null">source_model = #{sourceModel},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where doc_id = #{docId}
+    </update>
+
+    <delete id="deleteAiPrdDocByDocId" parameterType="Long">
+        delete from ai_prd_doc where doc_id = #{docId}
+    </delete>
+
+    <delete id="deleteAiPrdDocByDocIds" parameterType="String">
+        delete from ai_prd_doc where doc_id in 
+        <foreach item="docId" collection="array" open="(" separator="," close=")">
+            #{docId}
+        </foreach>
+    </delete>
+</mapper>

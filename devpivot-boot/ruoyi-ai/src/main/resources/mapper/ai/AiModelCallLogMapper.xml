@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.ai.mapper.AiModelCallLogMapper">
+    
+    <resultMap type="AiModelCallLog" id="AiModelCallLogResult">
+        <result property="logId"    column="log_id"    />
+        <result property="projectId"    column="project_id"    />
+        <result property="taskId"    column="task_id"    />
+        <result property="taskType"    column="task_type"    />
+        <result property="modelId"    column="model_id"    />
+        <result property="reqTokens"    column="req_tokens"    />
+        <result property="respTokens"    column="resp_tokens"    />
+        <result property="cost"    column="cost"    />
+        <result property="cacheHit"    column="cache_hit"    />
+        <result property="status"    column="status"    />
+        <result property="errorMsg"    column="error_msg"    />
+        <result property="consumeMs"    column="consume_ms"    />
+        <result property="startTime"    column="start_time"    />
+        <result property="endTime"    column="end_time"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectAiModelCallLogVo">
+        select log_id, project_id, task_id, task_type, model_id, req_tokens, resp_tokens, cost, cache_hit, status, error_msg, consume_ms, start_time, end_time, create_by, create_time, remark from ai_model_call_log
+    </sql>
+
+    <select id="selectAiModelCallLogList" parameterType="AiModelCallLog" resultMap="AiModelCallLogResult">
+        <include refid="selectAiModelCallLogVo"/>
+        <where>  
+            <if test="projectId != null "> and project_id = #{projectId}</if>
+            <if test="taskId != null "> and task_id = #{taskId}</if>
+            <if test="taskType != null  and taskType != ''"> and task_type = #{taskType}</if>
+            <if test="modelId != null "> and model_id = #{modelId}</if>
+            <if test="reqTokens != null "> and req_tokens = #{reqTokens}</if>
+            <if test="respTokens != null "> and resp_tokens = #{respTokens}</if>
+            <if test="cost != null "> and cost = #{cost}</if>
+            <if test="cacheHit != null  and cacheHit != ''"> and cache_hit = #{cacheHit}</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+            <if test="errorMsg != null  and errorMsg != ''"> and error_msg = #{errorMsg}</if>
+            <if test="consumeMs != null "> and consume_ms = #{consumeMs}</if>
+            <if test="startTime != null "> and start_time = #{startTime}</if>
+            <if test="endTime != null "> and end_time = #{endTime}</if>
+        </where>
+    </select>
+    
+    <select id="selectAiModelCallLogByLogId" parameterType="Long" resultMap="AiModelCallLogResult">
+        <include refid="selectAiModelCallLogVo"/>
+        where log_id = #{logId}
+    </select>
+
+    <insert id="insertAiModelCallLog" parameterType="AiModelCallLog" useGeneratedKeys="true" keyProperty="logId">
+        insert into ai_model_call_log
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">project_id,</if>
+            <if test="taskId != null">task_id,</if>
+            <if test="taskType != null">task_type,</if>
+            <if test="modelId != null">model_id,</if>
+            <if test="reqTokens != null">req_tokens,</if>
+            <if test="respTokens != null">resp_tokens,</if>
+            <if test="cost != null">cost,</if>
+            <if test="cacheHit != null">cache_hit,</if>
+            <if test="status != null">status,</if>
+            <if test="errorMsg != null">error_msg,</if>
+            <if test="consumeMs != null">consume_ms,</if>
+            <if test="startTime != null">start_time,</if>
+            <if test="endTime != null">end_time,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">#{projectId},</if>
+            <if test="taskId != null">#{taskId},</if>
+            <if test="taskType != null">#{taskType},</if>
+            <if test="modelId != null">#{modelId},</if>
+            <if test="reqTokens != null">#{reqTokens},</if>
+            <if test="respTokens != null">#{respTokens},</if>
+            <if test="cost != null">#{cost},</if>
+            <if test="cacheHit != null">#{cacheHit},</if>
+            <if test="status != null">#{status},</if>
+            <if test="errorMsg != null">#{errorMsg},</if>
+            <if test="consumeMs != null">#{consumeMs},</if>
+            <if test="startTime != null">#{startTime},</if>
+            <if test="endTime != null">#{endTime},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAiModelCallLog" parameterType="AiModelCallLog">
+        update ai_model_call_log
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="projectId != null">project_id = #{projectId},</if>
+            <if test="taskId != null">task_id = #{taskId},</if>
+            <if test="taskType != null">task_type = #{taskType},</if>
+            <if test="modelId != null">model_id = #{modelId},</if>
+            <if test="reqTokens != null">req_tokens = #{reqTokens},</if>
+            <if test="respTokens != null">resp_tokens = #{respTokens},</if>
+            <if test="cost != null">cost = #{cost},</if>
+            <if test="cacheHit != null">cache_hit = #{cacheHit},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            <if test="consumeMs != null">consume_ms = #{consumeMs},</if>
+            <if test="startTime != null">start_time = #{startTime},</if>
+            <if test="endTime != null">end_time = #{endTime},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where log_id = #{logId}
+    </update>
+
+    <delete id="deleteAiModelCallLogByLogId" parameterType="Long">
+        delete from ai_model_call_log where log_id = #{logId}
+    </delete>
+
+    <delete id="deleteAiModelCallLogByLogIds" parameterType="String">
+        delete from ai_model_call_log where log_id in 
+        <foreach item="logId" collection="array" open="(" separator="," close=")">
+            #{logId}
+        </foreach>
+    </delete>
+</mapper>

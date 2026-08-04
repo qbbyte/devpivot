@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.ai.mapper.AiProtoPageMapper">
+    
+    <resultMap type="AiProtoPage" id="AiProtoPageResult">
+        <result property="pageId"    column="page_id"    />
+        <result property="projectId"    column="project_id"    />
+        <result property="pageName"    column="page_name"    />
+        <result property="pageDesc"    column="page_desc"    />
+        <result property="layout"    column="layout"    />
+        <result property="status"    column="status"    />
+        <result property="sourceModel"    column="source_model"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectAiProtoPageVo">
+        select page_id, project_id, page_name, page_desc, layout, status, source_model, create_by, create_time, update_by, update_time, remark from ai_proto_page
+    </sql>
+
+    <select id="selectAiProtoPageList" parameterType="AiProtoPage" resultMap="AiProtoPageResult">
+        <include refid="selectAiProtoPageVo"/>
+        <where>  
+            <if test="projectId != null "> and project_id = #{projectId}</if>
+            <if test="pageName != null  and pageName != ''"> and page_name like concat('%', #{pageName}, '%')</if>
+            <if test="pageDesc != null  and pageDesc != ''"> and page_desc = #{pageDesc}</if>
+            <if test="layout != null  and layout != ''"> and layout = #{layout}</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+            <if test="sourceModel != null  and sourceModel != ''"> and source_model = #{sourceModel}</if>
+        </where>
+    </select>
+    
+    <select id="selectAiProtoPageByPageId" parameterType="Long" resultMap="AiProtoPageResult">
+        <include refid="selectAiProtoPageVo"/>
+        where page_id = #{pageId}
+    </select>
+
+    <insert id="insertAiProtoPage" parameterType="AiProtoPage" useGeneratedKeys="true" keyProperty="pageId">
+        insert into ai_proto_page
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">project_id,</if>
+            <if test="pageName != null">page_name,</if>
+            <if test="pageDesc != null">page_desc,</if>
+            <if test="layout != null">layout,</if>
+            <if test="status != null">status,</if>
+            <if test="sourceModel != null">source_model,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">#{projectId},</if>
+            <if test="pageName != null">#{pageName},</if>
+            <if test="pageDesc != null">#{pageDesc},</if>
+            <if test="layout != null">#{layout},</if>
+            <if test="status != null">#{status},</if>
+            <if test="sourceModel != null">#{sourceModel},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAiProtoPage" parameterType="AiProtoPage">
+        update ai_proto_page
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="projectId != null">project_id = #{projectId},</if>
+            <if test="pageName != null">page_name = #{pageName},</if>
+            <if test="pageDesc != null">page_desc = #{pageDesc},</if>
+            <if test="layout != null">layout = #{layout},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sourceModel != null">source_model = #{sourceModel},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where page_id = #{pageId}
+    </update>
+
+    <delete id="deleteAiProtoPageByPageId" parameterType="Long">
+        delete from ai_proto_page where page_id = #{pageId}
+    </delete>
+
+    <delete id="deleteAiProtoPageByPageIds" parameterType="String">
+        delete from ai_proto_page where page_id in 
+        <foreach item="pageId" collection="array" open="(" separator="," close=")">
+            #{pageId}
+        </foreach>
+    </delete>
+</mapper>
