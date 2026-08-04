@@ -58,9 +58,15 @@ export const constantRoutes = [
     hidden: true
   },
   {
+    path: '/portal',
+    component: () => import('@/views/portal/index'),
+    hidden: true,
+    meta: { title: '门户首页' }
+  },
+  {
     path: '',
     component: Layout,
-    redirect: '/index',
+    redirect: '/portal',
     children: [
       {
         path: '/index',
