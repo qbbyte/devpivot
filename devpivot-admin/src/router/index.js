@@ -64,6 +64,18 @@ export const constantRoutes = [
     meta: { title: '门户首页' }
   },
   {
+    path: '/portal/create',
+    component: () => import('@/views/portal/create'),
+    hidden: true,
+    meta: { title: '新建项目' }
+  },
+  {
+    path: '/portal/project/:id',
+    component: () => import('@/views/portal/project'),
+    hidden: true,
+    meta: { title: '项目详情' }
+  },
+  {
     path: '',
     component: Layout,
     redirect: '/portal',

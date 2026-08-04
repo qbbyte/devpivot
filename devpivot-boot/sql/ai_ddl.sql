@@ -17,6 +17,7 @@ create table ai_project (
   db_type          varchar(16)     default 'MySQL'            comment '目标数据库类型(MySQL/PostgreSQL)',
   model_strategy   json            default null               comment '默认模型策略(JSON: 默认模型/是否多模型/并行数量与名单)',
   step             varchar(16)     default 'REQ'              comment '项目进度阶段(REQ需求/CLARIFY澄清/PRD原型/TECH技术/DB库表/DONE完成)',
+  assignee_id      bigint(20)      default null               comment '当前负责人ID',
   is_top           char(1)         default 'N'                comment '是否置顶(Y/N)',
   status           char(1)         default '0'                comment '项目状态(0正常 1归档)',
   del_flag         char(1)         default '0'                comment '删除标志(0存在 2删除)',
@@ -364,6 +365,7 @@ insert into sys_dict_type values(112, '模型路由类型', 'ai_model_type',    
 insert into sys_dict_type values(113, 'Prompt场景', 'ai_scene_type',      '0', 'admin', sysdate(), '', null, 'Prompt模板场景类型');
 insert into sys_dict_type values(114, '并行任务状态', 'ai_task_status',   '0', 'admin', sysdate(), '', null, '多模型并行任务状态');
 insert into sys_dict_type values(115, '调用日志状态', 'ai_call_status',   '0', 'admin', sysdate(), '', null, 'AI调用日志状态');
+insert into sys_dict_type values(116, '项目状态',     'ai_project_status', '0', 'admin', sysdate(), '', null, 'AI项目状态');
 
 -- ----------------------------
 -- 新增字典数据

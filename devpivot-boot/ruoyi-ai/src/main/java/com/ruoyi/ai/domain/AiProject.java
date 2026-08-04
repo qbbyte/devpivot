@@ -46,6 +46,12 @@ public class AiProject extends BaseEntity
     @Excel(name = "项目进度阶段(REQ需求/CLARIFY澄清/PRD原型/TECH技术/DB库表/DONE完成)")
     private String step;
 
+    /** 当前负责人ID */
+    private Long assigneeId;
+
+    /** 负责人昵称（非数据库字段） */
+    private String assigneeName;
+
     /** 是否置顶(Y/N) */
     @Excel(name = "是否置顶(Y/N)")
     private String isTop;
@@ -135,6 +141,26 @@ public class AiProject extends BaseEntity
     public String getStep() 
     {
         return step;
+    }
+
+    public void setAssigneeId(Long assigneeId) 
+    {
+        this.assigneeId = assigneeId;
+    }
+
+    public Long getAssigneeId() 
+    {
+        return assigneeId;
+    }
+
+    public void setAssigneeName(String assigneeName) 
+    {
+        this.assigneeName = assigneeName;
+    }
+
+    public String getAssigneeName() 
+    {
+        return assigneeName;
     }
 
     public void setIsTop(String isTop) 

@@ -19,8 +19,14 @@
 
     <main class="portal-main">
       <section class="portal-hero">
-        <h1>AI 项目工作台</h1>
-        <p>统一查看所有 AI 需求设计项目的进度与状态</p>
+        <div class="hero-left">
+          <h1>AI 项目工作台</h1>
+          <p>统一查看所有 AI 需求设计项目的进度与状态</p>
+        </div>
+        <el-button type="primary" class="create-btn" @click="goCreate">
+          <el-icon><Plus /></el-icon>
+          <span>新建项目</span>
+        </el-button>
       </section>
 
       <section class="portal-stats" v-if="stats.total > 0">
@@ -55,40 +61,38 @@
 
       <section class="portal-body">
         <template v-if="!loading && projectList.length > 0">
-          <div class="project-grid">
-            <div class="project-card" v-for="item in projectList" :key="item.projectId">
-              <div class="project-card-top">
-                <div class="project-name">
-                  <el-tag effect="dark" size="small" type="danger" v-if="item.isTop === 'Y'">置顶</el-tag>
-                  <span class="name-text">{{ item.projectName }}</span>
+          <div class="project-list">
+            <div class="project-card" v-for="item in projectList" :key="item.projectId" @click="goProject(item.projectId)">
+              <div class="project-card-left">
+                <div class="project-card-top">
+                  <div class="project-name">
+                    <el-tag effect="dark" size="small" type="danger" v-if="item.isTop === 'Y'">置顶</el-tag>
+                    <span class="name-text">{{ item.projectName }}</span>
+                  </div>
+                  <dict-tag :options="ai_project_status" :value="item.status" />
                 </div>
-                <dict-tag :options="ai_project_status" :value="item.status" />
-              </div>
-              <p class="project-intro">{{ item.projectIntro || '暂无项目简介' }}</p>
-              <div class="project-meta">
-                <span v-if="item.industryType">
-                  <el-icon><Collection /></el-icon>{{ item.industryType }}
-                </span>
-                <span v-if="item.dbType">
-                  <el-icon><Coin /></el-icon>{{ dbTypeLabel(item.dbType) }}
-                </span>
-                <span v-if="item.updateTime">
-                  <el-icon><Clock /></el-icon>{{ formatTime(item.updateTime) }}
-                </span>
-              </div>
-              <div class="project-step">
-                <div class="step-label">{{ stepLabel(item.step) }}</div>
-                <div class="step-dots">
-                  <template v-for="(s, idx) in stepOrder" :key="s.value">
-                    <span
-                      class="dot"
-                      :class="{ active: stepIndex(item.step) >= idx }"
-                      :style="stepIndex(item.step) === idx ? { background: stepColor(s.value) } : {}"
-                    ></span>
-                  </template>
+                <p class="project-intro">{{ item.projectIntro || '暂无项目简介' }}</p>
+                <div class="project-meta">
+                  <span v-if="item.assigneeName"><el-icon><User /></el-icon>{{ item.assigneeName }}</span>
+                  <span v-if="item.updateTime"><el-icon><Clock /></el-icon>{{ formatTime(item.updateTime) }}</span>
                 </div>
+              </div>
+              <div class="project-card-right">
+                <div class="step-percent">{{ stepPercent(item.step) }}%</div>
+                <el-progress :percentage="stepPercent(item.step)" :stroke-width="6" :show-text="false" />
+                <dict-tag :options="ai_project_step" :value="item.step" />
               </div>
             </div>
+          </div>
+          <div class="pagination-wrap" v-if="total > 10">
+            <el-pagination
+              v-model:current-page="queryParams.pageNum"
+              :page-size="10"
+              :total="total"
+              layout="prev, pager, next"
+              background
+              @current-change="getList"
+            />
           </div>
         </template>
 
@@ -124,16 +128,28 @@ const stepOrder = [
 
 const loading = ref(false)
 const projectList = ref([])
+const total = ref(0)
+const allProjectList = ref([])
+const queryParams = ref({
+  pageNum: 1,
+  pageSize: 10
+})
 
 const stats = computed(() => {
-  const total = projectList.value.length
-  const done = projectList.value.filter(item => item.step === 'DONE').length
-  return { total, doing: total - done, done }
+  const t = total.value
+  const done = allProjectList.value.filter(item => item.step === 'DONE').length
+  return { total: t, doing: t - done, done }
 })
 
 function stepIndex(value) {
   const idx = stepOrder.findIndex(s => s.value === value)
   return idx === -1 ? -1 : idx
+}
+
+function stepPercent(value) {
+  const idx = stepOrder.findIndex(s => s.value === value)
+  if (idx === -1) return 0
+  return Math.round(((idx + 1) / stepOrder.length) * 100)
 }
 
 function stepColor(value) {
@@ -160,18 +176,34 @@ function goAdmin() {
   router.push('/index')
 }
 
+function goCreate() {
+  router.push('/portal/create')
+}
+
+function goProject(id) {
+  router.push(`/portal/project/${id}`)
+}
+
 function getList() {
   loading.value = true
-  listProject({ pageNum: 1, pageSize: 50 }).then(response => {
+  listProject(queryParams.value).then(response => {
     projectList.value = response.rows || []
+    total.value = response.total || 0
     loading.value = false
   }).catch(() => {
     loading.value = false
   })
 }
 
+function getAllList() {
+  listProject({ pageNum: 1, pageSize: 1000 }).then(response => {
+    allProjectList.value = response.rows || []
+  })
+}
+
 onMounted(() => {
   getList()
+  getAllList()
 })
 </script>
 
@@ -255,11 +287,14 @@ onMounted(() => {
 }
 
 .portal-hero {
-  text-align: center;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 40px;
 }
 
-.portal-hero h1 {
+.hero-left h1 {
   margin: 0 0 12px;
   font-size: 32px;
   font-weight: 700;
@@ -267,10 +302,20 @@ onMounted(() => {
   letter-spacing: 0.5px;
 }
 
-.portal-hero p {
+.hero-left p {
   margin: 0;
   font-size: 15px;
   color: #86909c;
+}
+
+.create-btn {
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+
+  .el-icon {
+    margin-right: 6px;
+  }
 }
 
 /* ===== Stats ===== */
@@ -333,20 +378,11 @@ onMounted(() => {
   margin-top: 2px;
 }
 
-/* ===== Project Grid ===== */
-.project-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-@media (max-width: 768px) {
-  .project-grid {
-    grid-template-columns: 1fr;
-  }
-  .portal-stats {
-    grid-template-columns: 1fr;
-  }
+/* ===== Project List ===== */
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .project-card {
@@ -357,7 +393,8 @@ onMounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
   transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
   display: flex;
-  flex-direction: column;
+  gap: 24px;
+  cursor: pointer;
 }
 
 .project-card:hover {
@@ -366,12 +403,55 @@ onMounted(() => {
   box-shadow: 0 6px 16px rgba(64, 158, 255, 0.08);
 }
 
+.project-card-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-card-right {
+  width: 120px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  padding-left: 20px;
+  border-left: 1px solid #f0f1f3;
+}
+
+.project-card-right .step-percent {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2329;
+}
+
+@media (max-width: 768px) {
+  .portal-stats {
+    grid-template-columns: 1fr;
+  }
+  .portal-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .project-card {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .project-card-right {
+    width: 100%;
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid #f0f1f3;
+    padding-top: 16px;
+  }
+}
+
 .project-card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 10px;
 }
 
 .project-name {
@@ -391,7 +471,7 @@ onMounted(() => {
 }
 
 .project-intro {
-  margin: 0 0 14px;
+  margin: 0 0 10px;
   font-size: 13px;
   color: #4e5969;
   line-height: 1.7;
@@ -404,11 +484,9 @@ onMounted(() => {
 .project-meta {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 16px;
   color: #86909c;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .project-meta span {
@@ -417,53 +495,33 @@ onMounted(() => {
   gap: 4px;
 }
 
-.project-step {
-  margin-top: auto;
-  padding-top: 14px;
-  border-top: 1px dashed #f0f1f3;
+.project-card-right .step-percent {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2329;
 }
 
-.step-label {
-  font-size: 12px;
-  color: #86909c;
-  margin-bottom: 10px;
-  font-weight: 500;
+.project-card-right .el-tag {
+  align-self: flex-end;
 }
 
-.step-dots {
-  display: flex;
-  align-items: center;
-  gap: 0;
+.project-step :deep(.el-progress-bar__outer) {
+  background-color: #f0f1f3;
 }
 
-.dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #e5e6eb;
-  position: relative;
-  transition: background 0.2s;
-}
-
-.dot:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 12px;
-  width: calc(100% + 6px);
-  height: 2px;
-  background: #e5e6eb;
-  transform: translateY(-50%);
-  z-index: 0;
-}
-
-.dot.active {
-  z-index: 1;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 1);
+.project-step :deep(.el-progress-bar__inner) {
+  border-radius: 4px;
 }
 
 .loading-mask {
   min-height: 120px;
+}
+
+/* ===== Pagination ===== */
+.pagination-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
 }
 
 /* ===== Footer ===== */
