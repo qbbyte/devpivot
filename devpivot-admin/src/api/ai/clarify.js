@@ -1,44 +1,60 @@
 import request from '@/utils/request'
 
-// 查询AI澄清问题记录列表
-export function listClarify(query) {
+// 获取可用模型列表
+export function getModels() {
   return request({
-    url: '/system/clarify/list',
-    method: 'get',
-    params: query
-  })
-}
-
-// 查询AI澄清问题记录详细
-export function getClarify(recordId) {
-  return request({
-    url: '/system/clarify/' + recordId,
+    url: '/api/ai/models',
     method: 'get'
   })
 }
 
-// 新增AI澄清问题记录
-export function addClarify(data) {
+// 获取系统配置（最大对比模型数）
+export function getModelConfig() {
   return request({
-    url: '/system/clarify',
+    url: '/api/ai/models/config',
+    method: 'get'
+  })
+}
+
+// 获取澄清会话
+export function getClarifySession(projectId) {
+  return request({
+    url: `/api/ai/clarify/session/${projectId}`,
+    method: 'get'
+  })
+}
+
+// 发送消息
+export function sendMessage(data) {
+  return request({
+    url: '/api/ai/clarify/send',
     method: 'post',
-    data: data
+    data
   })
 }
 
-// 修改AI澄清问题记录
-export function updateClarify(data) {
+// 获取澄清进度
+export function getClarifyProgress(projectId) {
   return request({
-    url: '/system/clarify',
-    method: 'put',
-    data: data
+    url: `/api/ai/clarify/progress/${projectId}`,
+    method: 'get'
   })
 }
 
-// 删除AI澄清问题记录
-export function delClarify(recordId) {
+// 提交澄清结果
+export function submitClarify(projectId) {
   return request({
-    url: '/system/clarify/' + recordId,
-    method: 'delete'
+    url: `/api/ai/clarify/submit/${projectId}`,
+    method: 'post',
+    params: { projectId }
+  })
+}
+
+// 采纳模型回答
+export function adoptAnswer(data) {
+  return request({
+    url: '/api/ai/clarify/adopt',
+    method: 'post',
+    data
   })
 }

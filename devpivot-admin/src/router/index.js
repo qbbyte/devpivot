@@ -70,10 +70,46 @@ export const constantRoutes = [
     meta: { title: '新建项目' }
   },
   {
-    path: '/portal/project/:id',
-    component: () => import('@/views/portal/project'),
+    path: '/portal/project/:id/req',
+    component: () => import('@/views/portal/steps/req'),
     hidden: true,
-    meta: { title: '项目详情' }
+    meta: { title: '需求采集' }
+  },
+  {
+    path: '/portal/project/:id/clarify',
+    component: () => import('@/views/portal/steps/clarify'),
+    hidden: true,
+    meta: { title: 'AI 澄清' }
+  },
+  {
+    path: '/portal/project/:id/prd',
+    component: () => import('@/views/portal/steps/prd'),
+    hidden: true,
+    meta: { title: 'PRD 文档' }
+  },
+  {
+    path: '/portal/project/:id/proto',
+    component: () => import('@/views/portal/steps/proto'),
+    hidden: true,
+    meta: { title: '原型设计' }
+  },
+  {
+    path: '/portal/project/:id/tech',
+    component: () => import('@/views/portal/steps/tech'),
+    hidden: true,
+    meta: { title: '技术方案' }
+  },
+  {
+    path: '/portal/project/:id/db',
+    component: () => import('@/views/portal/steps/db'),
+    hidden: true,
+    meta: { title: '数据库设计' }
+  },
+  {
+    path: '/portal/project/:id/done',
+    component: () => import('@/views/portal/steps/done'),
+    hidden: true,
+    meta: { title: '项目完成' }
   },
   {
     path: '',

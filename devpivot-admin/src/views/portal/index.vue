@@ -29,7 +29,7 @@
         </el-button>
       </section>
 
-      <section class="portal-stats" v-if="stats.total > 0">
+      <section class="portal-stats">
         <div class="stat-card">
           <div class="stat-icon stat-total">
             <el-icon :size="20"><FolderOpened /></el-icon>
@@ -60,9 +60,26 @@
       </section>
 
       <section class="portal-body">
-        <template v-if="!loading && projectList.length > 0">
+        <div class="filter-bar">
+          <el-input
+            v-model="searchKeyword"
+            class="filter-search"
+            placeholder="搜索项目名称 / 简介"
+            clearable
+            :prefix-icon="Search"
+          />
+          <el-select v-model="filterStatus" class="filter-select" placeholder="项目状态" clearable>
+            <el-option v-for="s in ai_project_status" :key="s.value" :label="s.label" :value="s.value" />
+          </el-select>
+          <el-select v-model="filterStep" class="filter-select" placeholder="当前阶段" clearable>
+            <el-option v-for="s in ai_project_step" :key="s.value" :label="s.label" :value="s.value" />
+          </el-select>
+          <el-button v-if="hasFilter" text type="primary" @click="resetFilter">重置筛选</el-button>
+        </div>
+
+        <template v-if="!loading && filteredProjects.length > 0">
           <div class="project-list">
-            <div class="project-card" v-for="item in projectList" :key="item.projectId" @click="goProject(item.projectId)">
+            <div class="project-card" v-for="item in pagedProjects" :key="item.projectId" @click="goProject(item)">
               <div class="project-card-left">
                 <div class="project-card-top">
                   <div class="project-name">
@@ -78,25 +95,25 @@
                 </div>
               </div>
               <div class="project-card-right">
-                <div class="step-percent">{{ stepPercent(item.step) }}%</div>
-                <el-progress :percentage="stepPercent(item.step)" :stroke-width="6" :show-text="false" />
+                <div class="step-percent" :style="{ color: stepColor(item.step) }">{{ stepPercent(item.step) }}%</div>
+                <el-progress :percentage="stepPercent(item.step)" :color="stepColor(item.step)" :stroke-width="6" :show-text="false" />
                 <dict-tag :options="ai_project_step" :value="item.step" />
               </div>
             </div>
           </div>
-          <div class="pagination-wrap" v-if="total > 10">
+          <div class="pagination-wrap" v-if="filteredProjects.length > pageSize">
             <el-pagination
-              v-model:current-page="queryParams.pageNum"
-              :page-size="10"
-              :total="total"
+              v-model:current-page="currentPage"
+              :page-size="pageSize"
+              :total="filteredProjects.length"
               layout="prev, pager, next"
               background
-              @current-change="getList"
             />
           </div>
         </template>
 
-        <el-empty v-else-if="!loading" description="暂无项目数据" />
+        <el-empty v-else-if="!loading && allProjectList.length === 0" description="暂无项目数据" />
+        <el-empty v-else-if="!loading" description="未找到符合条件的项目" />
         <div v-loading="loading" class="loading-mask"></div>
       </section>
     </main>
@@ -108,13 +125,24 @@
 </template>
 
 <script setup name="Portal">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { Search } from '@element-plus/icons-vue'
 import { listProject } from '@/api/ai/project'
 import { useDict } from '@/utils/dict'
 
 const router = useRouter()
-const { ai_project_step, ai_project_status, ai_db_type } = useDict('ai_project_step', 'ai_project_status', 'ai_db_type')
+const { ai_project_step, ai_project_status } = useDict('ai_project_step', 'ai_project_status')
+
+const stepRouteMap = {
+  REQ: 'req',
+  CLARIFY: 'clarify',
+  PRD: 'prd',
+  PROTO: 'proto',
+  TECH: 'tech',
+  DB: 'db',
+  DONE: 'done'
+}
 
 const stepOrder = [
   { value: 'REQ', color: '#409eff' },
@@ -127,24 +155,41 @@ const stepOrder = [
 ]
 
 const loading = ref(false)
-const projectList = ref([])
-const total = ref(0)
 const allProjectList = ref([])
-const queryParams = ref({
-  pageNum: 1,
-  pageSize: 10
-})
+const searchKeyword = ref('')
+const filterStatus = ref('')
+const filterStep = ref('')
+const currentPage = ref(1)
+const pageSize = 10
 
 const stats = computed(() => {
-  const t = total.value
-  const done = allProjectList.value.filter(item => item.step === 'DONE').length
-  return { total: t, doing: t - done, done }
+  const list = allProjectList.value
+  const total = list.length
+  const done = list.filter(item => item.step === 'DONE').length
+  return { total, doing: total - done, done }
 })
 
-function stepIndex(value) {
-  const idx = stepOrder.findIndex(s => s.value === value)
-  return idx === -1 ? -1 : idx
-}
+const filteredProjects = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase()
+  return allProjectList.value.filter(item => {
+    if (filterStatus.value && item.status !== filterStatus.value) return false
+    if (filterStep.value && item.step !== filterStep.value) return false
+    if (kw) {
+      const hay = `${item.projectName || ''} ${item.projectIntro || ''}`.toLowerCase()
+      if (!hay.includes(kw)) return false
+    }
+    return true
+  })
+})
+
+const pagedProjects = computed(() => {
+  const start = (currentPage.value - 1) * pageSize
+  return filteredProjects.value.slice(start, start + pageSize)
+})
+
+const hasFilter = computed(() =>
+  !!searchKeyword.value.trim() || !!filterStatus.value || !!filterStep.value
+)
 
 function stepPercent(value) {
   const idx = stepOrder.findIndex(s => s.value === value)
@@ -157,19 +202,15 @@ function stepColor(value) {
   return hit ? hit.color : '#c0c4cc'
 }
 
-function dbTypeLabel(value) {
-  const hit = ai_db_type.value.find(d => d.value === value)
-  return hit ? hit.label : value
-}
-
-function stepLabel(value) {
-  const hit = ai_project_step.value.find(d => d.value === value)
-  return hit ? hit.label : value || '未开始'
-}
-
 function formatTime(value) {
   if (!value) return ''
   return String(value).replace('T', ' ').slice(0, 16)
+}
+
+function resetFilter() {
+  searchKeyword.value = ''
+  filterStatus.value = ''
+  filterStep.value = ''
 }
 
 function goAdmin() {
@@ -180,29 +221,27 @@ function goCreate() {
   router.push('/portal/create')
 }
 
-function goProject(id) {
-  router.push(`/portal/project/${id}`)
+function goProject(item) {
+  const step = item.step || 'REQ'
+  const routeName = stepRouteMap[step] || 'req'
+  router.push(`/portal/project/${item.projectId}/${routeName}`)
 }
 
-function getList() {
+function getAllList() {
   loading.value = true
-  listProject(queryParams.value).then(response => {
-    projectList.value = response.rows || []
-    total.value = response.total || 0
+  listProject({ pageNum: 1, pageSize: 1000 }).then(response => {
+    allProjectList.value = response.rows || []
     loading.value = false
   }).catch(() => {
     loading.value = false
   })
 }
 
-function getAllList() {
-  listProject({ pageNum: 1, pageSize: 1000 }).then(response => {
-    allProjectList.value = response.rows || []
-  })
-}
+watch([searchKeyword, filterStatus, filterStep], () => {
+  currentPage.value = 1
+})
 
 onMounted(() => {
-  getList()
   getAllList()
 })
 </script>
@@ -213,6 +252,8 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   background: #f7f8fa;
+  padding: 0 24px;
+  overflow-x: clip;
 }
 
 /* ===== Header ===== */
@@ -220,14 +261,13 @@ onMounted(() => {
   position: sticky;
   top: 0;
   z-index: 100;
+  margin: 0 -24px;
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .portal-header-inner {
-  max-width: 1080px;
-  margin: 0 auto;
   height: 64px;
   padding: 0 24px;
   display: flex;
@@ -376,6 +416,22 @@ onMounted(() => {
   font-size: 13px;
   color: #86909c;
   margin-top: 2px;
+}
+
+/* ===== Filter Bar ===== */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.filter-search { width: 280px; max-width: 100%; }
+.filter-select { width: 150px; }
+
+@media (max-width: 768px) {
+  .filter-search { width: 100%; }
+  .filter-select { flex: 1; min-width: 120px; }
 }
 
 /* ===== Project List ===== */
