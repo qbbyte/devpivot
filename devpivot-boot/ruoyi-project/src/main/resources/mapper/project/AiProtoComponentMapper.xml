@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.project.mapper.AiProtoComponentMapper">
+    
+    <resultMap type="AiProtoComponent" id="AiProtoComponentResult">
+        <result property="compId"    column="comp_id"    />
+        <result property="pageId"    column="page_id"    />
+        <result property="compType"    column="comp_type"    />
+        <result property="compName"    column="comp_name"    />
+        <result property="fieldName"    column="field_name"    />
+        <result property="fieldType"    column="field_type"    />
+        <result property="required"    column="required"    />
+        <result property="defaultValue"    column="default_value"    />
+        <result property="validateRule"    column="validate_rule"    />
+        <result property="widthSpan"    column="width_span"    />
+        <result property="bizDesc"    column="biz_desc"    />
+        <result property="interactDesc"    column="interact_desc"    />
+        <result property="parentId"    column="parent_id"    />
+        <result property="sort"    column="sort"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectAiProtoComponentVo">
+        select comp_id, page_id, comp_type, comp_name, field_name, field_type, required, default_value, validate_rule, width_span, biz_desc, interact_desc, parent_id, sort, create_by, create_time, update_by, update_time, remark from ai_proto_component
+    </sql>
+
+    <select id="selectAiProtoComponentList" parameterType="AiProtoComponent" resultMap="AiProtoComponentResult">
+        <include refid="selectAiProtoComponentVo"/>
+        <where>  
+            <if test="pageId != null "> and page_id = #{pageId}</if>
+            <if test="compType != null  and compType != ''"> and comp_type = #{compType}</if>
+            <if test="compName != null  and compName != ''"> and comp_name like concat('%', #{compName}, '%')</if>
+            <if test="fieldName != null  and fieldName != ''"> and field_name like concat('%', #{fieldName}, '%')</if>
+            <if test="fieldType != null  and fieldType != ''"> and field_type = #{fieldType}</if>
+            <if test="required != null  and required != ''"> and required = #{required}</if>
+            <if test="defaultValue != null  and defaultValue != ''"> and default_value = #{defaultValue}</if>
+            <if test="validateRule != null  and validateRule != ''"> and validate_rule = #{validateRule}</if>
+            <if test="widthSpan != null "> and width_span = #{widthSpan}</if>
+            <if test="bizDesc != null  and bizDesc != ''"> and biz_desc = #{bizDesc}</if>
+            <if test="interactDesc != null  and interactDesc != ''"> and interact_desc = #{interactDesc}</if>
+            <if test="parentId != null "> and parent_id = #{parentId}</if>
+            <if test="sort != null "> and sort = #{sort}</if>
+        </where>
+    </select>
+    
+    <select id="selectAiProtoComponentByCompId" parameterType="Long" resultMap="AiProtoComponentResult">
+        <include refid="selectAiProtoComponentVo"/>
+        where comp_id = #{compId}
+    </select>
+
+    <insert id="insertAiProtoComponent" parameterType="AiProtoComponent" useGeneratedKeys="true" keyProperty="compId">
+        insert into ai_proto_component
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="pageId != null">page_id,</if>
+            <if test="compType != null">comp_type,</if>
+            <if test="compName != null">comp_name,</if>
+            <if test="fieldName != null">field_name,</if>
+            <if test="fieldType != null">field_type,</if>
+            <if test="required != null">required,</if>
+            <if test="defaultValue != null">default_value,</if>
+            <if test="validateRule != null">validate_rule,</if>
+            <if test="widthSpan != null">width_span,</if>
+            <if test="bizDesc != null">biz_desc,</if>
+            <if test="interactDesc != null">interact_desc,</if>
+            <if test="parentId != null">parent_id,</if>
+            <if test="sort != null">sort,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="pageId != null">#{pageId},</if>
+            <if test="compType != null">#{compType},</if>
+            <if test="compName != null">#{compName},</if>
+            <if test="fieldName != null">#{fieldName},</if>
+            <if test="fieldType != null">#{fieldType},</if>
+            <if test="required != null">#{required},</if>
+            <if test="defaultValue != null">#{defaultValue},</if>
+            <if test="validateRule != null">#{validateRule},</if>
+            <if test="widthSpan != null">#{widthSpan},</if>
+            <if test="bizDesc != null">#{bizDesc},</if>
+            <if test="interactDesc != null">#{interactDesc},</if>
+            <if test="parentId != null">#{parentId},</if>
+            <if test="sort != null">#{sort},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAiProtoComponent" parameterType="AiProtoComponent">
+        update ai_proto_component
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="pageId != null">page_id = #{pageId},</if>
+            <if test="compType != null">comp_type = #{compType},</if>
+            <if test="compName != null">comp_name = #{compName},</if>
+            <if test="fieldName != null">field_name = #{fieldName},</if>
+            <if test="fieldType != null">field_type = #{fieldType},</if>
+            <if test="required != null">required = #{required},</if>
+            <if test="defaultValue != null">default_value = #{defaultValue},</if>
+            <if test="validateRule != null">validate_rule = #{validateRule},</if>
+            <if test="widthSpan != null">width_span = #{widthSpan},</if>
+            <if test="bizDesc != null">biz_desc = #{bizDesc},</if>
+            <if test="interactDesc != null">interact_desc = #{interactDesc},</if>
+            <if test="parentId != null">parent_id = #{parentId},</if>
+            <if test="sort != null">sort = #{sort},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where comp_id = #{compId}
+    </update>
+
+    <delete id="deleteAiProtoComponentByCompId" parameterType="Long">
+        delete from ai_proto_component where comp_id = #{compId}
+    </delete>
+
+    <delete id="deleteAiProtoComponentByCompIds" parameterType="String">
+        delete from ai_proto_component where comp_id in 
+        <foreach item="compId" collection="array" open="(" separator="," close=")">
+            #{compId}
+        </foreach>
+    </delete>
+</mapper>

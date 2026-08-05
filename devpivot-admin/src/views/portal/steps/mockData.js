@@ -1,47 +1,4 @@
 // Mock 数据 - AI 澄清对话
-export const mockModels = [
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    provider: 'deepseek',
-    description: '中文优化，性价比高',
-    enabled: true,
-    isDefault: true
-  },
-  {
-    id: 'gpt4o',
-    name: 'GPT-4o',
-    provider: 'openai',
-    description: '综合能力强',
-    enabled: true,
-    isDefault: true
-  },
-  {
-    id: 'claude',
-    name: 'Claude',
-    provider: 'anthropic',
-    description: '逻辑严谨，安全性高',
-    enabled: true,
-    isDefault: false
-  },
-  {
-    id: 'tongyi',
-    name: '通义千问',
-    provider: 'alibaba',
-    description: '中文理解好，免费额度大',
-    enabled: true,
-    isDefault: false
-  },
-  {
-    id: 'wenxin',
-    name: '文心一言',
-    provider: 'baidu',
-    description: '中文生成流畅',
-    enabled: true,
-    isDefault: false
-  }
-]
-
 export const mockConversation = [
   {
     id: 'msg_001',

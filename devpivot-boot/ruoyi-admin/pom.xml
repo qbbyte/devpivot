@@ -60,6 +60,12 @@
             <artifactId>ruoyi-ai</artifactId>
         </dependency>
 
+        <!-- AI 需求设计业务域模块（项目/澄清/PRD/原型/技术方案/库表等）-->
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>ruoyi-project</artifactId>
+        </dependency>
+
     </dependencies>
 
     <build>

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.project.mapper.AiDbTableMapper">
+    
+    <resultMap type="AiDbTable" id="AiDbTableResult">
+        <result property="tableId"    column="table_id"    />
+        <result property="projectId"    column="project_id"    />
+        <result property="tableName"    column="table_name"    />
+        <result property="tableComment"    column="table_comment"    />
+        <result property="dbType"    column="db_type"    />
+        <result property="relationDesc"    column="relation_desc"    />
+        <result property="ddlSql"    column="ddl_sql"    />
+        <result property="checkReport"    column="check_report"    />
+        <result property="status"    column="status"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectAiDbTableVo">
+        select table_id, project_id, table_name, table_comment, db_type, relation_desc, ddl_sql, check_report, status, create_by, create_time, update_by, update_time, remark from ai_db_table
+    </sql>
+
+    <select id="selectAiDbTableList" parameterType="AiDbTable" resultMap="AiDbTableResult">
+        <include refid="selectAiDbTableVo"/>
+        <where>  
+            <if test="projectId != null "> and project_id = #{projectId}</if>
+            <if test="tableName != null  and tableName != ''"> and table_name like concat('%', #{tableName}, '%')</if>
+            <if test="tableComment != null  and tableComment != ''"> and table_comment = #{tableComment}</if>
+            <if test="dbType != null  and dbType != ''"> and db_type = #{dbType}</if>
+            <if test="relationDesc != null  and relationDesc != ''"> and relation_desc = #{relationDesc}</if>
+            <if test="ddlSql != null  and ddlSql != ''"> and ddl_sql = #{ddlSql}</if>
+            <if test="checkReport != null  and checkReport != ''"> and check_report = #{checkReport}</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+        </where>
+    </select>
+    
+    <select id="selectAiDbTableByTableId" parameterType="Long" resultMap="AiDbTableResult">
+        <include refid="selectAiDbTableVo"/>
+        where table_id = #{tableId}
+    </select>
+
+    <insert id="insertAiDbTable" parameterType="AiDbTable" useGeneratedKeys="true" keyProperty="tableId">
+        insert into ai_db_table
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">project_id,</if>
+            <if test="tableName != null and tableName != ''">table_name,</if>
+            <if test="tableComment != null">table_comment,</if>
+            <if test="dbType != null">db_type,</if>
+            <if test="relationDesc != null">relation_desc,</if>
+            <if test="ddlSql != null">ddl_sql,</if>
+            <if test="checkReport != null">check_report,</if>
+            <if test="status != null">status,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">#{projectId},</if>
+            <if test="tableName != null and tableName != ''">#{tableName},</if>
+            <if test="tableComment != null">#{tableComment},</if>
+            <if test="dbType != null">#{dbType},</if>
+            <if test="relationDesc != null">#{relationDesc},</if>
+            <if test="ddlSql != null">#{ddlSql},</if>
+            <if test="checkReport != null">#{checkReport},</if>
+            <if test="status != null">#{status},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAiDbTable" parameterType="AiDbTable">
+        update ai_db_table
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="projectId != null">project_id = #{projectId},</if>
+            <if test="tableName != null and tableName != ''">table_name = #{tableName},</if>
+            <if test="tableComment != null">table_comment = #{tableComment},</if>
+            <if test="dbType != null">db_type = #{dbType},</if>
+            <if test="relationDesc != null">relation_desc = #{relationDesc},</if>
+            <if test="ddlSql != null">ddl_sql = #{ddlSql},</if>
+            <if test="checkReport != null">check_report = #{checkReport},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where table_id = #{tableId}
+    </update>
+
+    <delete id="deleteAiDbTableByTableId" parameterType="Long">
+        delete from ai_db_table where table_id = #{tableId}
+    </delete>
+
+    <delete id="deleteAiDbTableByTableIds" parameterType="String">
+        delete from ai_db_table where table_id in 
+        <foreach item="tableId" collection="array" open="(" separator="," close=")">
+            #{tableId}
+        </foreach>
+    </delete>
+</mapper>

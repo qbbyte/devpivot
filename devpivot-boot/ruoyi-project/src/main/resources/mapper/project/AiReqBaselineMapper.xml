@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.project.mapper.AiReqBaselineMapper">
+    
+    <resultMap type="AiReqBaseline" id="AiReqBaselineResult">
+        <result property="baselineId"    column="baseline_id"    />
+        <result property="projectId"    column="project_id"    />
+        <result property="content"    column="content"    />
+        <result property="status"    column="status"    />
+        <result property="sourceModel"    column="source_model"    />
+        <result property="modelParams"    column="model_params"    />
+        <result property="createBy"    column="create_by"    />
+        <result property="createTime"    column="create_time"    />
+        <result property="updateBy"    column="update_by"    />
+        <result property="updateTime"    column="update_time"    />
+        <result property="remark"    column="remark"    />
+    </resultMap>
+
+    <sql id="selectAiReqBaselineVo">
+        select baseline_id, project_id, content, status, source_model, model_params, create_by, create_time, update_by, update_time, remark from ai_req_baseline
+    </sql>
+
+    <select id="selectAiReqBaselineList" parameterType="AiReqBaseline" resultMap="AiReqBaselineResult">
+        <include refid="selectAiReqBaselineVo"/>
+        <where>  
+            <if test="projectId != null "> and project_id = #{projectId}</if>
+            <if test="content != null  and content != ''"> and content = #{content}</if>
+            <if test="status != null  and status != ''"> and status = #{status}</if>
+            <if test="sourceModel != null  and sourceModel != ''"> and source_model = #{sourceModel}</if>
+            <if test="modelParams != null  and modelParams != ''"> and model_params = #{modelParams}</if>
+        </where>
+    </select>
+    
+    <select id="selectAiReqBaselineByBaselineId" parameterType="Long" resultMap="AiReqBaselineResult">
+        <include refid="selectAiReqBaselineVo"/>
+        where baseline_id = #{baselineId}
+    </select>
+
+    <insert id="insertAiReqBaseline" parameterType="AiReqBaseline" useGeneratedKeys="true" keyProperty="baselineId">
+        insert into ai_req_baseline
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">project_id,</if>
+            <if test="content != null">content,</if>
+            <if test="status != null">status,</if>
+            <if test="sourceModel != null">source_model,</if>
+            <if test="modelParams != null">model_params,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">#{projectId},</if>
+            <if test="content != null">#{content},</if>
+            <if test="status != null">#{status},</if>
+            <if test="sourceModel != null">#{sourceModel},</if>
+            <if test="modelParams != null">#{modelParams},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAiReqBaseline" parameterType="AiReqBaseline">
+        update ai_req_baseline
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="projectId != null">project_id = #{projectId},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="sourceModel != null">source_model = #{sourceModel},</if>
+            <if test="modelParams != null">model_params = #{modelParams},</if>
+            <if test="createBy != null">create_by = #{createBy},</if>
+            <if test="createTime != null">create_time = #{createTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where baseline_id = #{baselineId}
+    </update>
+
+    <delete id="deleteAiReqBaselineByBaselineId" parameterType="Long">
+        delete from ai_req_baseline where baseline_id = #{baselineId}
+    </delete>
+
+    <delete id="deleteAiReqBaselineByBaselineIds" parameterType="String">
+        delete from ai_req_baseline where baseline_id in 
+        <foreach item="baselineId" collection="array" open="(" separator="," close=")">
+            #{baselineId}
+        </foreach>
+    </delete>
+</mapper>

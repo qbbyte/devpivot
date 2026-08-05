@@ -42,3 +42,12 @@ export function delAiconfig(modelId) {
     method: 'delete'
   })
 }
+
+// 测试AI模型配置是否可用（单独放大超时，避免模型响应慢被 10s 默认超时截断）
+export function testAiconfig(modelId) {
+  return request({
+    url: '/system/aiconfig/test/' + modelId,
+    method: 'get',
+    timeout: 60000
+  })
+}

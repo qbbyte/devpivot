@@ -60,6 +60,10 @@
       </section>
 
       <section class="portal-body">
+        <div class="section-header">
+          <h2 class="section-title">项目列表</h2>
+          <span class="section-count">共 {{ filteredProjects.length }} 个项目</span>
+        </div>
         <div class="filter-bar">
           <el-input
             v-model="searchKeyword"
@@ -74,7 +78,10 @@
           <el-select v-model="filterStep" class="filter-select" placeholder="当前阶段" clearable>
             <el-option v-for="s in ai_project_step" :key="s.value" :label="s.label" :value="s.value" />
           </el-select>
-          <el-button v-if="hasFilter" text type="primary" @click="resetFilter">重置筛选</el-button>
+          <div class="filter-bar-spacer"></div>
+          <el-button v-if="hasFilter" class="filter-reset" @click="resetFilter">
+            <el-icon><RefreshRight /></el-icon>重置
+          </el-button>
         </div>
 
         <template v-if="!loading && filteredProjects.length > 0">
@@ -251,7 +258,7 @@ onMounted(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f7f8fa;
+  background: #f5f6f9;
   padding: 0 24px;
   overflow-x: clip;
 }
@@ -262,13 +269,13 @@ onMounted(() => {
   top: 0;
   z-index: 100;
   margin: 0 -24px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .portal-header-inner {
-  height: 64px;
+  height: 60px;
   padding: 0 24px;
   display: flex;
   align-items: center;
@@ -282,159 +289,181 @@ onMounted(() => {
 }
 
 .brand-logo {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #409eff, #6a5cff);
+  background: linear-gradient(135deg, #3370ff, #6e52ff);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 10px rgba(64, 158, 255, 0.25);
+  box-shadow: 0 4px 12px rgba(51, 112, 255, 0.3);
 }
 
 .brand-name {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
-  color: #1f2329;
+  color: #1d2129;
   letter-spacing: 0.3px;
 }
 
 .admin-btn {
   border-radius: 8px;
   padding: 8px 16px;
-  color: #4b5565;
-  border-color: #e5e7eb;
+  font-size: 13px;
+  color: #4e5969;
+  border-color: #e5e6eb;
 
   &:hover {
-    color: #409eff;
-    border-color: #409eff;
-    background: rgba(64, 158, 255, 0.06);
+    color: #3370ff;
+    border-color: #3370ff;
+    background: rgba(51, 112, 255, 0.06);
   }
 
-  .el-icon {
-    margin-right: 6px;
-  }
+  .el-icon { margin-right: 5px; }
 }
 
 /* ===== Main ===== */
 .portal-main {
   flex: 1;
   width: 100%;
-  max-width: 1080px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 56px 24px 40px;
+  padding: 48px 24px 36px;
 }
 
+/* ----- Hero ----- */
 .portal-hero {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 40px;
+  gap: 20px;
+  margin-bottom: 36px;
 }
 
 .hero-left h1 {
-  margin: 0 0 12px;
-  font-size: 32px;
+  margin: 0 0 8px;
+  font-size: 28px;
   font-weight: 700;
-  color: #1f2329;
+  color: #1d2129;
   letter-spacing: 0.5px;
+  line-height: 1.3;
 }
 
 .hero-left p {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
   color: #86909c;
+  line-height: 1.6;
 }
 
 .create-btn {
   border-radius: 8px;
-  padding: 10px 20px;
+  padding: 10px 22px;
   font-size: 14px;
+  font-weight: 500;
+  background: linear-gradient(135deg, #3370ff, #5b8bff);
+  border: none;
 
-  .el-icon {
-    margin-right: 6px;
+  &:hover {
+    background: linear-gradient(135deg, #2563eb, #4a7fff);
   }
+
+  .el-icon { margin-right: 6px; }
 }
 
-/* ===== Stats ===== */
+/* ----- Stats ----- */
 .portal-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 16px;
-  margin-bottom: 40px;
+  margin-bottom: 32px;
 }
 
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
   background: #fff;
-  border-radius: 12px;
-  padding: 18px 20px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  padding: 20px 22px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 4px 16px rgba(0, 0, 0, 0.03);
 }
 
 .stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
 }
 
-.stat-total {
-  background: linear-gradient(135deg, #409eff, #6a5cff);
-}
-
-.stat-doing {
-  background: linear-gradient(135deg, #ffb64d, #ff8f4d);
-}
-
-.stat-done {
-  background: linear-gradient(135deg, #34d399, #10b981);
-}
+.stat-total { background: linear-gradient(135deg, #3370ff, #5b8bff); }
+.stat-doing  { background: linear-gradient(135deg, #ff9500, #ffb340); }
+.stat-done  { background: linear-gradient(135deg, #00b42a, #30c46c); }
 
 .stat-num {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
-  color: #1f2329;
+  color: #1d2129;
   line-height: 1.2;
+  letter-spacing: -0.5px;
 }
 
 .stat-label {
   font-size: 13px;
   color: #86909c;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
-/* ===== Filter Bar ===== */
+/* ----- Section Header ----- */
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.section-count {
+  font-size: 13px;
+  color: #86909c;
+}
+
+/* ----- Filter Bar ----- */
 .filter-bar {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
   flex-wrap: wrap;
+  padding: 14px 18px;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #eeeef0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
-.filter-search { width: 280px; max-width: 100%; }
-.filter-select { width: 150px; }
-
-@media (max-width: 768px) {
-  .filter-search { width: 100%; }
-  .filter-select { flex: 1; min-width: 120px; }
+.filter-search { width: 320px; max-width: 100%; }
+.filter-select { width: 150px; flex-shrink: 0; }
+.filter-bar-spacer { flex: 1; min-width: 40px; }
+.filter-reset {
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 
-/* ===== Project List ===== */
+/* ----- Project List ----- */
 .project-list {
   display: flex;
   flex-direction: column;
@@ -444,19 +473,17 @@ onMounted(() => {
 .project-card {
   background: #fff;
   border-radius: 12px;
-  padding: 20px;
+  padding: 20px 22px;
   border: 1px solid #f0f1f3;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
   display: flex;
   gap: 24px;
   cursor: pointer;
 }
 
 .project-card:hover {
-  transform: translateY(-2px);
-  border-color: #e4ecfb;
-  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.08);
+  border-color: #d6e4ff;
+  box-shadow: 0 8px 24px rgba(51, 112, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.03);
 }
 
 .project-card-left {
@@ -464,50 +491,12 @@ onMounted(() => {
   min-width: 0;
 }
 
-.project-card-right {
-  width: 120px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 6px;
-  padding-left: 20px;
-  border-left: 1px solid #f0f1f3;
-}
-
-.project-card-right .step-percent {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2329;
-}
-
-@media (max-width: 768px) {
-  .portal-stats {
-    grid-template-columns: 1fr;
-  }
-  .portal-hero {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .project-card {
-    flex-direction: column;
-    gap: 16px;
-  }
-  .project-card-right {
-    width: 100%;
-    padding-left: 0;
-    border-left: none;
-    border-top: 1px solid #f0f1f3;
-    padding-top: 16px;
-  }
-}
-
 .project-card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
 .project-name {
@@ -518,19 +507,19 @@ onMounted(() => {
 }
 
 .name-text {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  color: #1f2329;
+  color: #1d2129;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .project-intro {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 13px;
   color: #4e5969;
-  line-height: 1.7;
+  line-height: 1.65;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -540,7 +529,7 @@ onMounted(() => {
 .project-meta {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
   color: #86909c;
   font-size: 12px;
 }
@@ -551,42 +540,90 @@ onMounted(() => {
   gap: 4px;
 }
 
+/* ----- Card Right (Progress) ----- */
+.project-card-right {
+  width: 110px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 7px;
+  padding-left: 20px;
+  border-left: 1px solid #f2f3f5;
+}
+
 .project-card-right .step-percent {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  color: #1f2329;
+  color: var(--step-accent, #1d2129);
+  line-height: 1;
 }
 
 .project-card-right .el-tag {
   align-self: flex-end;
 }
 
-.project-step :deep(.el-progress-bar__outer) {
-  background-color: #f0f1f3;
-}
-
-.project-step :deep(.el-progress-bar__inner) {
-  border-radius: 4px;
-}
-
+/* ----- Loading / Empty ----- */
 .loading-mask {
   min-height: 120px;
 }
 
-/* ===== Pagination ===== */
+/* ----- Pagination ----- */
 .pagination-wrap {
   display: flex;
   justify-content: center;
   margin-top: 24px;
 }
 
-/* ===== Footer ===== */
+/* ----- Footer ----- */
 .portal-footer {
   text-align: center;
-  padding: 20px 16px;
+  padding: 18px 16px;
   color: #c0c4cc;
   font-size: 12px;
-  background: #fff;
-  border-top: 1px solid #f0f1f3;
+  background: transparent;
+  border-top: none;
+  margin-top: auto;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+  .portal-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 28px;
+  }
+
+  .portal-stats {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .filter-bar { padding: 12px 14px; gap: 10px; }
+  .filter-search { width: 100%; flex: 1 1 100%; }
+  .filter-select { flex: 1; min-width: 120px; }
+  .filter-bar-spacer { display: none; }
+
+  .project-card {
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px 18px;
+  }
+
+  .project-card-right {
+    width: 100%;
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid #f2f3f5;
+    padding-top: 14px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .project-card-right .step-percent {
+    font-size: 18px;
+  }
 }
 </style>

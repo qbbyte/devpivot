@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.project.mapper.AiClarifySessionMapper">
+
+    <resultMap type="AiClarifySession" id="AiClarifySessionResult">
+        <result property="sessionId"    column="session_id"/>
+        <result property="projectId"    column="project_id"/>
+        <result property="conversation" column="conversation"/>
+        <result property="adopted"      column="adopted"/>
+        <result property="retained"     column="retained"/>
+        <result property="conclusion"   column="conclusion"/>
+        <result property="status"       column="status"/>
+        <result property="submitTime"   column="submit_time"/>
+        <result property="delFlag"      column="del_flag"/>
+        <result property="createBy"     column="create_by"/>
+        <result property="createTime"   column="create_time"/>
+        <result property="updateBy"     column="update_by"/>
+        <result property="updateTime"   column="update_time"/>
+        <result property="remark"       column="remark"/>
+    </resultMap>
+
+    <sql id="selectAiClarifySessionVo">
+        select session_id, project_id, conversation, adopted, retained, conclusion,
+               status, submit_time, del_flag, create_by, create_time, update_by, update_time, remark
+        from ai_clarify_session
+    </sql>
+
+    <select id="selectAiClarifySessionByProjectId" parameterType="Long" resultMap="AiClarifySessionResult">
+        <include refid="selectAiClarifySessionVo"/>
+        where project_id = #{projectId} and del_flag = '0'
+    </select>
+
+    <insert id="insertAiClarifySession" parameterType="AiClarifySession" useGeneratedKeys="true" keyProperty="sessionId">
+        insert into ai_clarify_session
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">project_id,</if>
+            <if test="conversation != null">conversation,</if>
+            <if test="adopted != null">adopted,</if>
+            <if test="retained != null">retained,</if>
+            <if test="conclusion != null">conclusion,</if>
+            <if test="status != null">status,</if>
+            <if test="submitTime != null">submit_time,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">#{projectId},</if>
+            <if test="conversation != null">#{conversation},</if>
+            <if test="adopted != null">#{adopted},</if>
+            <if test="retained != null">#{retained},</if>
+            <if test="conclusion != null">#{conclusion},</if>
+            <if test="status != null">#{status},</if>
+            <if test="submitTime != null">#{submitTime},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <update id="updateAiClarifySession" parameterType="AiClarifySession">
+        update ai_clarify_session
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="projectId != null">project_id = #{projectId},</if>
+            <if test="conversation != null">conversation = #{conversation},</if>
+            <if test="adopted != null">adopted = #{adopted},</if>
+            <if test="retained != null">retained = #{retained},</if>
+            <if test="conclusion != null">conclusion = #{conclusion},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="submitTime != null">submit_time = #{submitTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where session_id = #{sessionId}
+    </update>
+
+    <update id="updateAiClarifySessionByProjectId" parameterType="AiClarifySession">
+        update ai_clarify_session
+        <trim prefix="SET" suffixOverrides=",">
+            <if test="conversation != null">conversation = #{conversation},</if>
+            <if test="adopted != null">adopted = #{adopted},</if>
+            <if test="retained != null">retained = #{retained},</if>
+            <if test="conclusion != null">conclusion = #{conclusion},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="submitTime != null">submit_time = #{submitTime},</if>
+            <if test="updateBy != null">update_by = #{updateBy},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </trim>
+        where project_id = #{projectId} and del_flag = '0'
+    </update>
+
+</mapper>

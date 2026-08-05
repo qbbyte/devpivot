@@ -70,13 +70,14 @@
               <div class="welcome-desc">AI 将根据您的需求基线提出针对性问题，帮您完善需求细节</div>
             </div>
 
-            <template v-for="msg in messages" :key="msg.id">
+            <template v-for="msg in visibleMessages" :key="msg.id">
               <div class="chat-message ai-message" v-if="msg.type === 'ai_question'">
                 <div class="message-avatar">
                   <el-icon :size="18"><Monitor /></el-icon>
                 </div>
                 <div class="message-content">
                   <div class="message-bubble" v-html="formatMessage(msg.content)"></div>
+                  <div class="message-time"><span class="message-author">{{ msg.author }}</span> · {{ msg.timestamp }}</div>
                   <div class="message-options" v-if="msg.options">
                     <div
                       v-for="opt in msg.options"
@@ -95,7 +96,7 @@
               <div class="chat-message user-message" v-else-if="msg.type === 'user_answer'">
                 <div class="message-content">
                   <div class="message-bubble">{{ msg.content }}</div>
-                  <div class="message-time">{{ msg.timestamp }}</div>
+                  <div class="message-time"><span class="message-author">{{ msg.author }}</span> · {{ msg.timestamp }}</div>
                 </div>
                 <div class="message-avatar user-avatar">
                   <el-icon :size="18"><User /></el-icon>
@@ -106,7 +107,7 @@
                 <div class="message-content">
                   <div class="message-caption">需求补充</div>
                   <div class="message-bubble">{{ msg.content }}</div>
-                  <div class="message-time">{{ msg.timestamp }}</div>
+                  <div class="message-time"><span class="message-author">{{ msg.author }}</span> · {{ msg.timestamp }}</div>
                 </div>
                 <div class="message-avatar user-avatar">
                   <el-icon :size="18"><User /></el-icon>
@@ -114,64 +115,72 @@
               </div>
 
               <div class="chat-message ai-multi-message" v-else-if="msg.type === 'ai_multi_response'">
-                <div class="multi-wrap">
-                  <div
-                    class="multi-responses"
-                    :data-id="msg.id"
-                    @wheel="onMultiWheel"
-                    @mousedown="onMultiDown"
-                    @mousemove="onMultiMove"
-                    @mouseup="onMultiUp"
-                    @mouseleave="onMultiUp"
-                    @scroll="onMultiScroll"
-                    @click.capture="onMultiClick"
-                  >
+                <div class="message-avatar">
+                  <el-icon :size="18"><Monitor /></el-icon>
+                </div>
+                <div class="multi-content">
+                  <div class="multi-wrap">
                     <div
-                      v-for="resp in msg.modelResponses"
-                      :key="resp.modelId"
-                      class="response-card"
+                      class="multi-responses"
+                      :data-id="msg.id"
+                      @wheel="onMultiWheel"
+                      @mousedown="onMultiDown"
+                      @mousemove="onMultiMove"
+                      @mouseup="onMultiUp"
+                      @mouseleave="onMultiUp"
+                      @scroll="onMultiScroll"
+                      @click.capture="onMultiClick"
                     >
-                      <div class="response-header">
-                        <span class="model-name">{{ resp.modelName }}</span>
-                        <span class="response-time" v-if="resp.latency">{{ resp.latency }}ms</span>
-                      </div>
-                      <div class="resp-body" v-overflow>
-                        <div class="response-content" v-html="formatMessage(resp.content)"></div>
-                        <div class="resp-fade"></div>
-                        <button class="view-more" @click="openResponseDetail(resp)">查看完整回答 ›</button>
-                      </div>
-                      <div class="response-actions">
-                        <el-button
-                          size="small"
-                          type="primary"
-                          :disabled="msg.adoptedModel !== null"
-                          @click="adoptResponse(resp, msg)"
-                        >
-                          采纳
-                        </el-button>
+                      <div
+                        v-for="resp in msg.modelResponses"
+                        :key="resp.respId"
+                        class="response-card"
+                      >
+                        <div class="response-header">
+                          <span class="model-name">{{ resp.modelName }}</span>
+                          <span class="response-time" v-if="resp.latency">{{ resp.latency }}ms</span>
+                        </div>
+                        <div class="resp-body" v-overflow>
+                          <div class="response-content">
+                            <span v-if="resp.status === 'loading' && !resp.content" class="thinking">思考中…</span>
+                            <span v-else v-html="formatMessage(resp.content)"></span>
+                          </div>
+                          <div class="resp-fade"></div>
+                          <button class="view-more" @click="openResponseDetail(resp)">查看完整回答 ›</button>
+                        </div>
+                        <div class="response-actions">
+                          <el-button
+                            size="small"
+                            type="primary"
+                            :disabled="msg.adoptedModel !== null"
+                            @click="adoptResponse(resp, msg)"
+                          >
+                            采纳
+                          </el-button>
+                        </div>
                       </div>
                     </div>
+                    <div
+                      class="multi-empty"
+                      v-if="!msg.modelResponses || msg.modelResponses.length === 0"
+                    >所选模型暂无回答内容</div>
+                    <div
+                      class="multi-fade"
+                      v-show="multiState[msg.id] && multiState[msg.id].overflow"
+                    ></div>
+                    <button
+                      class="multi-arrow"
+                      v-show="multiState[msg.id] && multiState[msg.id].overflow && !multiState[msg.id].atEnd"
+                      @click="scrollMultiRight(msg.id)"
+                      title="向右滑动"
+                    >
+                      <el-icon><ArrowRight /></el-icon>
+                    </button>
                   </div>
-                  <div
-                    class="multi-empty"
-                    v-if="!msg.modelResponses || msg.modelResponses.length === 0"
-                  >所选模型暂无回答内容</div>
-                  <div
-                    class="multi-fade"
-                    v-show="multiState[msg.id] && multiState[msg.id].overflow"
-                  ></div>
-                  <button
-                    class="multi-arrow"
-                    v-show="multiState[msg.id] && multiState[msg.id].overflow && !multiState[msg.id].atEnd"
-                    @click="scrollMultiRight(msg.id)"
-                    title="向右滑动"
-                  >
-                    <el-icon><ArrowRight /></el-icon>
-                  </button>
-                </div>
-                <div class="multi-hint" v-show="multiState[msg.id] && multiState[msg.id].overflow">
-                  <el-icon><InfoFilled /></el-icon>
-                  横向滑动查看更多模型回答
+                  <div class="multi-hint" v-show="multiState[msg.id] && multiState[msg.id].overflow">
+                    <el-icon><InfoFilled /></el-icon>
+                    横向滑动查看更多模型回答
+                  </div>
                 </div>
               </div>
 
@@ -181,7 +190,7 @@
                     <el-icon><CircleCheck /></el-icon>
                     {{ msg.content }}
                   </div>
-                  <div class="message-time">{{ msg.timestamp }}</div>
+                  <div class="message-time"><span class="message-author">{{ msg.author }}</span> · {{ msg.timestamp }}</div>
                 </div>
                 <div class="message-avatar user-avatar">
                   <el-icon :size="18"><User /></el-icon>
@@ -189,7 +198,7 @@
               </div>
             </template>
 
-            <div class="chat-message ai-message" v-if="isTyping">
+            <div class="chat-message ai-message" v-if="showTypingIndicator">
               <div class="message-avatar">
                 <el-icon :size="18"><Monitor /></el-icon>
               </div>
@@ -201,6 +210,21 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!--
+            全局「是否进入下一题」提示条：放在最后一条对话与输入框之间。
+            显示条件：还有问卷题可问、当前未在流式响应中、且最后一条是 AI 问题或已完成的多模型回答。
+          -->
+          <div class="next-question-global" v-if="showGlobalNextQuestionBar">
+            <div class="next-question-hint">
+              <el-icon><InfoFilled /></el-icon>
+              <span>当前问题已澄清，是否进入下一题？</span>
+            </div>
+            <el-button type="primary" plain size="small" @click="goNextQuestion">
+              <el-icon><ArrowRight /></el-icon>
+              进入下一题
+            </el-button>
           </div>
 
           <div class="chat-input">
@@ -234,12 +258,6 @@
         </section>
       </div>
 
-      <div class="action-bar" v-if="isCompleted">
-        <el-button type="success" @click="handleSubmit">
-          <el-icon><CircleCheck /></el-icon>
-          <span>确认澄清结果，进入下一阶段</span>
-        </el-button>
-      </div>
     </main>
 
     <el-dialog
@@ -251,7 +269,7 @@
     >
       <div class="model-dialog-body">
         <p class="model-dialog-tip">请选择用于需求澄清的 AI 模型（最多 {{ maxCompareCount }} 个）</p>
-        <div class="model-list">
+        <div class="model-list" v-if="allModels.length">
           <div
             v-for="model in allModels"
             :key="model.id"
@@ -275,6 +293,7 @@
             <el-tag v-if="model.isDefault" size="small" type="success" effect="light">推荐</el-tag>
           </div>
         </div>
+        <el-empty v-else description="没有可用模型，请在后台配置 ai_model_config" />
         <div class="model-dialog-footer">
           <span class="selected-count">已选 {{ tempSelectedIds.length }}/{{ maxCompareCount }} 个模型</span>
           <div class="model-dialog-actions">
@@ -466,13 +485,57 @@
 <script setup name="StepClarify">
 import { ref, computed, onMounted, nextTick, getCurrentInstance, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import useUserStore from '@/store/modules/user'
 import { getProject } from '@/api/ai/project'
-import { mockModels, mockConversation, mockAIResponses, mockHistoryVersions } from './mockData'
+import {
+  submitClarify,
+  getModels,
+  getModelConfig,
+  getClarifySession,
+  saveSession,
+  sendMessage as sendMessageApi,
+  adoptAnswer
+} from '@/api/ai/clarify'
+import { mockHistoryVersions } from './mockData'
+
+// 澄清访谈问卷（引导式结构化访谈，属产品设计，非 AI 假数据；AI 回答由后端真实返回）
+const questionScript = [
+  {
+    content: '您好！我是 AI 需求澄清助手。为了更准确地理清需求，我们先确认几个关键点。\n\n**"系统预计需要支持多少并发用户？"**',
+    options: [
+      { label: '10人以内', value: '10' },
+      { label: '10-100人', value: '100' },
+      { label: '100-500人', value: '500' },
+      { label: '500人以上', value: '500+' },
+      { label: '其他（请说明）', value: 'other' }
+    ]
+  },
+  {
+    content: '明白了。接下来关于部署方式：\n\n**"您倾向于哪种部署方式？"**',
+    options: [
+      { label: '本地服务器', value: 'local' },
+      { label: '云服务（推荐）', value: 'cloud' },
+      { label: '混合部署', value: 'hybrid' }
+    ]
+  },
+  {
+    content: '好的。最后关于终端形态：\n\n**"是否需要移动端支持？"**',
+    options: [
+      { label: '仅 Web 端', value: 'web' },
+      { label: '需要移动端', value: 'mobile' },
+      { label: '多端统一', value: 'multi' }
+    ]
+  }
+]
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
 const route = useRoute()
 const projectId = computed(() => route.params.id)
+
+// 方案C：当前登录用户，作为消息作者标记，便于多人协作时追溯“谁说的”
+const userStore = useUserStore()
+const currentUser = computed(() => userStore.name || '我')
 
 const stepOrder = [
   { value: 'REQ', label: '需求采集' },
@@ -496,17 +559,59 @@ const stepLabel = computed(() => {
 // 模型选择相关
 const showModelDialog = ref(true)
 const conversationStarted = ref(false)
-const allModels = ref(mockModels)
+const allModels = ref([])
 const selectedModels = ref([])
 const tempSelectedIds = ref([])
 const maxCompareCount = ref(4)
 
+// 访谈问卷进度：已提出的问题数（用于恢复会话后续问 & 判断是否还有下一题）
+const currentQuestionIndex = ref(0)
+// 最近一次提问内容（用于采纳时记录上下文）
+const lastQuestionContent = ref('')
+
+// 生成全局唯一 id（自增计数器 + 时间戳），杜绝 v-for :key 因 Date.now() 同毫秒碰撞
+// 或 selectedModels 含重复模型导致的 "Cannot set properties of null (setting '__vnode')" 渲染崩溃
+let _idSeq = 0
+function genId(prefix) {
+  _idSeq += 1
+  return `${prefix}_${Date.now()}_${_idSeq}`
+}
+
+// 把模型标识里的中文/英文括号后缀（如「（完整）」、「(lite)」）去掉，
+// 避免历史脏数据把同一模型存成多个 id 导致出现重复卡片。
+function normalizeModelId(id) {
+  if (!id) return ''
+  return String(id).replace(/\s*[\uff08\u0028][^\uff09\u0029]*[\uff09\u0029]\s*$/g, '').trim()
+}
+
 // 对话相关
 const messages = ref([])
+// 渲染时过滤掉“空壳”AI消息：旧数据/model调用失败时可能落库空 modelResponses，
+// 避免页面上出现孤立的 AI 头像或“所选模型暂无回答内容”堆积。
+function isBlankContent(c) {
+  if (!c) return true
+  const text = String(c).replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim()
+  return text.length === 0
+}
+const visibleMessages = computed(() => messages.value.filter(msg => {
+  if (msg.type === 'ai_multi_response') {
+    return Array.isArray(msg.modelResponses) && msg.modelResponses.length > 0
+  }
+  if (msg.type === 'ai_question') {
+    return !isBlankContent(msg.content)
+  }
+  return true
+}))
+// 输入指示器（"..."）只在还没有 AI 占位气泡时才显示。
+// 已有 ai_multi_response 时其卡片自带「思考中…」状态，再叠一个 typing 气泡会出现上下两个 AI 头像的冗余。
+const showTypingIndicator = computed(() => {
+  if (!isTyping.value) return false
+  const last = messages.value[messages.value.length - 1]
+  return !(last && last.type === 'ai_multi_response')
+})
 const inputMessage = ref('')
 const inputFocused = ref(false)
 const isTyping = ref(false)
-const userInteracted = ref(false)
 const chatContainer = ref(null)
 
 // 统计：进度基于真实问答，而非写死数值
@@ -530,9 +635,6 @@ const answeredCount = computed(() => {
 const progressPercent = computed(() =>
   totalQuestions.value ? Math.round((answeredCount.value / totalQuestions.value) * 100) : 0
 )
-// 收口条件：用户已有实质交互（至少回答一个问题）即可结束澄清
-const isCompleted = computed(() => userInteracted.value && answeredCount.value > 0)
-
 const canSend = computed(() => inputMessage.value.trim() && !isTyping.value)
 
 function handleKeyEnter(e) {
@@ -575,131 +677,305 @@ function toggleModel(model) {
 function confirmModels() {
   selectedModels.value = allModels.value.filter(m => tempSelectedIds.value.includes(m.id))
   showModelDialog.value = false
-  // 仅首次确认时初始化对话；之后切换模型只更新所选模型，不清空已有对话
-  if (!conversationStarted.value) {
-    initConversation()
-    conversationStarted.value = true
+  // 会话初始化与首题播种统一由 onMounted 的 loadSession 负责，这里仅更新所选模型
+}
+
+// 加载模型列表与系统配置（真实接口）
+async function loadModels() {
+  try {
+    const [mRes, cRes] = await Promise.all([getModels(), getModelConfig()])
+    if (mRes && mRes.data && mRes.data.length) {
+      allModels.value = mRes.data
+    } else {
+      // 未获取到任何已配置模型：清空并提示用户，不写死兜底清单
+      allModels.value = []
+      proxy.$modal.msgWarning('没有可用模型，请在后台配置 ai_model_config')
+    }
+    if (cRes && cRes.data && cRes.data.maxCompareCount) {
+      maxCompareCount.value = cRes.data.maxCompareCount
+    }
+  } catch (e) {
+    // 请求失败（后端未就绪等）：同样提示没有可用模型，不回退到写死清单
+    allModels.value = []
+    proxy.$modal.msgWarning('没有可用模型，请在后台配置 ai_model_config')
   }
 }
 
-function initConversation() {
-  const cloud = mockAIResponses.cloud
-  const base = mockConversation.map(m => {
-    if (m.type === 'ai_multi_response') {
-      return { ...m, modelResponses: buildModelResponses(cloud) }
+// 恢复已有会话（真实接口）：若后端已有对话则还原，否则播种第一题
+async function loadSession() {
+  try {
+    const res = await getClarifySession(projectId.value)
+    const session = res.data
+    let conv = session && session.conversation
+    // 关键修复：库中 conversation 以 JSON 字符串存储，需解析为数组；
+    // 之前直接 Array.isArray(字符串) 恒为 false，导致每次刷新都重新播种、丢失全部记录。
+    if (typeof conv === 'string' && conv.trim()) {
+      try { conv = JSON.parse(conv) } catch (e) { conv = null }
     }
-    return { ...m }
+    if (Array.isArray(conv) && conv.length) {
+      // 兼容旧数据：
+      // 1. 后端早期落库的 ai_multi_response.modelResponses 无 respId，前端模板 key 依赖 respId；
+      //    缺 key 会导致 v-for 重复 key 渲染异常，因此为每条缺失 respId 的回答补一个唯一 key。
+      // 2. 历史脏数据/模型配置里可能把同一模型存成两个 modelId（如 qwen3.7-max 与 qwen3.7-max（完整）），
+      //    按归一化后的 modelId 去重，避免同一模型出现两条卡片。
+      //    注意：务必保留原始的 modelId/modelName（不要重写写入库的 id），否则会与后端回传的
+      //    token/done 事件里的 modelId 对不上，导致 content/status 无法更新、刷新后变「思考中」。
+      conv.forEach(m => {
+        if (m.type === 'ai_multi_response' && Array.isArray(m.modelResponses)) {
+          const seenNorm = new Set()
+          m.modelResponses = m.modelResponses.filter(r => {
+            if (!r || !r.modelId) return false
+            const norm = normalizeModelId(r.modelId)
+            if (!norm || seenNorm.has(norm)) return false
+            seenNorm.add(norm)
+            if (!r.respId) r.respId = genId('resp')
+            return true
+          })
+        }
+      })
+      // 防御性修复：任何残留的 loading 状态（如上次 SSE 被中断/Access Denied 未收到 done 事件）
+      // 在恢复时一律视为 failed，避免刷新后卡片长期卡在「思考中...」。
+      conv.forEach(m => {
+        if (m.type === 'ai_multi_response' && Array.isArray(m.modelResponses)) {
+          m.modelResponses.forEach(r => {
+            if (r.status === 'loading') r.status = 'failed'
+          })
+        }
+      })
+      messages.value = conv
+      restoreSelectedModels(conv)
+      // 已恢复出历史所选模型则关闭初始选择弹窗，避免刷新后重复弹出
+      if (selectedModels.value.length) {
+        showModelDialog.value = false
+      }
+      currentQuestionIndex.value = messages.value.filter(m => m.type === 'ai_question').length
+      // 恢复保留要点
+      let retained = session && session.retained
+      if (typeof retained === 'string' && retained.trim()) {
+        try { retainedSnippets.value = JSON.parse(retained) } catch (e) { retainedSnippets.value = [] }
+      }
+      conversationStarted.value = true
+      nextTick(refreshMultiStates)
+      return
+    }
+  } catch (e) {
+    // 拉取失败则本地新建会话
+  }
+  // 无历史：播种第一题
+  askNextQuestion()
+  conversationStarted.value = true
+}
+
+// 从已落库对话中反推已选模型（用于侧栏/模型弹窗展示）
+function restoreSelectedModels(conv) {
+  const seen = new Map()
+  conv.forEach(m => {
+    if (m.type === 'ai_multi_response' && Array.isArray(m.modelResponses)) {
+      m.modelResponses.forEach(r => {
+        if (r.modelId && r.modelId !== 'unknown' && !seen.has(r.modelId)) {
+          seen.set(r.modelId, r.modelName)
+        }
+      })
+    }
   })
-  messages.value = base
+  selectedModels.value = Array.from(seen, ([id, name]) => ({ id, name }))
+}
+
+// 持久化完整对话（前端为权威源）：把整个 messages 数组与保留要点深拷贝后原样落库，
+// 供刷新页面后 loadSession 原样恢复。fire-and-forget，失败静默不影响交互。
+function persistSession() {
+  const payload = {
+    conversation: JSON.parse(JSON.stringify(messages.value)),
+    retained: JSON.parse(JSON.stringify(retainedSnippets.value))
+  }
+  saveSession(projectId.value, payload).catch(() => {})
+}
+
+// 根据问卷进度提出下一题
+function askNextQuestion() {
+  if (currentQuestionIndex.value >= questionScript.length) return
+  const q = questionScript[currentQuestionIndex.value]
+  lastQuestionContent.value = q.content
+  messages.value.push({
+    id: genId('q'),
+    type: 'ai_question',
+    content: q.content,
+    options: q.options,
+    author: 'AI助手',
+    timestamp: new Date().toLocaleString()
+  })
+  currentQuestionIndex.value++
   scrollToBottom()
   nextTick(refreshMultiStates)
+  // 把前端播种的问题也落库，确保刷新后对话完整（含 ai_question）
+  persistSession()
+}
+
+// 「进入下一题」按钮显示条件：
+// 1) msg 必须是 messages 中最后一条（避免历史回答上也冒出按钮）；
+// 2) 当前还有问卷题可问（currentQuestionIndex < questionScript.length）；
+// 3) 当前不在流式响应中（避免还没回答完就让用户跳到下一题）；
+// 4) 该回答本身已完成（没有 response 仍处于 loading）。
+function canAskNextQuestion(msg) {
+  if (!msg) return false
+  if (isTyping.value) return false
+  if (currentQuestionIndex.value >= questionScript.length) return false
+  const last = messages.value[messages.value.length - 1]
+  if (last !== msg) return false
+  if (Array.isArray(msg.modelResponses) && msg.modelResponses.some(r => r.status === 'loading')) return false
+  return true
+}
+
+// 用户主动点击「进入下一题」时调用，避免流结束后自动跳题
+function goNextQuestion() {
+  if (isTyping.value) return
+  askNextQuestion()
+}
+
+// 全局提示条显示条件：复用 canAskNextQuestion，判断最后一条消息是否允许进入下一题
+const showGlobalNextQuestionBar = computed(() => {
+  const last = messages.value[messages.value.length - 1]
+  return canAskNextQuestion(last)
+})
+
+// 发送用户回答到后端，流式获取真实模型回答（逐 token 实时渲染）
+async function sendToBackend(text) {
+  if (!selectedModels.value.length) {
+    proxy.$modal.msgWarning('请先选择至少一个 AI 模型')
+    return
+  }
+  isTyping.value = true
+  scrollToBottom()
+
+  // 本地先建一个占位 AI 多模型消息，后端逐 token 推送时实时填充。
+  // 保留 reactive()：流式回调闭包直接 mutate 这个代理对象，才能驱动 UI 实时更新；
+  // 推入 ref([]) 时同一代理会被复用，不会双重包装。每条 response 分配唯一 respId 作为 v-for key，
+  // 并对 selectedModels 按 modelId（归一化后）去重，杜绝 modelResponses 出现重复 key 引发的渲染崩溃。
+  const seenModel = new Set()
+  const aiMsg = reactive({
+    id: genId('ai'),
+    type: 'ai_multi_response',
+    modelResponses: selectedModels.value
+      .filter(m => {
+        const normId = normalizeModelId(m.id)
+        if (!normId || seenModel.has(normId)) return false
+        seenModel.add(normId)
+        return true
+      })
+      .map(m => ({
+        respId: genId('resp'),
+        modelId: m.id,
+        modelName: normalizeModelId(m.name),
+        content: '',
+        status: 'loading',
+        latency: 0
+      })),
+    adoptedModel: null,
+    author: 'AI'
+  })
+  messages.value.push(aiMsg)
+  scrollToBottom()
+
+  let streamDone = false
+  try {
+    await sendMessageApi({
+      projectId: projectId.value,
+      message: text,
+      selectedModels: selectedModels.value.map(m => ({ id: m.id, name: m.name }))
+    }, (ev) => {
+        const d = ev.data || {}
+        if (d.type === 'token') {
+          const resp = aiMsg.modelResponses.find(r => r.modelId === d.modelId)
+          if (resp) {
+            resp.content += d.delta || ''
+            scrollToBottom()
+          }
+        } else if (d.type === 'done') {
+          const resp = aiMsg.modelResponses.find(r => r.modelId === d.modelId)
+          if (resp) {
+            resp.status = d.status || 'completed'
+            resp.latency = d.latency || 0
+          }
+        } else if (d.type === 'error') {
+          const resp = aiMsg.modelResponses.find(r => r.modelId === d.modelId)
+          if (resp) {
+            resp.status = 'failed'
+            resp.content = (resp.content || '') + (d.content || '')
+          }
+        } else if (d.type === 'done-all') {
+          streamDone = true
+          // 兜底：若后端 done 事件丢失或没按模型下发，确保所有仍在 loading 的卡片变为完成
+          aiMsg.modelResponses.forEach(r => { if (r.status === 'loading') r.status = 'completed' })
+        }
+      }
+    )
+  } catch (e) {
+    proxy.$modal.msgError('AI 回复获取失败，请稍后重试')
+    aiMsg.modelResponses.forEach(r => { if (r.status === 'loading') r.status = 'failed' })
+  } finally {
+    isTyping.value = false
+    // 流完成后仅同步当前问卷进度；下一题不再自动推送，由用户点击「进入下一题」按钮触发
+    if (streamDone) {
+      currentQuestionIndex.value = messages.value.filter(m => m.type === 'ai_question').length
+    }
+    scrollToBottom()
+    nextTick(refreshMultiStates)
+  }
+  // 流结束（无论成功/失败）都全量落库，保证刷新可恢复
+  persistSession()
 }
 
 function selectOption(opt, msg) {
   if (msg) msg.selectedOption = opt.value
-  // 模拟用户回答
   const userMsg = {
-    id: `msg_${Date.now()}`,
+    id: genId('msg'),
     type: 'user_answer',
     content: opt.label,
+    author: currentUser.value,
     timestamp: new Date().toLocaleString()
   }
   messages.value.push(userMsg)
-  userInteracted.value = true
-
-  // 模拟 AI 回复
-  setTimeout(() => {
-    showTypingAndReply(opt.value)
-  }, 500)
+  sendToBackend(opt.label)
 }
 
 function sendMessage() {
   if (!inputMessage.value.trim() || isTyping.value) return
 
+  const text = inputMessage.value
   const userMsg = {
-    id: `msg_${Date.now()}`,
+    id: genId('msg'),
     type: 'user_answer',
-    content: inputMessage.value,
+    content: text,
+    author: currentUser.value,
     timestamp: new Date().toLocaleString()
   }
   messages.value.push(userMsg)
-  userInteracted.value = true
   inputMessage.value = ''
-
-  setTimeout(() => {
-    showTypingAndReply('custom')
-  }, 500)
-}
-
-function showTypingAndReply(option) {
-  isTyping.value = true
-  scrollToBottom()
-
-  setTimeout(() => {
-    isTyping.value = false
-    const aiMsg = generateAIResponse(option)
-    messages.value.push(aiMsg)
-    scrollToBottom()
-    nextTick(refreshMultiStates)
-  }, 1500)
-}
-
-function buildModelResponses(responses) {
-  return selectedModels.value
-    .filter(m => responses[m.id])
-    .map(m => ({
-      modelId: m.id,
-      modelName: m.name,
-      content: responses[m.id],
-      status: 'completed',
-      latency: Math.floor(Math.random() * 3000) + 1000
-    }))
-}
-
-function generateAIResponse(option) {
-  const responses = mockAIResponses[option] || mockAIResponses.cloud
-
-  if (selectedModels.value.length > 1) {
-    const modelResponses = buildModelResponses(responses)
-
-    return {
-      id: `msg_${Date.now()}`,
-      type: 'ai_multi_response',
-      modelResponses,
-      timestamp: new Date().toLocaleString()
-    }
-  } else {
-    const model = selectedModels.value[0] || allModels.value[0]
-    return {
-      id: `msg_${Date.now()}`,
-      type: 'ai_question',
-      content: responses[model.id] || '感谢您的回答，让我继续分析...',
-      options: getNextQuestionOptions(),
-      timestamp: new Date().toLocaleString()
-    }
-  }
-}
-
-function getNextQuestionOptions() {
-  return [
-    { label: '是', value: 'yes' },
-    { label: '否', value: 'no' },
-    { label: '需要进一步讨论', value: 'discuss' }
-  ]
+  sendToBackend(text)
 }
 
 function adoptResponse(resp, msg) {
   if (msg) msg.adoptedModel = resp.modelId
   const adoptMsg = {
-    id: `msg_${Date.now()}`,
+    id: genId('msg'),
     type: 'user_adopt',
     content: `采纳 ${resp.modelName}`,
     adoptedModel: resp.modelId,
+    author: currentUser.value,
     timestamp: new Date().toLocaleString()
   }
   messages.value.push(adoptMsg)
-  userInteracted.value = true
   proxy.$modal.msgSuccess(`已采纳 ${resp.modelName} 的回答`)
+  // 持久化采纳（含最新对话，确保刷新后可恢复采纳状态）
+  adoptAnswer({
+    projectId: projectId.value,
+    modelId: resp.modelId,
+    modelName: resp.modelName,
+    content: resp.content,
+    question: lastQuestionContent.value,
+    timestamp: adoptMsg.timestamp,
+    conversation: JSON.parse(JSON.stringify(messages.value))
+  }).catch(() => {})
 }
 
 // 查看完整回答（右侧抽屉）+ 选中片段保留
@@ -738,18 +1014,21 @@ function onDetailMouseup() {
 function confirmRetain() {
   if (!retainBtn.value.text) return
   retainedSnippets.value.push({
-    id: 'snip_' + Date.now(),
+    id: genId('snip'),
     text: retainBtn.value.text,
     model: responseDetail.value.modelName,
+    author: currentUser.value,
     time: new Date().toLocaleTimeString()
   })
   retainBtn.value.visible = false
   retainBtn.value.text = ''
   window.getSelection().removeAllRanges()
   proxy.$modal.msgSuccess('已保留要点')
+  persistSession()
 }
 function removeSnippet(id) {
   retainedSnippets.value = retainedSnippets.value.filter(s => s.id !== id)
+  persistSession()
 }
 function fillSnippetsToInput() {
   const joined = retainedSnippets.value.map(s => s.text).join('\n')
@@ -843,15 +1122,7 @@ const clarifyConclusion = computed(() => {
   return { adopted, freeInputs, openQuestions, modelNames, summary }
 })
 
-// 本地提交：无后端时落为产物（存 localStorage，刷新后仍可查）；真实环境替换为接口调用
-function submitClarify(pid, payload) {
-  return new Promise(resolve => {
-    try {
-      localStorage.setItem(`clarify_result_${pid}`, JSON.stringify(payload))
-    } catch (e) { /* ignore quota */ }
-    setTimeout(() => resolve({ code: 200 }), 400)
-  })
-}
+// 提交澄清结果：submitClarify 已改为 @/api/ai/clarify 的真实接口（落库 ai_clarify_session 并将项目 step 推进到 PRD）
 
 function buildClarifyResult() {
   const freeInputs = [...clarifyConclusion.value.freeInputs]
@@ -976,13 +1247,15 @@ async function handleSubmit() {
     cancelButtonText: '取消',
     type: 'info'
   }).then(async () => {
-    await submitClarify(projectId.value, result)
-    // 阶段推进到 PRD：交由下一负责人（可能非同一人）接手
-    currentStep.value = 'PRD'
-    proxy.$modal.msgSuccess('澄清结果已提交，已生成需求澄清结论')
-    // 提交后即退出本流程，回到门户首页（澄清负责人可能不负责后续阶段）
-    showConclusion.value = false
-    router.push('/portal')
+    try {
+      await submitClarify(projectId.value, result)
+      proxy.$modal.msgSuccess('澄清结果已提交，已生成需求澄清结论并推进到 PRD 阶段')
+      // 提交后即退出本流程，回到门户首页（澄清负责人可能不负责后续阶段）
+      showConclusion.value = false
+      router.push('/portal')
+    } catch (e) {
+      proxy.$modal.msgError('提交失败，请稍后重试')
+    }
   }).catch(() => {})
 }
 
@@ -993,10 +1266,15 @@ function getProjectInfo() {
   }).catch(() => {})
 }
 
-onMounted(() => {
+onMounted(async () => {
   getProjectInfo()
-  // 初始化临时选择（默认选中的模型）
-  tempSelectedIds.value = allModels.value.filter(m => m.isDefault).map(m => m.id)
+  await loadModels()
+  // 默认预选：优先 isDefault，否则取第一个，避免初始无模型
+  if (!tempSelectedIds.value.length) {
+    const defaults = allModels.value.filter(m => m.isDefault)
+    tempSelectedIds.value = (defaults.length ? defaults : (allModels.value[0] ? [allModels.value[0]] : [])).map(m => m.id)
+  }
+  await loadSession()
 })
 </script>
 
@@ -1199,6 +1477,7 @@ onMounted(() => {
 .option-item:hover { border-color: var(--primary); color: var(--primary); }
 .option-item.selected { background: var(--primary); color: #fff; border-color: var(--primary); }
 .message-time { font-size: 11px; color: var(--text-4); margin-top: 5px; }
+.message-author { color: var(--primary); font-weight: 600; }
 .message-caption { font-size: 12px; font-weight: 500; color: var(--primary); margin-bottom: 5px; }
 
 /* typing */
@@ -1209,7 +1488,8 @@ onMounted(() => {
 @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
 
 /* multi responses */
-.ai-multi-message { flex-direction: column; }
+.ai-multi-message { align-items: flex-start; }
+.multi-content { flex: 1; min-width: 0; }
 .multi-wrap { position: relative; min-width: 0; }
 .multi-responses { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 6px; cursor: grab; user-select: none; }
 .multi-responses.grabbing { cursor: grabbing; }
@@ -1240,6 +1520,7 @@ onMounted(() => {
 .model-name { font-weight: 600; color: var(--primary); font-size: 13px; }
 .response-time { font-size: 12px; color: var(--text-4); }
 .response-content { font-size: 14px; line-height: 1.65; color: var(--text-1); user-select: text; }
+.thinking { color: #909399; font-style: italic; }
 .resp-body {
   position: relative; max-height: 220px; overflow: hidden;
   flex: 1; min-height: 0; margin-bottom: 14px;
@@ -1322,6 +1603,20 @@ onMounted(() => {
   display: flex; align-items: center; gap: 6px; justify-content: center;
   font-size: 12px; color: var(--text-3); margin-top: 10px;
 }
+.next-question-global {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.next-question-hint {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-2);
+}
+.next-question-hint .el-icon { color: var(--primary); }
+.next-question-global .el-button { font-weight: 500; }
 
 /* ---------- Input ---------- */
 .chat-input { flex-shrink: 0; padding: 14px 20px 18px; border-top: 1px solid var(--border); background: var(--surface); }
@@ -1342,8 +1637,6 @@ onMounted(() => {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- Action bar ---------- */
-.action-bar { display: flex; justify-content: center; padding: 16px 0 20px; }
-.action-bar :deep(.el-button) { padding: 11px 28px; font-weight: 500; }
 
 /* ---------- Dialog ---------- */
 .model-dialog-body { padding: 4px 0; }

@@ -17,6 +17,7 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.ai.domain.AiModelConfig;
+import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.service.IAiModelConfigService;
 import com.ruoyi.common.utils.poi.ExcelUtil;
 import com.ruoyi.common.core.page.TableDataInfo;
@@ -33,6 +34,9 @@ public class AiModelConfigController extends BaseController
 {
     @Autowired
     private IAiModelConfigService aiModelConfigService;
+
+    @Autowired
+    private AiModelClient aiModelClient;
 
     /**
      * 查询AI模型配置列表
@@ -67,6 +71,21 @@ public class AiModelConfigController extends BaseController
     public AjaxResult getInfo(@PathVariable("modelId") Long modelId)
     {
         return success(aiModelConfigService.selectAiModelConfigByModelId(modelId));
+    }
+
+    /**
+     * 测试AI模型配置是否可用
+     */
+    @PreAuthorize("@ss.hasPermi('system:aiconfig:query')")
+    @GetMapping("/test/{modelId}")
+    public AjaxResult testModel(@PathVariable("modelId") Long modelId)
+    {
+        AiModelConfig cfg = aiModelConfigService.selectAiModelConfigByModelId(modelId);
+        if (cfg == null)
+        {
+            return error("模型配置不存在");
+        }
+        return success(aiModelClient.testModel(cfg));
     }
 
     /**

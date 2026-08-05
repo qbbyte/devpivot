@@ -23,6 +23,12 @@
             <artifactId>ruoyi-common</artifactId>
         </dependency>
 
+        <!-- WebClient：用于流式(SSE)调用大模型，仅作为客户端，不启用响应式服务器(应用仍为 webmvc) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>
