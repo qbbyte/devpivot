@@ -213,7 +213,7 @@
                 </div>
               </div>
             </div>
-          <!-- 聊天区底部：进入下一题按钮（在消息流末尾，透明背景显示聊天区浅灰） -->
+          <!-- 聊天区底部固定栏：进入下一题按钮（sticky 固定不滚动，透明背景显示聊天区浅灰） -->
           <div class="next-question-btn-wrap" v-if="showNextQuestionButton">
             <button class="next-question-btn" @click="goNextQuestion">进入到下一个问题</button>
           </div>
@@ -1506,7 +1506,7 @@ onMounted(async () => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 26px 24px;
+  padding: 26px 24px 10px;
   background: #fafbfc;
 }
 
@@ -2135,8 +2135,33 @@ onMounted(async () => {
 .next-question-btn-wrap {
   display: flex;
   justify-content: center;
-  padding: 10px 0 10px;
+  padding: 8px 0 2px;
+  position: sticky;
+  bottom: 0;
   background: transparent;
+}
+
+@keyframes nextBtnGlow {
+  0%, 100% {
+    border-color: #3370ff;
+    color: #3370ff;
+    box-shadow: 0 0 0 3px rgba(51, 112, 255, 0.10), 0 0 10px 2px rgba(51, 112, 255, 0.22);
+  }
+  25% {
+    border-color: #13c2c2;
+    color: #13c2c2;
+    box-shadow: 0 0 0 4px rgba(19, 194, 194, 0.10), 0 0 14px 3px rgba(19, 194, 194, 0.30);
+  }
+  50% {
+    border-color: #52c41a;
+    color: #52c41a;
+    box-shadow: 0 0 0 5px rgba(82, 196, 26, 0.08), 0 0 18px 4px rgba(82, 196, 26, 0.32);
+  }
+  75% {
+    border-color: #fa8c16;
+    color: #fa8c16;
+    box-shadow: 0 0 0 4px rgba(250, 140, 22, 0.10), 0 0 14px 3px rgba(250, 140, 22, 0.30);
+  }
 }
 
 .next-question-btn {
@@ -2145,9 +2170,9 @@ onMounted(async () => {
   justify-content: center;
   width: fit-content;
   padding: 8px 22px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--primary);
   border-radius: 20px;
-  background: transparent;
+  background: #ffffff;
   color: var(--primary);
   font-size: 13px;
   font-weight: 500;
@@ -2155,12 +2180,20 @@ onMounted(async () => {
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
+  animation: nextBtnGlow 4.8s ease-in-out infinite;
 }
 
 .next-question-btn:hover {
-  border-color: var(--primary);
   background: var(--primary-soft);
-  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(51, 112, 255, 0.14), 0 0 20px 5px rgba(51, 112, 255, 0.45);
+  animation: none;
+}
+
+.next-question-btn:active {
+  transform: scale(0.97);
+  animation: none;
 }
 
 .next-question-btn:active {
