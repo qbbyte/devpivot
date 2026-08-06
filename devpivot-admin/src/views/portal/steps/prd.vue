@@ -126,15 +126,31 @@
             </div>
 
             <div class="chat-input">
-              <el-input
-                v-model="chatInput"
-                type="textarea"
-                :rows="2"
-                resize="none"
-                :disabled="chatGenerating"
-                placeholder="针对 PRD 提问、补充需求或修改建议…"
-                @keydown.enter.exact.prevent="sendChat"
-              />
+              <div class="input-wrap">
+                <el-input
+                  v-model="chatInput"
+                  type="textarea"
+                  :rows="2"
+                  resize="none"
+                  :disabled="chatGenerating"
+                  placeholder="针对 PRD 提问、补充需求或修改建议…"
+                  @keydown.enter.exact.prevent="sendChat"
+                />
+                <!-- 输入框右下角：增强提示词 -->
+                <el-tooltip content="增强提示词" placement="top">
+                  <button
+                    class="enhance-btn"
+                    type="button"
+                    :class="{ active: enhancing }"
+                    :disabled="enhancing || chatGenerating || !chatInput.trim()"
+                    @click="enhancePrompt"
+                  >
+                    <el-icon class="enhance-icon" :class="{ rotating: enhancing }">
+                      <MagicStick />
+                    </el-icon>
+                  </button>
+                </el-tooltip>
+              </div>
               <el-button
                 type="primary"
                 class="chat-send"
@@ -167,7 +183,8 @@ import {
   Cpu,
   Promotion,
   ArrowDown,
-  UserFilled
+  UserFilled,
+  MagicStick
 } from '@element-plus/icons-vue'
 import { getProject, updateProject } from '@/api/ai/project'
 import { generatePrd } from '@/api/ai/doc'
@@ -207,6 +224,7 @@ let genController = null
 const chatMessages = ref([])
 const chatInput = ref('')
 const chatGenerating = ref(false)
+const enhancing = ref(false)
 const chatScrollRef = ref(null)
 let chatController = null
 
@@ -484,6 +502,25 @@ function scrollChatToBottom() {
     const el = chatScrollRef.value
     if (el) el.scrollTop = el.scrollHeight
   })
+}
+
+// 增强提示词：把简短/模糊输入扩写为结构化提问（当前前端 mock，后端就绪后改为调用 /ai/chat/enhance 真实接口，不加 /api 前缀）
+function enhancePrompt() {
+  const raw = chatInput.value.trim()
+  if (!raw || enhancing.value || chatGenerating.value) return
+  enhancing.value = true
+  // 预留接口：后端就绪后改为 const res = await fetch('/ai/chat/enhance', {...}) 取增强结果
+  setTimeout(() => {
+    chatInput.value = buildEnhancedPrompt(raw)
+    enhancing.value = false
+    proxy.$modal.msgSuccess('已增强提示词')
+  }, 450)
+}
+
+function buildEnhancedPrompt(raw) {
+  // mock 规则：补充角色、上下文与目标，让提问更具可执行性
+  const projectName = project.value.projectName || '本产品'
+  return `作为资深产品经理，请结合「${projectName}」的 PRD，针对以下问题给出具体、可执行的建议：\n\n${raw}\n\n请重点回应：① 目标用户与核心场景；② 关键约束（性能/安全/兼容性）；③ 可量化的验收标准。`
 }
 
 function sendChat() {
@@ -1074,11 +1111,49 @@ onMounted(() => {
   background: #fff;
   align-items: flex-end;
 }
+.input-wrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+/* 输入框右下角：增强提示词按钮 */
+.enhance-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #1d2129;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  z-index: 2;
+}
+.enhance-btn:hover:not(:disabled) {
+  color: #3370ff;
+  background: rgba(51, 112, 255, 0.08);
+}
+.enhance-btn.active {
+  color: #3370ff;
+}
+.enhance-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.enhance-icon {
+  width: 15px;
+  height: 15px;
+}
 .chat-input :deep(.el-textarea__inner) {
   border-radius: 10px;
   font-size: 13px;
   line-height: 1.55;
-  padding: 8px 12px;
+  padding: 8px 36px 8px 12px;
   border-color: #e5e6eb;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
