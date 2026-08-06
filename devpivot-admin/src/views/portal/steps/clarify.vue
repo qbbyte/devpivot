@@ -57,14 +57,21 @@
             <button class="link-btn" @click="showModelDialog = true">切换模型</button>
           </div>
 
-          <div class="panel-block progress-block">
-            <div class="progress-row">
-              <span class="block-label">澄清进度</span>
-              <span class="progress-count">{{ answeredCount }}<i>/{{ totalQuestions }}</i></span>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
-            </div>
+          <div class="panel-block question-list-block">
+            <span class="block-label">澄清问题 <i class="q-total">({{ questionList.length }})</i></span>
+            <ul class="question-list">
+              <li
+                v-for="(q, idx) in questionList"
+                :key="q.id"
+                class="question-item"
+                :class="{ active: idx === questionList.length - 1, answered: q.answered }"
+                @click="scrollToQuestion(q.id)"
+              >
+                <span class="q-index">{{ idx + 1 }}</span>
+                <span class="q-title">{{ q.title }}</span>
+                <span class="q-check" v-if="q.answered">✓</span>
+              </li>
+            </ul>
           </div>
         </aside>
 
@@ -81,7 +88,7 @@
             </div>
 
             <template v-for="msg in visibleMessages" :key="msg.id">
-              <div class="chat-message ai-message" v-if="msg.type === 'ai_question'">
+              <div class="chat-message ai-message" v-if="msg.type === 'ai_question'" :id="'msg-' + msg.id">
                 <div class="message-avatar">
                   <el-icon :size="18">
                     <Monitor />
@@ -425,6 +432,11 @@ import {
 import { mockHistoryVersions } from './mockData'
 
 // 澄清访谈问卷（引导式结构化访谈，属产品设计，非 AI 假数据；AI 回答由后端真实返回）
+// TODO: 澄清问题当前为前端内置/兜底机制，并非 AI 动态生成：
+//   1) 此处 questionScript 仅内置 3 道示例题（并发/部署/移动端）；
+//   2) askNextQuestion() 用尽后回退到固定兜底文案（见 else 分支），反复出现同一句。
+// 后续完善方向：由后端 AI 依据历史问答动态生成针对性问题——建议新增 /ai/clarify/nextQuestion
+// 接口下发「澄清大纲 + 下一题」，前端改为消费后端返回的问题列表，不再硬编码（含本数组）。
 const questionScript = [
   {
     content: '您好！我是 AI 需求澄清助手。为了更准确地理清需求，我们先确认几个关键点。\n\n**"系统预计需要支持多少并发用户？"**',
@@ -542,27 +554,6 @@ const inputFocused = ref(false)
 const isTyping = ref(false)
 const chatContainer = ref(null)
 
-// 统计：进度基于真实问答，而非写死数值
-const totalQuestions = computed(() =>
-  messages.value.filter(m => m.type === 'ai_question').length
-)
-// 已回答的问题数：每个 ai_question 之后存在用户回应(user_answer/user_text/user_adopt)即计为已回答
-const answeredCount = computed(() => {
-  const msgs = messages.value
-  let count = 0
-  let open = false
-  for (const m of msgs) {
-    if (m.type === 'ai_question') open = true
-    else if (open && (m.type === 'user_answer' || m.type === 'user_text' || m.type === 'user_adopt')) {
-      count++
-      open = false
-    }
-  }
-  return count
-})
-const progressPercent = computed(() =>
-  totalQuestions.value ? Math.round((answeredCount.value / totalQuestions.value) * 100) : 0
-)
 const canSend = computed(() => inputMessage.value.trim() && !isTyping.value)
 
 function handleKeyEnter(e) {
@@ -739,6 +730,8 @@ function askNextQuestion() {
   if (currentQuestionIndex.value < questionScript.length) {
     q = questionScript[currentQuestionIndex.value]
   } else {
+    // TODO: 当前为固定兜底问题，文本不随对话内容变化（反复出现同一句）。
+    // 后续完善：接入后端 AI 动态生成下一题，替代此处硬编码文案（参考 questionScript 上方 TODO）。
     q = {
       content: '为了进一步明确需求细节，请继续描述您的想法或回答以下问题：\n\n**"关于刚才讨论的需求点，您还有什么补充或需要调整的地方吗？"**',
       options: [
@@ -775,6 +768,44 @@ function goNextQuestion() {
 const showNextQuestionButton = computed(() => {
   return conversationStarted.value
 })
+
+// 左侧「澄清问题」清单：从对话历史提取所有已提出的问题（实时累积）。
+// 说明：澄清由后端 AI 动态驱动，未来问题无法预知，故只列出已提出的问题；
+// 列表最后一个即“当前问题”，其后存在用户回答则标记“已答”。
+const questionList = computed(() => {
+  const msgs = messages.value
+  const list = []
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i]
+    if (m.type !== 'ai_question') continue
+    let answered = false
+    for (let j = i + 1; j < msgs.length; j++) {
+      const t = msgs[j].type
+      if (t === 'user_answer' || t === 'user_text' || t === 'user_adopt') { answered = true; break }
+      if (t === 'ai_question') break
+    }
+    list.push({ id: m.id, title: extractQuestionTitle(m.content), answered })
+  }
+  return list
+})
+
+function extractQuestionTitle(content) {
+  if (!content) return '问题'
+  const c = String(content)
+  let m = c.match(/\*\*"([^"]+)"\*\*/)
+  if (m) return m[1].trim()
+  m = c.match(/\*\*(.+?)\*\*/)
+  if (m) return m[1].replace(/^["'"]|["'"]$/g, '').trim().slice(0, 30)
+  const line = c.split('\n').map(s => s.trim()).find(s => s)
+  return line ? line.slice(0, 30) : '问题'
+}
+
+function scrollToQuestion(id) {
+  nextTick(() => {
+    const el = document.getElementById('msg-' + id)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+}
 
 // 发送用户回答到后端，流式获取真实模型回答（逐 token 实时渲染）
 async function sendToBackend(text) {
@@ -1396,7 +1427,7 @@ onMounted(async () => {
 }
 
 .panel-block {
-  padding: 18px 20px;
+  padding: 18px 14px;
 }
 
 .panel-block+.panel-block {
@@ -1456,39 +1487,90 @@ onMounted(async () => {
   color: var(--primary-hover);
 }
 
-.progress-row {
+.question-list-block {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 4px;
 }
 
-.progress-count {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-1);
-}
-
-.progress-count i {
+.q-total {
   font-style: normal;
-  font-size: 12px;
   font-weight: 400;
   color: var(--text-4);
-  margin-left: 1px;
+  font-size: 12px;
 }
 
-.progress-track {
-  margin-top: 11px;
-  height: 6px;
-  border-radius: 999px;
-  background: #eef0f3;
+.question-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.question-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.question-item:hover,
+.question-item.active {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+.q-index {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--border);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.question-item.active .q-index {
+  background: var(--primary);
+  color: #fff;
+}
+
+.question-item.answered .q-index {
+  background: #52c41a;
+  color: #fff;
+}
+
+.q-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.progress-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #4d82ff, #3370ff);
-  transition: width 0.4s ease;
+.q-check {
+  flex-shrink: 0;
+  color: #52c41a;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 /* ---------- Chat ---------- */
