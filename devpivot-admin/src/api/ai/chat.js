@@ -1,4 +1,5 @@
 import request from '@/utils/request'
+import { getToken } from '@/utils/auth'
 
 // 查询对话历史（后台管理，预留）
 export function listChat(query) {
@@ -35,10 +36,73 @@ export function addChat(data) {
  *    并用原生 fetch 解析 SSE（参考 clarify.js 的 sendMessage 实现）。
  */
 export function sendChatMessage(params, handlers = {}) {
-  // TODO(后端就绪): 替换为真实流式请求，例如：
-  // const res = await fetch('/ai/chat/send', { method: 'POST', headers: {...}, body: JSON.stringify(params) })
-  // 再用原生 fetch 解析 SSE 逐块调用 handlers.onChunk(text)；结束时 handlers.onDone()，异常时 handlers.onError(err)
-  return mockStreamGenerate(buildChatReply(params), handlers)
+  const body = {
+    projectId: params.projectId,
+    projectName: params.projectName,
+    question: params.question,
+    docContent: params.docContent,
+    quotes: params.quotes || [],
+    model: params.model
+  }
+  // 优先调用真实流式接口 /ai/chat/send；后端不可用时回退前端 mock
+  return streamGenerate('/ai/chat/send', body, handlers, () => mockStreamGenerate(buildChatReply(params), handlers))
+}
+
+/* 原生 fetch 解析 SSE（text/event-stream），逐 token 累计后回调；
+   网络/HTTP 异常时调用 onFallback 回退本地 mock。返回 { stop } 兼容旧调用方。 */
+function streamGenerate(url, body, handlers = {}, onFallback) {
+  const base = import.meta.env.VITE_APP_BASE_API || ''
+  const ctrl = { stopped: false, stop() { this.stopped = true } }
+  fetch(base + url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (getToken() || '') },
+    body: JSON.stringify(body)
+  }).then(resp => {
+    if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status)
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    let full = ''
+    const pump = () => reader.read().then(({ done, value }) => {
+      if (done) {
+        if (buffer.trim()) handleSse(buffer)
+        handlers.onDone && handlers.onDone()
+        return
+      }
+      if (ctrl.stopped) { try { reader.cancel() } catch (e) {} handlers.onDone && handlers.onDone(); return }
+      buffer += decoder.decode(value, { stream: true })
+      let idx
+      while ((idx = buffer.indexOf('\n\n')) >= 0) {
+        const raw = buffer.slice(0, idx)
+        buffer = buffer.slice(idx + 2)
+        handleSse(raw)
+      }
+      pump()
+    })
+    const handleSse = (raw) => {
+      let type = ''
+      let dataStr = ''
+      raw.split('\n').forEach(line => {
+        if (line.startsWith('event:')) type = line.slice(6).trim()
+        else if (line.startsWith('data:')) dataStr += line.slice(5).trim()
+      })
+      if (!dataStr) return
+      let data
+      try { data = JSON.parse(dataStr) } catch (e) { return }
+      if (data.type === 'token' && data.delta) {
+        full += data.delta
+        handlers.onChunk && handlers.onChunk(full)
+      } else if (data.type === 'error') {
+        full += (full ? '\n' : '') + (data.content || '对话失败')
+        handlers.onChunk && handlers.onChunk(full)
+      }
+    }
+    pump()
+  }).catch(err => {
+    console.warn('[prd] /ai/chat/send 不可用，回退本地 mock：', err.message)
+    if (onFallback) onFallback()
+  })
+  return ctrl
 }
 
 /* ===================== 以下为前端 mock，后端就绪后整段删除 ===================== */
