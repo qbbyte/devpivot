@@ -62,6 +62,26 @@ public class AiProtoComponent extends BaseEntity
     @Excel(name = "交互说明")
     private String interactDesc;
 
+    /** 组件细类(渲染器键：nav/table/button/ep-tag 等，区别于 comp_type 大类) */
+    @Excel(name = "组件细类(渲染器键)")
+    private String type;
+
+    /** 业务参数(JSON: columns/menus/text/options 等) */
+    @Excel(name = "业务参数(JSON)")
+    private String props;
+
+    /** 视觉样式(JSON: 对齐/尺寸/圆角/填充/阴影等) */
+    @Excel(name = "视觉样式(JSON)")
+    private String style;
+
+    /** 交互配置(JSON: action/jumpTo 等) */
+    @Excel(name = "交互配置(JSON)")
+    private String interaction;
+
+    /** 杂项元数据(JSON: ep/epProps/epText 等渲染扩展信息) */
+    @Excel(name = "杂项元数据(JSON)")
+    private String meta;
+
     /** 父组件ID(支持嵌套) */
     @Excel(name = "父组件ID(支持嵌套)")
     private Long parentId;
@@ -190,6 +210,56 @@ public class AiProtoComponent extends BaseEntity
         return interactDesc;
     }
 
+    public void setType(String type) 
+    {
+        this.type = type;
+    }
+
+    public String getType() 
+    {
+        return type;
+    }
+
+    public void setProps(String props) 
+    {
+        this.props = props;
+    }
+
+    public String getProps() 
+    {
+        return props;
+    }
+
+    public void setStyle(String style) 
+    {
+        this.style = style;
+    }
+
+    public String getStyle() 
+    {
+        return style;
+    }
+
+    public void setInteraction(String interaction) 
+    {
+        this.interaction = interaction;
+    }
+
+    public String getInteraction() 
+    {
+        return interaction;
+    }
+
+    public void setMeta(String meta) 
+    {
+        this.meta = meta;
+    }
+
+    public String getMeta() 
+    {
+        return meta;
+    }
+
     public void setParentId(Long parentId) 
     {
         this.parentId = parentId;
@@ -225,6 +295,11 @@ public class AiProtoComponent extends BaseEntity
             .append("widthSpan", getWidthSpan())
             .append("bizDesc", getBizDesc())
             .append("interactDesc", getInteractDesc())
+            .append("type", getType())
+            .append("props", getProps())
+            .append("style", getStyle())
+            .append("interaction", getInteraction())
+            .append("meta", getMeta())
             .append("parentId", getParentId())
             .append("sort", getSort())
             .append("createBy", getCreateBy())

@@ -93,4 +93,26 @@ public class AiProtoComponentServiceImpl implements IAiProtoComponentService
     {
         return aiProtoComponentMapper.deleteAiProtoComponentByCompId(compId);
     }
+
+    @Override
+    public List<AiProtoComponent> selectAiProtoComponentByPageId(Long pageId)
+    {
+        return aiProtoComponentMapper.selectAiProtoComponentByPageId(pageId);
+    }
+
+    @Override
+    public int deleteAiProtoComponentByProjectId(Long projectId)
+    {
+        return aiProtoComponentMapper.deleteAiProtoComponentByProjectId(projectId);
+    }
+
+    @Override
+    public int batchInsertAiProtoComponent(List<AiProtoComponent> list)
+    {
+        if (list == null || list.isEmpty())
+        {
+            return 0;
+        }
+        return aiProtoComponentMapper.batchInsertAiProtoComponent(list);
+    }
 }

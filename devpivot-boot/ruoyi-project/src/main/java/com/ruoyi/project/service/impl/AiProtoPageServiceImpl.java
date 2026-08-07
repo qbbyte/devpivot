@@ -93,4 +93,16 @@ public class AiProtoPageServiceImpl implements IAiProtoPageService
     {
         return aiProtoPageMapper.deleteAiProtoPageByPageId(pageId);
     }
+
+    @Override
+    public List<AiProtoPage> selectAiProtoPageByProjectId(Long projectId)
+    {
+        return aiProtoPageMapper.selectAiProtoPageByProjectId(projectId);
+    }
+
+    @Override
+    public int deleteAiProtoPageByProjectId(Long projectId)
+    {
+        return aiProtoPageMapper.deleteAiProtoPageByProjectId(projectId);
+    }
 }

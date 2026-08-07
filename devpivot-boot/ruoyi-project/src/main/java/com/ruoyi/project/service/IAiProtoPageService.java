@@ -58,4 +58,20 @@ public interface IAiProtoPageService
      * @return 结果
      */
     public int deleteAiProtoPageByPageId(Long pageId);
+
+    /**
+     * 按项目查询所有原型页面
+     *
+     * @param projectId 项目ID
+     * @return 原型页面集合
+     */
+    public List<AiProtoPage> selectAiProtoPageByProjectId(Long projectId);
+
+    /**
+     * 按项目删除所有原型页面
+     *
+     * @param projectId 项目ID
+     * @return 结果
+     */
+    public int deleteAiProtoPageByProjectId(Long projectId);
 }

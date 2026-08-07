@@ -58,4 +58,28 @@ public interface IAiProtoComponentService
      * @return 结果
      */
     public int deleteAiProtoComponentByCompId(Long compId);
+
+    /**
+     * 按页面查询组件清单
+     *
+     * @param pageId 页面ID
+     * @return 组件清单集合
+     */
+    public List<AiProtoComponent> selectAiProtoComponentByPageId(Long pageId);
+
+    /**
+     * 按项目删除所有组件（级联页面）
+     *
+     * @param projectId 项目ID
+     * @return 结果
+     */
+    public int deleteAiProtoComponentByProjectId(Long projectId);
+
+    /**
+     * 批量新增组件清单
+     *
+     * @param list 组件清单集合
+     * @return 结果
+     */
+    public int batchInsertAiProtoComponent(List<AiProtoComponent> list);
 }

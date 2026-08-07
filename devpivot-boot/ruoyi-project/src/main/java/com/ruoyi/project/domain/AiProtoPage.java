@@ -42,6 +42,10 @@ public class AiProtoPage extends BaseEntity
     @Excel(name = "生成来源(人工/AI生成)")
     private String sourceModel;
 
+    /** 设备类型(WEB网页端/H5移动端/MINI小程序) */
+    @Excel(name = "设备类型(WEB/H5/MINI)")
+    private String deviceType;
+
     public void setPageId(Long pageId) 
     {
         this.pageId = pageId;
@@ -112,6 +116,16 @@ public class AiProtoPage extends BaseEntity
         return sourceModel;
     }
 
+    public void setDeviceType(String deviceType) 
+    {
+        this.deviceType = deviceType;
+    }
+
+    public String getDeviceType() 
+    {
+        return deviceType;
+    }
+
     @Override
     public String toString() {
         return new ToStringBuilder(this,ToStringStyle.MULTI_LINE_STYLE)
@@ -122,6 +136,7 @@ public class AiProtoPage extends BaseEntity
             .append("layout", getLayout())
             .append("status", getStatus())
             .append("sourceModel", getSourceModel())
+            .append("deviceType", getDeviceType())
             .append("createBy", getCreateBy())
             .append("createTime", getCreateTime())
             .append("updateBy", getUpdateBy())

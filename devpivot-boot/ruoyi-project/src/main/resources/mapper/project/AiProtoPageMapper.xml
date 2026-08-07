@@ -12,6 +12,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="layout"    column="layout"    />
         <result property="status"    column="status"    />
         <result property="sourceModel"    column="source_model"    />
+        <result property="deviceType"    column="device_type"    />
         <result property="createBy"    column="create_by"    />
         <result property="createTime"    column="create_time"    />
         <result property="updateBy"    column="update_by"    />
@@ -20,7 +21,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectAiProtoPageVo">
-        select page_id, project_id, page_name, page_desc, layout, status, source_model, create_by, create_time, update_by, update_time, remark from ai_proto_page
+        select page_id, project_id, page_name, page_desc, layout, status, source_model, device_type, create_by, create_time, update_by, update_time, remark from ai_proto_page
     </sql>
 
     <select id="selectAiProtoPageList" parameterType="AiProtoPage" resultMap="AiProtoPageResult">
@@ -49,6 +50,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="layout != null">layout,</if>
             <if test="status != null">status,</if>
             <if test="sourceModel != null">source_model,</if>
+            <if test="deviceType != null">device_type,</if>
             <if test="createBy != null">create_by,</if>
             <if test="createTime != null">create_time,</if>
             <if test="updateBy != null">update_by,</if>
@@ -62,6 +64,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="layout != null">#{layout},</if>
             <if test="status != null">#{status},</if>
             <if test="sourceModel != null">#{sourceModel},</if>
+            <if test="deviceType != null">#{deviceType},</if>
             <if test="createBy != null">#{createBy},</if>
             <if test="createTime != null">#{createTime},</if>
             <if test="updateBy != null">#{updateBy},</if>
@@ -79,6 +82,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="layout != null">layout = #{layout},</if>
             <if test="status != null">status = #{status},</if>
             <if test="sourceModel != null">source_model = #{sourceModel},</if>
+            <if test="deviceType != null">device_type = #{deviceType},</if>
             <if test="createBy != null">create_by = #{createBy},</if>
             <if test="createTime != null">create_time = #{createTime},</if>
             <if test="updateBy != null">update_by = #{updateBy},</if>
@@ -97,5 +101,15 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <foreach item="pageId" collection="array" open="(" separator="," close=")">
             #{pageId}
         </foreach>
+    </delete>
+
+    <select id="selectAiProtoPageByProjectId" parameterType="Long" resultMap="AiProtoPageResult">
+        <include refid="selectAiProtoPageVo"/>
+        where project_id = #{projectId}
+        order by page_id asc
+    </select>
+
+    <delete id="deleteAiProtoPageByProjectId" parameterType="Long">
+        delete from ai_proto_page where project_id = #{projectId}
     </delete>
 </mapper>

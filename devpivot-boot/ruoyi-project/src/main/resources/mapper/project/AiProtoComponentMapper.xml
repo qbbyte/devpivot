@@ -17,6 +17,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="widthSpan"    column="width_span"    />
         <result property="bizDesc"    column="biz_desc"    />
         <result property="interactDesc"    column="interact_desc"    />
+        <result property="type"    column="type"    />
+        <result property="props"    column="props"    />
+        <result property="style"    column="style"    />
+        <result property="interaction"    column="interaction"    />
+        <result property="meta"    column="meta"    />
         <result property="parentId"    column="parent_id"    />
         <result property="sort"    column="sort"    />
         <result property="createBy"    column="create_by"    />
@@ -27,7 +32,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectAiProtoComponentVo">
-        select comp_id, page_id, comp_type, comp_name, field_name, field_type, required, default_value, validate_rule, width_span, biz_desc, interact_desc, parent_id, sort, create_by, create_time, update_by, update_time, remark from ai_proto_component
+        select comp_id, page_id, comp_type, comp_name, field_name, field_type, required, default_value, validate_rule, width_span, biz_desc, interact_desc, type, props, style, interaction, meta, parent_id, sort, create_by, create_time, update_by, update_time, remark from ai_proto_component
     </sql>
 
     <select id="selectAiProtoComponentList" parameterType="AiProtoComponent" resultMap="AiProtoComponentResult">
@@ -68,6 +73,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="widthSpan != null">width_span,</if>
             <if test="bizDesc != null">biz_desc,</if>
             <if test="interactDesc != null">interact_desc,</if>
+            <if test="type != null">type,</if>
+            <if test="props != null">props,</if>
+            <if test="style != null">style,</if>
+            <if test="interaction != null">interaction,</if>
+            <if test="meta != null">meta,</if>
             <if test="parentId != null">parent_id,</if>
             <if test="sort != null">sort,</if>
             <if test="createBy != null">create_by,</if>
@@ -88,6 +98,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="widthSpan != null">#{widthSpan},</if>
             <if test="bizDesc != null">#{bizDesc},</if>
             <if test="interactDesc != null">#{interactDesc},</if>
+            <if test="type != null">#{type},</if>
+            <if test="props != null">#{props},</if>
+            <if test="style != null">#{style},</if>
+            <if test="interaction != null">#{interaction},</if>
+            <if test="meta != null">#{meta},</if>
             <if test="parentId != null">#{parentId},</if>
             <if test="sort != null">#{sort},</if>
             <if test="createBy != null">#{createBy},</if>
@@ -112,6 +127,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="widthSpan != null">width_span = #{widthSpan},</if>
             <if test="bizDesc != null">biz_desc = #{bizDesc},</if>
             <if test="interactDesc != null">interact_desc = #{interactDesc},</if>
+            <if test="type != null">type = #{type},</if>
+            <if test="props != null">props = #{props},</if>
+            <if test="style != null">style = #{style},</if>
+            <if test="interaction != null">interaction = #{interaction},</if>
+            <if test="meta != null">meta = #{meta},</if>
             <if test="parentId != null">parent_id = #{parentId},</if>
             <if test="sort != null">sort = #{sort},</if>
             <if test="createBy != null">create_by = #{createBy},</if>
@@ -133,4 +153,22 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             #{compId}
         </foreach>
     </delete>
+
+    <select id="selectAiProtoComponentByPageId" parameterType="Long" resultMap="AiProtoComponentResult">
+        <include refid="selectAiProtoComponentVo"/>
+        where page_id = #{pageId}
+        order by sort asc, comp_id asc
+    </select>
+
+    <delete id="deleteAiProtoComponentByProjectId" parameterType="Long">
+        delete from ai_proto_component where page_id in (select page_id from ai_proto_page where project_id = #{projectId})
+    </delete>
+
+    <insert id="batchInsertAiProtoComponent" parameterType="java.util.List" useGeneratedKeys="true" keyProperty="compId">
+        insert into ai_proto_component (page_id, comp_type, comp_name, field_name, field_type, required, width_span, biz_desc, interact_desc, type, props, style, interaction, meta, parent_id, sort, create_by, create_time)
+        values
+        <foreach collection="list" item="item" separator=",">
+            (#{item.pageId}, #{item.compType}, #{item.compName}, #{item.fieldName}, #{item.fieldType}, #{item.required}, #{item.widthSpan}, #{item.bizDesc}, #{item.interactDesc}, #{item.type}, #{item.props}, #{item.style}, #{item.interaction}, #{item.meta}, #{item.parentId}, #{item.sort}, #{item.createBy}, #{item.createTime})
+        </foreach>
+    </insert>
 </mapper>

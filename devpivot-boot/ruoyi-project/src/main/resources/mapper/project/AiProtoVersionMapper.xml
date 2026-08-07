@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.project.mapper.AiProtoVersionMapper">
+
+    <resultMap type="AiProtoVersion" id="AiProtoVersionResult">
+        <result property="versionId"    column="version_id"    />
+        <result property="projectId"    column="project_id"    />
+        <result property="versionName"  column="version_name"  />
+        <result property="deviceType"   column="device_type"   />
+        <result property="sourceModel"  column="source_model"  />
+        <result property="snapshot"     column="snapshot"      />
+        <result property="createBy"     column="create_by"     />
+        <result property="createTime"   column="create_time"   />
+        <result property="updateBy"     column="update_by"     />
+        <result property="updateTime"   column="update_time"   />
+        <result property="remark"       column="remark"        />
+    </resultMap>
+
+    <sql id="selectAiProtoVersionVo">
+        select version_id, project_id, version_name, device_type, source_model, snapshot, create_by, create_time, update_by, update_time, remark from ai_proto_version
+    </sql>
+
+    <insert id="insertAiProtoVersion" parameterType="AiProtoVersion" useGeneratedKeys="true" keyProperty="versionId">
+        insert into ai_proto_version
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">project_id,</if>
+            <if test="versionName != null">version_name,</if>
+            <if test="deviceType != null">device_type,</if>
+            <if test="sourceModel != null">source_model,</if>
+            <if test="snapshot != null">snapshot,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+         </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">#{projectId},</if>
+            <if test="versionName != null">#{versionName},</if>
+            <if test="deviceType != null">#{deviceType},</if>
+            <if test="sourceModel != null">#{sourceModel},</if>
+            <if test="snapshot != null">#{snapshot},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+         </trim>
+    </insert>
+
+    <select id="selectAiProtoVersionByProjectId" parameterType="Long" resultMap="AiProtoVersionResult">
+        <include refid="selectAiProtoVersionVo"/>
+        where project_id = #{projectId}
+        order by version_id desc
+    </select>
+
+    <select id="selectAiProtoVersionByVersionId" parameterType="Long" resultMap="AiProtoVersionResult">
+        <include refid="selectAiProtoVersionVo"/>
+        where version_id = #{versionId}
+    </select>
+</mapper>
