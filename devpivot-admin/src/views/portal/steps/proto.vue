@@ -158,6 +158,7 @@
                   <el-radio-button value="edit"><el-icon><Edit /></el-icon> 编辑</el-radio-button>
                   <el-radio-button value="preview"><el-icon><View /></el-icon> 预览走查</el-radio-button>
                 </el-radio-group>
+                <el-button size="small" @click="openVersionDialog"><el-icon><Clock /></el-icon> 历史版本</el-button>
                 <el-button size="small" :loading="generating" @click="onGenerate"><el-icon><Refresh /></el-icon> 重新生成</el-button>
               </div>
             </div>
@@ -395,7 +396,7 @@
                   </div>
 
                   <template v-for="f in inspectorExtras" :key="f.key">
-                    <div class="insp-row">
+                    <div class="insp-row insp-field">
                       <label>{{ f.label }}</label>
                       <el-input
                         v-if="f.control === 'text'"
@@ -412,8 +413,10 @@
                       />
                       <el-input-number
                         v-else-if="f.control === 'number'"
-                        :model-value="Number(getVal(f.key) || 1)"
-                        :min="1" :max="12" size="small"
+                        :model-value="Number(getVal(f.key) != null ? getVal(f.key) : (f.min != null ? f.min : 0))"
+                        :min="f.min != null ? f.min : 0"
+                        :max="f.max != null ? f.max : 9999"
+                        size="small"
                         @update:model-value="v => setVal(f.key, v)"
                       />
                       <el-select
@@ -441,6 +444,35 @@
                         placeholder="逗号分隔"
                         @update:model-value="v => setCsv(f.key, v)"
                       />
+                      <el-select
+                        v-else-if="f.control === 'tags'"
+                        multiple filterable allow-create default-first-option
+                        :model-value="getVal(f.key) || []"
+                        size="small"
+                        placeholder="可输入新增"
+                        @update:model-value="v => setVal(f.key, v)"
+                      >
+                        <el-option v-for="o in (getVal(f.key) || [])" :key="o" :label="o" :value="o" />
+                      </el-select>
+                      <el-switch
+                        v-else-if="f.control === 'switch'"
+                        :model-value="!!getVal(f.key)"
+                        @update:model-value="v => setVal(f.key, v)"
+                      />
+                      <div v-else-if="f.control === 'kv'" class="kv-editor">
+                        <div v-for="(row, i) in (getVal(f.key) || [])" :key="i" class="kv-row">
+                          <el-input
+                            v-for="s in (f.shape || [])" :key="s.k"
+                            v-model="row[s.k]"
+                            size="small"
+                            :placeholder="s.label"
+                          />
+                          <el-button size="small" text type="danger" @click="removeKv(f.key, i)">
+                            <el-icon><Close /></el-icon>
+                          </el-button>
+                        </div>
+                        <el-button size="small" plain class="kv-add" @click="addKv(f.key, f.shape)">+ 添加一项</el-button>
+                      </div>
                     </div>
                   </template>
 
@@ -467,6 +499,10 @@
                     </div>
                   </div>
                   <div class="chat-input">
+                    <label class="patch-toggle">
+                      <el-switch v-model="patchMode" size="small" />
+                      <span>局部改稿（直接修改原型）</span>
+                    </label>
                     <el-input
                       v-model="chatInput"
                       type="textarea"
@@ -483,6 +519,29 @@
               </el-tab-pane>
             </el-tabs>
           </aside>
+
+          <el-dialog v-model="versionDialogVisible" title="历史版本" width="560px" append-to-body>
+            <div class="ver-toolbar">
+              <el-input v-model="versionNameInput" size="small" placeholder="版本名称（留空自动命名）" style="width:240px" />
+              <el-button type="primary" size="small" @click="onSaveVersion">
+                <el-icon><Collection /></el-icon> 保存当前为版本
+              </el-button>
+            </div>
+            <el-table :data="versionList" v-loading="versionLoading" size="small" style="margin-top:12px" max-height="320">
+              <el-table-column prop="versionName" label="版本名称" min-width="140" show-overflow-tooltip />
+              <el-table-column prop="deviceType" label="设备" width="90" />
+              <el-table-column prop="createBy" label="作者" width="90" />
+              <el-table-column label="时间" width="160">
+                <template #default="{ row }">{{ row.createTime }}</template>
+              </el-table-column>
+              <el-table-column label="操作" width="140" fixed="right">
+                <template #default="{ row }">
+                  <el-button link type="primary" size="small" @click="previewVersion(row)">预览</el-button>
+                  <el-button link type="primary" size="small" :loading="restoringVersionId === row.versionId" @click="onRestoreVersion(row)">还原</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-dialog>
         </div>
 
         <footer class="status-bar">
@@ -509,7 +568,8 @@ import { getProject, updateProject } from '@/api/ai/project'
 import { getModels } from '@/api/ai/clarify'
 import {
   PALETTE, uid, buildComponent, generateProto, DEVICE_OPTIONS, DEVICE_MODELS, defaultStyle, ICON_LIST,
-  saveProtoDraft, loadProtoDraft, sendProtoChat
+  saveProtoDraft, loadProtoDraft, sendProtoChat, getProtoPages, saveProto, confirmProto,
+  applyProtoPatch, saveVersion, listVersions, getVersion, restoreVersion
 } from '@/api/ai/proto'
 import ProtoComponent from '@/components/proto/ProtoComponent.vue'
 
@@ -619,18 +679,36 @@ function pickIcon(name) {
 }
 
 /* ---------------- 加载 / 生成 ---------------- */
-function loadPages() {
-  const saved = loadProtoDraft(projectId.value)
-  if (saved && saved.pages && saved.pages.length) {
-    pages.value = saved.pages.map(p => {
+async function loadPages() {
+  // 优先从后端读取已存原型（权威数据源）
+  let backendPages = null
+  try {
+    backendPages = await getProtoPages(projectId.value)
+  } catch (e) {
+    backendPages = null
+  }
+  const local = loadProtoDraft(projectId.value)
+  if (backendPages && backendPages.length) {
+    pages.value = backendPages
+    currentPageUid.value = backendPages[0].uid
+    currentDevice.value = backendPages[0]?.deviceType || (local && local.deviceType) || 'WEB'
+    // 机型 / 自定义尺寸为前端 UI 偏好，后端未存，始终以本地草稿为准
+    currentModel.value = (local && local.deviceModel) || 'iphone-13'
+    customSize.width = (local && local.customSize && local.customSize.width) || 390
+    customSize.height = (local && local.customSize && local.customSize.height) || 844
+    return
+  }
+  // 后端无数据：回退本地草稿（离线可用）
+  if (local && local.pages && local.pages.length) {
+    pages.value = local.pages.map(p => {
       const comps = (p.components || []).map(c => ({ ...c, interaction: c.interaction || { action: 'none', linkTo: '' }, style: { ...defaultStyle(), ...(c.style || {}) } }))
       return { deviceType: 'WEB', ...p, components: comps }
     })
-    currentPageUid.value = saved.pages[0].uid
-    currentDevice.value = saved.deviceType || pages.value[0]?.deviceType || 'WEB'
-    currentModel.value = saved.deviceModel || 'iphone-13'
-    customSize.width = (saved.customSize && saved.customSize.width) || 390
-    customSize.height = (saved.customSize && saved.customSize.height) || 844
+    currentPageUid.value = local.pages[0].uid
+    currentDevice.value = local.deviceType || pages.value[0]?.deviceType || 'WEB'
+    currentModel.value = local.deviceModel || 'iphone-13'
+    customSize.width = (local.customSize && local.customSize.width) || 390
+    customSize.height = (local.customSize && local.customSize.height) || 844
   } else {
     pages.value = []
     currentPageUid.value = ''
@@ -674,7 +752,7 @@ function onGenerate() {
           generating.value = false
           genProgress.value = ''
           saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
-          proxy.$modal.msgSuccess('原型已生成（本地草稿）')
+          proxy.$modal.msgSuccess('原型已生成并保存')
         },
         onError: () => { generating.value = false; genProgress.value = '' }
       }
@@ -841,6 +919,8 @@ const inspectorExtrasMap = {
 }
 const inspectorExtras = computed(() => {
   if (!selectedComp.value) return []
+  const item = findPalette(selectedComp.value.type)
+  if (item && item.fields && item.fields.length) return item.fields
   return inspectorExtrasMap[selectedComp.value.type] || []
 })
 function getVal(key) {
@@ -862,11 +942,31 @@ function setCsv(key, val) {
   const arr = String(val).split(',').map(s => s.trim()).filter(Boolean)
   setVal(key, arr)
 }
+/* kv：对象数组编辑（如描述列表/折叠面板），按 shape 定义子字段 */
+function getArr(key) {
+  let v = getVal(key)
+  if (!Array.isArray(v)) { v = []; setVal(key, v) }
+  return v
+}
+function addKv(key, shape) {
+  const arr = getArr(key)
+  const obj = {}
+  ;(shape || []).forEach(s => { obj[s.k] = '' })
+  arr.push(obj)
+}
+function removeKv(key, i) {
+  const arr = getArr(key)
+  if (i >= 0 && i < arr.length) arr.splice(i, 1)
+}
 
 /* ---------------- 保存 / 提交 ---------------- */
 function handleSave() {
+  // 本地草稿始终先写（离线兜底，保证本机不丢）
   saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
-  proxy.$modal.msgSuccess('草稿已保存（本地）')
+  // 后端落库：成功才算真正保存，失败明确提示（避免「以为存了其实没存」）
+  saveProto(projectId.value, pages.value, '人工')
+    .then(() => { proxy.$modal.msgSuccess('已保存到服务器') })
+    .catch(() => { proxy.$modal.msgWarning('服务器端保存失败，已仅存到本地草稿，其他用户暂不可见') })
 }
 function handleSubmit() {
   const total = pages.value.reduce((s, p) => s + p.components.length, 0)
@@ -878,12 +978,19 @@ function handleSubmit() {
   const nextStep = stepOrder[stepIndex.value + 1]?.value || 'DONE'
   // 标记所有页面为已确认
   pages.value.forEach(p => { p.status = '1' })
-  saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
-  updateProject({ projectId: projectId.value, step: nextStep }).then(() => {
-    proxy.$modal.msgSuccess('已提交')
-    submitting.value = false
-    router.push('/portal')
-  }).catch(() => { submitting.value = false })
+  // 后端：先保存最新页面/组件，再确认推进 step=TECH
+  saveProto(projectId.value, pages.value, '人工')
+    .then(() => confirmProto(projectId.value))
+    .then(() => updateProject({ projectId: projectId.value, step: nextStep }))
+    .then(() => {
+      proxy.$modal.msgSuccess('已提交')
+      submitting.value = false
+      router.push('/portal')
+    })
+    .catch(() => {
+      submitting.value = false
+      proxy.$modal.msgError('提交失败：原型保存到服务器出错，请重试')
+    })
 }
 
 /* ---------------- AI 对话（mock 流式） ---------------- */
@@ -892,6 +999,15 @@ const chatInput = ref('')
 const chatGenerating = ref(false)
 const chatScrollRef = ref(null)
 let chatController = null
+const patchMode = ref(false) // true=局部改稿（直接修改原型）
+
+/* 历史版本对话框状态 */
+const versionDialogVisible = ref(false)
+const versionLoading = ref(false)
+const versionList = ref([])
+const versionNameInput = ref('')
+const restoringVersionId = ref(null)
+
 function renderMarkdown(text) {
   // 轻量渲染：换行 + 加粗，足够预览
   return String(text || '')
@@ -907,8 +1023,40 @@ function scrollChat() {
 function sendChat() {
   const msg = chatInput.value.trim()
   if (!msg || chatGenerating.value) return
-  chatMessages.value.push({ role: 'user', content: msg })
   chatInput.value = ''
+
+  if (patchMode.value) {
+    // 局部改稿：把当前画布 + 指令发给后端，返回修改后的完整页面并替换画布
+    chatGenerating.value = true
+    chatMessages.value.push({ role: 'user', content: msg })
+    const assistant = { role: 'assistant', content: '（正在局部改稿，请稍候…）' }
+    chatMessages.value.push(assistant)
+    scrollChat()
+    let replacedOnce = false
+    const ctrl = applyProtoPatch(
+      { projectId: projectId.value, instruction: msg, pages: pages.value, model: currentModelCode() },
+      {
+        onProgress: (t) => { assistant.content = t; scrollChat() },
+        onPage: (page) => {
+          if (!replacedOnce) { pages.value = []; replacedOnce = true }
+          pages.value.push(page)
+          if (!currentPageUid.value) currentPageUid.value = page.uid
+        },
+        onDone: () => {
+          chatGenerating.value = false
+          replacedOnce = false
+          saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
+          proxy.$modal.msgSuccess('已应用局部改稿')
+        },
+        onError: () => { chatGenerating.value = false; replacedOnce = false }
+      }
+    )
+    chatController = ctrl
+    return
+  }
+
+  // 普通对话模式
+  chatMessages.value.push({ role: 'user', content: msg })
   chatGenerating.value = true
   const assistant = { role: 'assistant', content: '' }
   chatMessages.value.push(assistant)
@@ -922,6 +1070,54 @@ function sendChat() {
     }
   )
   chatController = ctrl
+}
+
+/* ---------------- 历史版本 ---------------- */
+function openVersionDialog() {
+  versionDialogVisible.value = true
+  versionNameInput.value = ''
+  loadVersions()
+}
+function loadVersions() {
+  versionLoading.value = true
+  listVersions(projectId.value)
+    .then(list => { versionList.value = list || [] })
+    .catch(() => { versionList.value = [] })
+    .finally(() => { versionLoading.value = false })
+}
+function onSaveVersion() {
+  if (!pages.value.length) { proxy.$modal.msgWarning('当前没有可保存的原型'); return }
+  const name = versionNameInput.value.trim() || ('版本 ' + new Date().toLocaleString())
+  saveVersion(projectId.value, pages.value, name, '')
+    .then(() => { proxy.$modal.msgSuccess('已保存版本'); versionNameInput.value = ''; loadVersions() })
+    .catch(() => {})
+}
+function onRestoreVersion(row) {
+  proxy.$modal.confirm('还原将覆盖当前原型画布，确定还原到「' + row.versionName + '」？').then(() => {
+    restoringVersionId.value = row.versionId
+    restoreVersion(row.versionId).then(res => {
+      const pagesArr = (res && res.pages) || []
+      pages.value = pagesArr
+      currentPageUid.value = pages.value.length ? pages.value[0].uid : ''
+      selectedCompUid.value = ''
+      if (res && res.deviceType) currentDevice.value = res.deviceType
+      saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
+      proxy.$modal.msgSuccess('已还原版本')
+      versionDialogVisible.value = false
+    }).catch(() => {}).finally(() => { restoringVersionId.value = null })
+  }).catch(() => {})
+}
+function previewVersion(row) {
+  getVersion(row.versionId).then(res => {
+    const pagesArr = (res && res.pages) || []
+    if (!pagesArr.length) { proxy.$modal.msgWarning('该版本快照为空'); return }
+    pages.value = pagesArr
+    currentPageUid.value = pages.value.length ? pages.value[0].uid : ''
+    selectedCompUid.value = ''
+    if (res.version && res.version.deviceType) currentDevice.value = res.version.deviceType
+    saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
+    proxy.$modal.msgInfo('已载入该版本预览，如需长期使用请点「还原」')
+  }).catch(() => {})
 }
 
 /* ---------------- 初始化 ---------------- */
@@ -1064,6 +1260,11 @@ onMounted(() => {
 .insp-col > label { font-size: 12px; color: #4e5969; }
 .insp-two :deep(.el-color-picker), .insp-row :deep(.el-color-picker) { vertical-align: middle; }
 .insp-two :deep(.el-input-number), .insp-two :deep(.el-select) { width: 100%; }
+.insp-field :deep(.el-select), .insp-field :deep(.el-input), .insp-field :deep(.el-input-number) { width: 100%; }
+.kv-editor { display: flex; flex-direction: column; gap: 8px; }
+.kv-row { display: flex; gap: 6px; align-items: center; }
+.kv-row :deep(.el-input) { flex: 1; min-width: 0; }
+.kv-add { align-self: flex-start; }
 
 .chat-body { display: flex; flex-direction: column; height: 100%; }
 .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
@@ -1075,6 +1276,8 @@ onMounted(() => {
 .chat-msg.user .bubble { background: #3370ff; color: #fff; border-bottom-right-radius: 2px; }
 .chat-msg.assistant .bubble { background: #f2f3f5; color: #1f2329; border-bottom-left-radius: 2px; }
 .chat-input { border-top: 1px solid #f5f6f8; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.patch-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #646a73; }
+.ver-toolbar { display: flex; align-items: center; gap: 10px; }
 
 /* 最左图标切换栏（墨刀式） */
 .icon-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; background: #fff; border-right: 1px solid #ebedf0; }
