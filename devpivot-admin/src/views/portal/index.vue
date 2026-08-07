@@ -128,18 +128,79 @@
     <footer class="portal-footer">
       <span>AI 智能需求设计与数据库生成系统</span>
     </footer>
+
+    <!-- 项目阶段概览弹窗 -->
+    <el-dialog
+      v-model="stageDialogVisible"
+      :title="null"
+      width="600px"
+      class="stage-dialog"
+      :close-on-click-modal="true"
+      @closed="activeProject = null"
+    >
+      <div v-if="activeProject" class="stage-dialog-body">
+        <div class="sd-header">
+          <div class="sd-title-wrap">
+            <div class="sd-name">{{ activeProject.projectName }}</div>
+            <dict-tag :options="ai_project_status" :value="activeProject.status" />
+          </div>
+          <p class="sd-intro">{{ activeProject.projectIntro || '暂无项目简介' }}</p>
+        </div>
+
+        <div class="sd-steps">
+          <div
+            v-for="(s, idx) in activeStages"
+            :key="s.value"
+            class="sd-step"
+            :class="s.status"
+            @click="chooseStage(s)"
+          >
+            <div class="sd-dot">
+              <el-icon v-if="s.status === 'done'"><Check /></el-icon>
+              <el-icon v-else-if="s.status === 'current'"><Loading /></el-icon>
+              <span v-else>{{ idx + 1 }}</span>
+            </div>
+            <div class="sd-label">{{ s.label }}</div>
+            <div class="sd-state">
+              <span v-if="s.status === 'done'" class="sd-state-done">已完成</span>
+              <span v-else-if="s.status === 'current'" class="sd-state-current">进行中</span>
+              <span v-else class="sd-state-pending">未开始</span>
+            </div>
+            <div v-if="idx < activeStages.length - 1" class="sd-line" :class="{ on: s.status === 'done' }"></div>
+          </div>
+        </div>
+
+        <div class="sd-footer">
+          <span class="sd-tip">点击任意阶段进入，或继续当前阶段</span>
+          <el-button type="primary" @click="chooseStage(currentStage)">
+            进入「{{ currentStageLabel }}」
+            <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+          </el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="Portal">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Check, Loading, ArrowRight } from '@element-plus/icons-vue'
 import { listProject } from '@/api/ai/project'
 import { useDict } from '@/utils/dict'
 
 const router = useRouter()
 const { ai_project_step, ai_project_status } = useDict('ai_project_step', 'ai_project_status')
+
+const stageDefs = [
+  { value: 'REQ', label: '需求采集', route: 'req' },
+  { value: 'CLARIFY', label: 'AI 澄清', route: 'clarify' },
+  { value: 'PRD', label: 'PRD 文档', route: 'prd' },
+  { value: 'PROTO', label: '原型设计', route: 'proto' },
+  { value: 'TECH', label: '技术方案', route: 'tech' },
+  { value: 'DB', label: '数据库设计', route: 'db' },
+  { value: 'DONE', label: '完成', route: 'done' }
+]
 
 const stepRouteMap = {
   REQ: 'req',
@@ -168,6 +229,25 @@ const filterStatus = ref('')
 const filterStep = ref('')
 const currentPage = ref(1)
 const pageSize = 10
+
+const stageDialogVisible = ref(false)
+const activeProject = ref(null)
+
+const activeStages = computed(() => {
+  if (!activeProject.value) return []
+  const curIdx = stageDefs.findIndex(s => s.value === (activeProject.value.step || 'REQ'))
+  return stageDefs.map((s, i) => ({
+    ...s,
+    status: i < curIdx ? 'done' : (i === curIdx ? 'current' : 'pending')
+  }))
+})
+
+const currentStage = computed(() => {
+  const hit = stageDefs.find(s => s.value === (activeProject.value?.step || 'REQ'))
+  return hit || stageDefs[0]
+})
+
+const currentStageLabel = computed(() => currentStage.value.label)
 
 const stats = computed(() => {
   const list = allProjectList.value
@@ -229,9 +309,16 @@ function goCreate() {
 }
 
 function goProject(item) {
-  const step = item.step || 'REQ'
-  const routeName = stepRouteMap[step] || 'req'
-  router.push(`/portal/project/${item.projectId}/${routeName}`)
+  activeProject.value = item
+  stageDialogVisible.value = true
+}
+
+function chooseStage(stage) {
+  if (!activeProject.value || !stage) return
+  const id = activeProject.value.projectId
+  const routeName = stage.route || stepRouteMap[stage.value] || 'req'
+  stageDialogVisible.value = false
+  router.push(`/portal/project/${id}/${routeName}`)
 }
 
 function getAllList() {
@@ -585,6 +672,148 @@ onMounted(() => {
   background: transparent;
   border-top: none;
   margin-top: auto;
+}
+
+/* ===== Stage Dialog ===== */
+.stage-dialog .el-dialog__header { display: none; }
+.stage-dialog .el-dialog__body { padding: 0; }
+
+.stage-dialog-body {
+  padding: 24px 26px 20px;
+}
+
+.sd-header {
+  border-bottom: 1px solid #f2f3f5;
+  padding-bottom: 16px;
+  margin-bottom: 22px;
+}
+
+.sd-title-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sd-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1d2129;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd-intro {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #86909c;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sd-steps {
+  display: flex;
+  align-items: flex-start;
+}
+
+.sd-step {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 2px;
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+
+.sd-step:hover { background: #f5f7ff; }
+.sd-step.done:hover { background: rgba(0, 180, 42, 0.06); }
+
+.sd-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #86909c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.3s;
+  z-index: 1;
+}
+
+.sd-step.done .sd-dot {
+  background: #00b42a;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 180, 42, 0.3);
+}
+
+.sd-step.current .sd-dot {
+  background: #3370ff;
+  color: #fff;
+  transform: scale(1.12);
+  box-shadow: 0 2px 10px rgba(51, 112, 255, 0.35);
+}
+
+.sd-label {
+  font-size: 12px;
+  color: #4e5969;
+  text-align: center;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.sd-step.done .sd-label { color: #1d2129; font-weight: 500; }
+.sd-step.current .sd-label { color: #3370ff; font-weight: 600; }
+
+.sd-state {
+  font-size: 11px;
+}
+
+.sd-state-done { color: #00b42a; }
+.sd-state-current { color: #3370ff; }
+.sd-state-pending { color: #c0c4cc; }
+
+.sd-line {
+  position: absolute;
+  top: 19px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: #e5e7eb;
+  z-index: 0;
+}
+
+.sd-line.on { background: #00b42a; }
+
+.sd-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #f2f3f5;
+}
+
+.sd-tip {
+  font-size: 12px;
+  color: #a0a4ad;
+}
+
+.sd-footer .el-button {
+  border-radius: 8px;
+  padding: 9px 20px;
+  font-weight: 500;
 }
 
 /* ===== Responsive ===== */
