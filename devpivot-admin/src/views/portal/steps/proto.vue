@@ -26,12 +26,16 @@
         <el-button class="gen-btn" type="primary" plain :loading="generating" @click="onGenerate">
           <el-icon><MagicStick /></el-icon><span>AI 生成原型</span>
         </el-button>
+        <el-button type="primary" class="submit-btn" :loading="submitting" @click="handleSubmit">
+          <span>确认原型</span>
+          <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+        </el-button>
       </div>
     </header>
 
     <main class="project-main">
       <div class="project-content">
-        <div class="main-grid">
+        <div class="main-grid" :style="{ '--left-width': leftWidth + 'px', '--right-width': rightWidth + 'px' }">
           <!-- 最左图标切换栏（墨刀式） -->
           <nav class="icon-rail">
             <button class="rail-btn" :class="{ active: leftTab === 'page' }" title="页面" @click="setLeftTab('page')"><el-icon><Files /></el-icon></button>
@@ -41,7 +45,7 @@
           </nav>
 
           <!-- 左栏：随图标切换的单一面板 -->
-          <aside class="sidebar">
+          <aside class="sidebar" :style="{ width: leftWidth + 'px' }">
             <section class="panel" v-show="leftTab === 'page'">
               <div class="panel-head">
                 <span class="panel-title"><el-icon><Files /></el-icon> 页面</span>
@@ -129,6 +133,9 @@
               <div class="empty-hint">暂无收藏组件<br/>（后续支持收藏常用元件）</div>
             </section>
           </aside>
+
+          <!-- 左分隔条 -->
+          <div class="resize-divider" @pointerdown="startResizeLeft" title="左右拖动调整左栏宽度"></div>
 
           <!-- 中栏：画布 -->
           <section class="canvas-section">
@@ -245,8 +252,11 @@
             </div>
           </section>
 
+          <!-- 右分隔条 -->
+          <div class="resize-divider" @pointerdown="startResizeRight" title="左右拖动调整右栏宽度"></div>
+
           <!-- 右栏：属性 + AI 对话 -->
-          <aside class="right-panel">
+          <aside class="right-panel" :style="{ width: rightWidth + 'px' }">
             <el-tabs v-model="rightTab" class="right-tabs">
               <el-tab-pane label="属性" name="inspector">
                 <div v-if="!selectedComp" class="insp-empty">
@@ -254,6 +264,23 @@
                   <p>在画布中点选一个组件<br/>即可在此编辑属性</p>
                 </div>
                 <div v-else class="insp-body">
+                  <div class="insp-ai-bar">
+                    <div class="insp-ai-title"><el-icon><MagicStick /></el-icon> 使用 AI 修改</div>
+                    <div class="insp-ai-row">
+                      <el-input
+                        v-model="compAiInput"
+                        type="textarea"
+                        :rows="1"
+                        resize="none"
+                        placeholder="告诉 AI 如何修改这个组件"
+                        @keydown.enter.exact.prevent="sendCompAi"
+                      />
+                      <el-button type="primary" class="insp-ai-send" :loading="chatGenerating" :disabled="!compAiInput.trim() || chatGenerating" @click="sendCompAi">
+                        <el-icon><Top /></el-icon>
+                      </el-button>
+                    </div>
+                  </div>
+
                   <div class="insp-row">
                     <label>组件类型</label>
                     <el-tag size="small" effect="plain">{{ selectedComp.compType }}</el-tag>
@@ -495,25 +522,25 @@
                       <div class="bubble" v-html="renderMarkdown(m.content)"></div>
                     </div>
                     <div v-if="!chatMessages.length" class="chat-empty">
-                      描述你想调整的原型，例如「给列表页加一个搜索框」「把表单字段改成下拉」
+                      <div class="chat-empty-icon"><el-icon><ChatDotRound /></el-icon></div>
+                      <div class="chat-empty-title">AI 原型助手</div>
+                      <div class="chat-empty-desc">描述你想调整的原型，AI 会生成或修改当前页面</div>
                     </div>
                   </div>
                   <div class="chat-input">
-                    <label class="patch-toggle">
-                      <el-switch v-model="patchMode" size="small" />
-                      <span>局部改稿（直接修改原型）</span>
-                    </label>
-                    <el-input
-                      v-model="chatInput"
-                      type="textarea"
-                      :rows="2"
-                      resize="none"
-                      placeholder="输入需求，回车发送"
-                      @keydown.enter.exact.prevent="sendChat"
-                    />
-                    <el-button type="primary" :loading="chatGenerating" @click="sendChat">
-                      <el-icon><Position /></el-icon> 发送
-                    </el-button>
+                    <div class="chat-input-card">
+                      <el-input
+                        v-model="chatInput"
+                        type="textarea"
+                        :rows="2"
+                        resize="none"
+                        placeholder="输入需求，回车发送"
+                        @keydown.enter.exact.prevent="sendChat"
+                      />
+                      <el-button type="primary" class="chat-send-btn" :loading="chatGenerating" :disabled="!chatInput.trim() || chatGenerating" @click="sendChat">
+                        <el-icon><Top /></el-icon>
+                      </el-button>
+                    </div>
                   </div>
                 </div>
               </el-tab-pane>
@@ -550,19 +577,13 @@
           <span class="sb-item sb-right">{{ currentDevice }} · 共 {{ pages.length }} 页 · {{ currentPage ? currentPage.components.length : 0 }} 组件</span>
         </footer>
 
-        <section class="action-section">
-          <el-button type="primary" size="large" class="submit-btn" :loading="submitting" @click="handleSubmit">
-            <span>确认原型，进入下一阶段</span>
-            <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-          </el-button>
-        </section>
       </div>
     </main>
   </div>
 </template>
 
 <script setup name="StepProto">
-import { ref, computed, onMounted, getCurrentInstance, nextTick, reactive } from 'vue'
+import { ref, computed, onMounted, getCurrentInstance, nextTick, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject, updateProject } from '@/api/ai/project'
 import { getModels } from '@/api/ai/clarify'
@@ -652,6 +673,7 @@ const selectedComp = computed(() => {
   if (!currentPage.value) return null
   return currentPage.value.components.find(c => c.uid === selectedCompUid.value) || null
 })
+watch(selectedCompUid, () => { compAiInput.value = '' })
 
 const fieldTypes = ['STRING', 'NUMBER', 'DATE', 'BOOLEAN', 'ENUM', 'JSON']
 const spanMarks = { 1: '1', 6: '6', 12: '12' }
@@ -666,6 +688,44 @@ function zoomIn() { canvasScale.value = Math.min(2, +(canvasScale.value + 0.1).t
 function zoomOut() { canvasScale.value = Math.max(0.4, +(canvasScale.value - 0.1).toFixed(2)) }
 function zoomFit() { canvasScale.value = 1 }
 function toggleGrid() { showGrid.value = !showGrid.value }
+
+/* ---------------- 三栏可拖拽宽度 ---------------- */
+const LEFT_MIN_WIDTH = 180
+const RIGHT_MIN_WIDTH = 420
+const MAX_PANEL_WIDTH = 520
+const leftWidth = ref(300)
+const rightWidth = ref(360)
+const dragging = ref(false)
+let dragState = null // { side: 'left'|'right', startX: number, startWidth: number, minWidth, targetRef }
+function startResizeLeft(e) { startResize(e, 'left', leftWidth, LEFT_MIN_WIDTH) }
+function startResizeRight(e) { startResize(e, 'right', rightWidth, RIGHT_MIN_WIDTH) }
+function startResize(e, side, targetRef, minWidth) {
+  e.preventDefault()
+  dragState = { side, startX: e.clientX, startWidth: targetRef.value, minWidth, targetRef }
+  dragging.value = true
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('pointermove', onResizeMove)
+  document.addEventListener('pointerup', onResizeEnd)
+  document.addEventListener('pointercancel', onResizeEnd)
+}
+function onResizeMove(e) {
+  if (!dragState) return
+  const { side, startX, startWidth, minWidth, targetRef } = dragState
+  const dx = side === 'left' ? e.clientX - startX : startX - e.clientX
+  const next = Math.max(minWidth, Math.min(MAX_PANEL_WIDTH, startWidth + dx))
+  targetRef.value = next
+}
+function onResizeEnd() {
+  dragState = null
+  dragging.value = false
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  document.removeEventListener('pointermove', onResizeMove)
+  document.removeEventListener('pointerup', onResizeEnd)
+  document.removeEventListener('pointercancel', onResizeEnd)
+}
+
 function pickIcon(name) {
   if (selectedComp.value && selectedComp.value.type === 'icon') {
     selectedComp.value.props.name = name
@@ -996,10 +1056,10 @@ function handleSubmit() {
 /* ---------------- AI 对话（mock 流式） ---------------- */
 const chatMessages = ref([])
 const chatInput = ref('')
+const compAiInput = ref('')
 const chatGenerating = ref(false)
 const chatScrollRef = ref(null)
 let chatController = null
-const patchMode = ref(false) // true=局部改稿（直接修改原型）
 
 /* 历史版本对话框状态 */
 const versionDialogVisible = ref(false)
@@ -1025,37 +1085,6 @@ function sendChat() {
   if (!msg || chatGenerating.value) return
   chatInput.value = ''
 
-  if (patchMode.value) {
-    // 局部改稿：把当前画布 + 指令发给后端，返回修改后的完整页面并替换画布
-    chatGenerating.value = true
-    chatMessages.value.push({ role: 'user', content: msg })
-    const assistant = { role: 'assistant', content: '（正在局部改稿，请稍候…）' }
-    chatMessages.value.push(assistant)
-    scrollChat()
-    let replacedOnce = false
-    const ctrl = applyProtoPatch(
-      { projectId: projectId.value, instruction: msg, pages: pages.value, model: currentModelCode() },
-      {
-        onProgress: (t) => { assistant.content = t; scrollChat() },
-        onPage: (page) => {
-          if (!replacedOnce) { pages.value = []; replacedOnce = true }
-          pages.value.push(page)
-          if (!currentPageUid.value) currentPageUid.value = page.uid
-        },
-        onDone: () => {
-          chatGenerating.value = false
-          replacedOnce = false
-          saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
-          proxy.$modal.msgSuccess('已应用局部改稿')
-        },
-        onError: () => { chatGenerating.value = false; replacedOnce = false }
-      }
-    )
-    chatController = ctrl
-    return
-  }
-
-  // 普通对话模式
   chatMessages.value.push({ role: 'user', content: msg })
   chatGenerating.value = true
   const assistant = { role: 'assistant', content: '' }
@@ -1067,6 +1096,41 @@ function sendChat() {
       onChunk: (t) => { assistant.content = t; scrollChat() },
       onDone: () => { chatGenerating.value = false; saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } }) },
       onError: () => { chatGenerating.value = false }
+    }
+  )
+  chatController = ctrl
+}
+
+function sendCompAi() {
+  const comp = selectedComp.value
+  if (!comp) return
+  const raw = compAiInput.value.trim()
+  if (!raw || chatGenerating.value) return
+  const instruction = `请修改当前页面中名为「${comp.compName}」的 ${comp.compType} 组件（类型：${comp.type || '未知'}）：${raw}`
+  compAiInput.value = ''
+  rightTab.value = 'chat'
+  chatGenerating.value = true
+  chatMessages.value.push({ role: 'user', content: `修改「${comp.compName}」：${raw}` })
+  const assistant = { role: 'assistant', content: '（正在应用修改，请稍候…）' }
+  chatMessages.value.push(assistant)
+  scrollChat()
+  let replacedOnce = false
+  const ctrl = applyProtoPatch(
+    { projectId: projectId.value, instruction, pages: pages.value, model: currentModelCode() },
+    {
+      onProgress: (t) => { assistant.content = t; scrollChat() },
+      onPage: (page) => {
+        if (!replacedOnce) { pages.value = []; replacedOnce = true }
+        pages.value.push(page)
+        if (!currentPageUid.value) currentPageUid.value = page.uid
+      },
+      onDone: () => {
+        chatGenerating.value = false
+        replacedOnce = false
+        saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
+        proxy.$modal.msgSuccess('已应用 AI 修改')
+      },
+      onError: () => { chatGenerating.value = false; replacedOnce = false }
     }
   )
   chatController = ctrl
@@ -1156,10 +1220,14 @@ onMounted(() => {
 
 .project-main { flex: 1; min-height: 0; padding: 0; margin: 0; overflow: hidden; position: relative; }
 .project-content { height: 100%; width: 100%; margin: 0; padding: 0; max-width: none; display: flex; flex-direction: column; }
-.main-grid { display: grid; grid-template-columns: 54px 300px minmax(0,1fr) 300px; gap: 0; align-items: stretch; flex: 1; min-height: 0; }
+.main-grid { display: flex; flex-direction: row; flex: 1; min-height: 0; align-items: stretch; }
 
 /* 左栏 */
-.sidebar { position: relative; top: 0; display: flex; flex-direction: column; gap: 0; height: 100%; max-height: none; overflow: hidden; background: #fff; border-right: 1px solid #ebedf0; }
+.sidebar { position: relative; top: 0; display: flex; flex-direction: column; gap: 0; height: 100%; max-height: none; overflow: hidden; background: #fff; border-right: 1px solid #ebedf0; flex-shrink: 0; }
+.resize-divider { width: 8px; margin: 0 -2px; flex-shrink: 0; cursor: col-resize; background: transparent; transition: background .15s; position: relative; z-index: 10; touch-action: none; user-select: none; }
+.resize-divider:hover, .resize-divider:active { background: rgba(51,112,255,.22); }
+.resize-divider::after { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: #ebedf0; transform: translateX(-50%); pointer-events: none; }
+.resize-divider:hover::after { background: #3370ff; }
 .panel { background: #fff; border-radius: 0; box-shadow: none; border-bottom: 1px solid #f2f3f5; display: flex; flex-direction: column; min-height: 0; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #f5f6f8; }
 .panel-title { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: #1f2329; }
@@ -1191,7 +1259,7 @@ onMounted(() => {
 .palette-item:active { cursor: grabbing; transform: translateY(0); box-shadow: 0 2px 6px rgba(51,112,255,.06); }
 
 /* 中栏画布 */
-.canvas-section { background: #fff; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.canvas-section { background: #fff; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; height: 100%; min-height: 0; min-width: 0; flex: 1 1 0; }
 .canvas-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #f5f6f8; }
 .ct-left { display: flex; align-items: center; gap: 12px; }
 .cur-page { font-size: 14px; font-weight: 600; color: #1f2329; }
@@ -1245,7 +1313,7 @@ onMounted(() => {
 .comp-wrapper.drop-after::after { right: -3px; }
 
 /* 右栏 */
-.right-panel { position: relative; top: 0; background: #fff; border-radius: 0; box-shadow: none; border-left: 1px solid #ebedf0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+.right-panel { position: relative; top: 0; background: #fff; border-radius: 0; box-shadow: none; border-left: 1px solid #ebedf0; height: 100%; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
 .right-tabs { display: flex; flex-direction: column; height: 100%; }
 .right-tabs :deep(.el-tabs__header) { margin: 0; padding: 0 12px; }
 .right-tabs :deep(.el-tabs__content) { flex: 1; overflow: hidden; }
@@ -1253,6 +1321,15 @@ onMounted(() => {
 
 .insp-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 100%; color: #a8abb2; font-size: 13px; text-align: center; padding: 40px; line-height: 1.7; }
 .insp-body { padding: 16px; overflow-y: auto; height: 100%; }
+.insp-ai-bar { margin: -4px -4px 12px; padding: 12px; background: linear-gradient(135deg, rgba(51,112,255,.06), rgba(51,112,255,.03)); border: 1px solid rgba(51,112,255,.12); border-radius: 10px; }
+.insp-ai-title { font-size: 12px; font-weight: 600; color: #3370ff; margin-bottom: 8px; display: flex; align-items: center; gap: 4px; }
+.insp-ai-row { display: flex; align-items: flex-end; gap: 8px; }
+.insp-ai-row .el-textarea { flex: 1; }
+.insp-ai-row .el-textarea__inner { border: 1px solid #d9e1ff; border-radius: 8px; padding: 6px 10px; background: #fff; resize: none; box-shadow: none; font-size: 12px; line-height: 1.6; min-height: 32px; }
+.insp-ai-row .el-textarea__inner::placeholder { color: #a8abb2; }
+.insp-ai-row .el-textarea__inner:focus { border-color: #3370ff; }
+.insp-ai-send { height: 30px; width: 30px; border-radius: 50%; padding: 0; flex-shrink: 0; font-size: 13px; }
+.insp-ai-send.is-disabled { opacity: .5; }
 .insp-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .insp-row > label { font-size: 12px; color: #4e5969; }
 .insp-two { display: flex; gap: 10px; align-items: center; }
@@ -1266,21 +1343,29 @@ onMounted(() => {
 .kv-row :deep(.el-input) { flex: 1; min-width: 0; }
 .kv-add { align-self: flex-start; }
 
-.chat-body { display: flex; flex-direction: column; height: 100%; }
+.chat-body { display: flex; flex-direction: column; height: 100%; background: #fff; }
 .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-.chat-empty { color: #a8abb2; font-size: 13px; line-height: 1.7; text-align: center; margin: auto; padding: 30px; }
+.chat-empty { margin: auto; padding: 24px; text-align: center; }
+.chat-empty-icon { font-size: 40px; color: #c9cdd4; margin-bottom: 12px; }
+.chat-empty-title { font-size: 15px; font-weight: 600; color: #1f2329; margin-bottom: 6px; }
+.chat-empty-desc { font-size: 12px; color: #86909c; line-height: 1.6; }
 .chat-msg { display: flex; }
 .chat-msg.user { justify-content: flex-end; }
 .chat-msg.assistant { justify-content: flex-start; }
 .bubble { max-width: 88%; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.7; word-break: break-word; }
 .chat-msg.user .bubble { background: #3370ff; color: #fff; border-bottom-right-radius: 2px; }
 .chat-msg.assistant .bubble { background: #f2f3f5; color: #1f2329; border-bottom-left-radius: 2px; }
-.chat-input { border-top: 1px solid #f5f6f8; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-.patch-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #646a73; }
+.chat-input { padding: 10px 12px 12px; border-top: 1px solid #f2f3f5; background: #f7f8fa; display: flex; flex-direction: column; gap: 8px; }
+.chat-input-card { display: flex; align-items: flex-end; gap: 8px; background: #fff; border: 1px solid #e5e6eb; border-radius: 12px; padding: 8px 10px; box-shadow: 0 1px 4px rgba(0,0,0,.03); }
+.chat-input-card .el-textarea { flex: 1; }
+.chat-input-card .el-textarea__inner { border: none; padding: 6px 8px; background: transparent; resize: none; box-shadow: none; font-size: 13px; line-height: 1.6; min-height: 36px; }
+.chat-input-card .el-textarea__inner::placeholder { color: #a8abb2; }
+.chat-send-btn { height: 34px; width: 34px; border-radius: 50%; padding: 0; flex-shrink: 0; font-size: 14px; }
+.chat-send-btn.is-disabled { opacity: .5; }
 .ver-toolbar { display: flex; align-items: center; gap: 10px; }
 
 /* 最左图标切换栏（墨刀式） */
-.icon-rail { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; background: #fff; border-right: 1px solid #ebedf0; }
+.icon-rail { width: 54px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; background: #fff; border-right: 1px solid #ebedf0; }
 .rail-btn { width: 38px; height: 38px; border: none; background: transparent; border-radius: 8px; color: #646a73; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; transition: .15s; }
 .rail-btn:hover { background: #f2f3f5; color: #3370ff; }
 .rail-btn.active { background: rgba(51,112,255,.1); color: #3370ff; }
@@ -1329,8 +1414,7 @@ onMounted(() => {
 .status-bar { height: 28px; display: flex; align-items: center; gap: 18px; padding: 0 16px; background: #fff; border-top: 1px solid #ebedf0; font-size: 12px; color: #646a73; }
 .status-bar .sb-item.sb-right { margin-left: auto; }
 
-.action-section { position: fixed; right: 24px; bottom: 24px; z-index: 40; margin: 0; }
-.submit-btn { min-width: auto; border-radius: 8px; padding: 12px 24px; font-size: 14px; font-weight: 500; box-shadow: 0 4px 16px rgba(51,112,255,.35); }
+.submit-btn { border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 500; }
 
-@media (max-width: 1200px) { .main-grid { grid-template-columns: 54px 1fr; height: auto; } .sidebar, .right-panel { position: static; height: auto; max-height: none; } }
+@media (max-width: 1200px) { .main-grid { flex-wrap: wrap; height: auto; } .sidebar, .right-panel { position: static; height: auto; max-height: none; width: 100% !important; } .resize-divider { display: none; } .canvas-section { width: 100%; order: -1; } }
 </style>
