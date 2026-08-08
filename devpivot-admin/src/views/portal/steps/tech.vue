@@ -320,8 +320,8 @@
 <script setup name="StepTech">
 import { ref, reactive, computed, onMounted, nextTick, getCurrentInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getProject, updateProject } from '@/api/ai/project'
-import { getTechModels, getTechDoc, saveTechDoc, generateTech } from '@/api/ai/tech'
+import { getProject } from '@/api/ai/project'
+import { getTechModels, getTechDoc, saveTechDoc, generateTech, submitTech } from '@/api/ai/tech'
 import { sendChatMessage } from '@/api/ai/chat'
 
 const { proxy } = getCurrentInstance()
@@ -420,7 +420,7 @@ function loadModels() {
 
 function loadDoc() {
   getTechDoc(projectId.value).then(res => {
-    const doc = res?.data
+    const doc = res
     if (doc && doc.content) {
       finalContent.value = doc.content
       techStack.value = doc.techStack || techStack.value
@@ -634,8 +634,15 @@ function handleSubmit() {
     return
   }
   submitting.value = true
-  const nextStep = 'DB'
-  updateProject({ projectId: projectId.value, step: nextStep }).then(() => {
+  const payload = {
+    docName: '技术方案',
+    techStack: techStack.value,
+    content: finalContent.value,
+    multiSource: JSON.stringify(modelResults.value),
+    sourceModel: mainModelId.value,
+    status: 1
+  }
+  submitTech(projectId.value, payload).then(() => {
     submitting.value = false
     proxy.$modal.msgSuccess('已提交，进入数据库阶段')
     router.push('/portal')

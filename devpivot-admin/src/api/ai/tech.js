@@ -20,35 +20,22 @@ export function delTechdoc(docId) {
 
 /* ===================== 门户·技术方案读写（/ai/tech，仅校验登录态） ===================== */
 
-// 获取可用模型列表与最大对比数
-// TODO 后端就绪后改为：return request({ url: '/ai/tech/models', method: 'get' })
+// 获取可用模型列表与最大对比数（来自后端 ai_model_config 启用项）
 export function getTechModels() {
-  return Promise.resolve({
-    models: [
-      { modelId: 'gpt4o', modelName: 'GPT-4o' },
-      { modelId: 'deepseek', modelName: 'DeepSeek' },
-      { modelId: 'claude', modelName: 'Claude' },
-      { modelId: 'tongyi', modelName: '通义千问' },
-      { modelId: 'wenxin', modelName: '文心一言' }
-    ],
-    maxCompareCount: 4
-  })
+  return request({ url: '/ai/tech/models', method: 'get' })
 }
 
-// 按项目读取当前技术方案（返 AiTechDoc 或 null）
-// TODO 后端就绪后改为真实接口；当前后端未实现，失败由调用方兜底为空。
+// 按项目读取当前技术方案（返 AiTechDoc 或 null），已对接后端 /ai/tech/doc
 export function getTechDoc(projectId) {
   return request({ url: '/ai/tech/doc', method: 'post', data: { projectId } })
 }
 
-// 按项目 upsert 技术方案（编辑保存 / 生成后落库），返回主键 docId
-// TODO 后端就绪后改为真实接口；当前后端未实现，失败仅告警，前端保留本地状态。
+// 按项目 upsert 技术方案（编辑保存 / 生成后落库），返回主键 docId，已对接后端 /ai/tech/save
 export function saveTechDoc(data) {
   return request({ url: '/ai/tech/save', method: 'post', data })
 }
 
-// 提交技术方案：落库 status=1 并推进项目阶段到 DB（由后端统一处理）
-// TODO 后端就绪后改为真实接口；当前页面直接用 updateProject 推进阶段。
+// 提交技术方案：落库 status=1 并推进项目阶段到 DB（后端统一处理），已对接 /ai/tech/submit/{projectId}
 export function submitTech(projectId, data) {
   return request({ url: '/ai/tech/submit/' + projectId, method: 'post', data })
 }
