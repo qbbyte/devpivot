@@ -13,6 +13,27 @@
             <el-icon><Setting /></el-icon>
             <span>进入管理后台</span>
           </el-button>
+          <el-dropdown class="user-dropdown" trigger="hover" @command="handleCommand">
+            <div class="user-wrapper">
+              <img :src="userStore.avatar || defAva" class="user-avatar" />
+              <span class="user-name">{{ userStore.nickName || '未登录' }}</span>
+              <el-icon class="user-caret"><ArrowDown /></el-icon>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <router-link to="/user/profile">
+                  <el-dropdown-item>
+                    <el-icon><User /></el-icon>
+                    <span>个人中心</span>
+                  </el-dropdown-item>
+                </router-link>
+                <el-dropdown-item divided command="logout">
+                  <el-icon><SwitchButton /></el-icon>
+                  <span>退出登录</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </header>
@@ -142,14 +163,19 @@
         <div class="sd-header">
           <div class="sd-title-wrap">
             <div class="sd-name">{{ activeProject.projectName }}</div>
-            <dict-tag :options="ai_project_status" :value="activeProject.status" />
+            <div class="sd-title-tags">
+              <dict-tag :options="ai_project_status" :value="activeProject.status" />
+              <span v-if="activeProject.step === 'DONE'" class="sd-done-tag">
+                <el-icon><CircleCheck /></el-icon> 已完成
+              </span>
+            </div>
           </div>
           <p class="sd-intro">{{ activeProject.projectIntro || '暂无项目简介' }}</p>
         </div>
 
         <div class="sd-steps">
           <div
-            v-for="(s, idx) in activeStages"
+            v-for="(s, idx) in visibleStages"
             :key="s.value"
             class="sd-step"
             :class="s.status"
@@ -166,16 +192,20 @@
               <span v-else-if="s.status === 'current'" class="sd-state-current">进行中</span>
               <span v-else class="sd-state-pending">未开始</span>
             </div>
-            <div v-if="idx < activeStages.length - 1" class="sd-line" :class="{ on: s.status === 'done' }"></div>
+            <div v-if="idx < visibleStages.length - 1" class="sd-line" :class="{ on: s.status === 'done' }"></div>
           </div>
         </div>
 
         <div class="sd-footer">
-          <span class="sd-tip">点击任意阶段进入，或继续当前阶段</span>
-          <el-button type="primary" @click="chooseStage(currentStage)">
+          <span class="sd-tip">{{ activeProject && activeProject.step === 'DONE' ? '所有阶段已完成，点击上方阶段可查看历史产出' : '点击任意阶段进入，或继续当前阶段' }}</span>
+          <el-button v-if="activeProject && activeProject.step !== 'DONE'" type="primary" @click="chooseStage(currentStage)">
             进入「{{ currentStageLabel }}」
             <el-icon class="el-icon--right"><ArrowRight /></el-icon>
           </el-button>
+          <span v-else class="sd-done-badge">
+            <el-icon><CircleCheck /></el-icon>
+            项目已完成
+          </span>
         </div>
       </div>
     </el-dialog>
@@ -185,11 +215,15 @@
 <script setup name="Portal">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Check, Loading, ArrowRight } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
+import { Search, Check, Loading, ArrowRight, CircleCheck, ArrowDown, User, SwitchButton } from '@element-plus/icons-vue'
 import { listProject } from '@/api/ai/project'
 import { useDict } from '@/utils/dict'
+import useUserStore from '@/store/modules/user'
+import defAva from '@/assets/images/profile.jpg'
 
 const router = useRouter()
+const userStore = useUserStore()
 const { ai_project_step, ai_project_status } = useDict('ai_project_step', 'ai_project_status')
 
 const stageDefs = [
@@ -235,11 +269,23 @@ const activeProject = ref(null)
 
 const activeStages = computed(() => {
   if (!activeProject.value) return []
-  const curIdx = stageDefs.findIndex(s => s.value === (activeProject.value.step || 'REQ'))
+  // 已完成项目（step=DONE）：所有阶段均视为「已完成」，避免末节点被误标为「进行中」
+  const curIdx = activeProject.value.step === 'DONE'
+    ? stageDefs.length
+    : stageDefs.findIndex(s => s.value === (activeProject.value.step || 'REQ'))
   return stageDefs.map((s, i) => ({
     ...s,
     status: i < curIdx ? 'done' : (i === curIdx ? 'current' : 'pending')
   }))
+})
+
+// 弹窗内展示的阶段列表：已完成项目不显示「完成」节点（无对应页面，纯占位）
+const visibleStages = computed(() => {
+  const stages = activeStages.value
+  if (!stages.length) return []
+  // DONE 项目：只展示前 6 个真实阶段
+  if (activeProject.value?.step === 'DONE') return stages.filter(s => s.value !== 'DONE')
+  return stages
 })
 
 const currentStage = computed(() => {
@@ -304,6 +350,24 @@ function goAdmin() {
   router.push('/index')
 }
 
+function handleCommand(command) {
+  if (command === 'logout') {
+    logout()
+  }
+}
+
+function logout() {
+  ElMessageBox.confirm('确定注销并退出系统吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    userStore.logOut().then(() => {
+      location.href = '/login'
+    })
+  }).catch(() => { })
+}
+
 function goCreate() {
   router.push('/portal/create')
 }
@@ -315,6 +379,8 @@ function goProject(item) {
 
 function chooseStage(stage) {
   if (!activeProject.value || !stage) return
+  // 「完成」是终点状态，没有对应可编辑页面，不导航
+  if (stage.value === 'DONE') return
   const id = activeProject.value.projectId
   const routeName = stage.route || stepRouteMap[stage.value] || 'req'
   stageDialogVisible.value = false
@@ -336,6 +402,10 @@ watch([searchKeyword, filterStatus, filterStep], () => {
 })
 
 onMounted(() => {
+  // 确保用户信息（昵称/头像）已加载，供右上角头像下拉展示
+  if (!userStore.nickName) {
+    userStore.getInfo().catch(() => {})
+  }
   getAllList()
 })
 </script>
@@ -695,6 +765,25 @@ onMounted(() => {
   gap: 12px;
 }
 
+.sd-title-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.sd-done-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #00b42a;
+  background: rgba(0, 180, 42, 0.08);
+  border-radius: 10px;
+  padding: 2px 10px;
+}
+
 .sd-name {
   font-size: 18px;
   font-weight: 700;
@@ -814,6 +903,19 @@ onMounted(() => {
   border-radius: 8px;
   padding: 9px 20px;
   font-weight: 500;
+}
+
+.sd-done-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #00b42a;
+  background: rgba(0, 180, 42, 0.08);
+  border: 1px solid rgba(0, 180, 42, 0.18);
 }
 
 /* ===== Responsive ===== */

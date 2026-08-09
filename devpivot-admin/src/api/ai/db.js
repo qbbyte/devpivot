@@ -50,14 +50,12 @@ export function generateDb(params, handlers = {}) {
     models: params.models,
     extraReq: params.extraReq || ''
   }
-  return streamGenerateDb('/ai/db/generate', body, handlers, () =>
-    mockGenerateDb(params, handlers)
-  )
+  return streamGenerateDb('/ai/db/generate', body, handlers)
 }
 
 /* 原生 fetch 解析 SSE（text/event-stream），按 modelId 多路复用逐 token 累计后回调；
-   网络/HTTP 异常时调用 onFallback 回退本地 mock。 */
-function streamGenerateDb(url, body, handlers = {}, onFallback) {
+   网络/HTTP 异常时通过 handlers.onError 上报错误。 */
+function streamGenerateDb(url, body, handlers = {}) {
   const base = import.meta.env.VITE_APP_BASE_API || ''
   const ctrl = { stopped: false, stop() { this.stopped = true } }
   const fullByModel = {}
@@ -115,65 +113,8 @@ function streamGenerateDb(url, body, handlers = {}, onFallback) {
     }
     pump()
   }).catch(err => {
-    console.warn('[db] /ai/db/generate 不可用，回退本地 mock：', err.message)
-    if (onFallback) onFallback()
+    console.error('[db] /ai/db/generate 请求失败：', err.message)
+    handlers.onError && handlers.onError(err)
   })
   return ctrl
-}
-
-/* ===================== 前端 mock，后端就绪后整段删除 ===================== */
-
-function formatDate(d) {
-  const p = n => String(n).padStart(2, '0')
-  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`
-}
-
-function mockGenerateDb(params, handlers = {}) {
-  const modelId = (params.models && params.models[0]) || 'deepseek'
-  const fullText = buildDbMarkdown(params)
-  let i = 0
-  const stepSize = 10
-  const timer = setInterval(() => {
-    i += stepSize
-    if (i >= fullText.length) {
-      handlers.onModelChunk && handlers.onModelChunk(modelId, fullText)
-      clearInterval(timer)
-      handlers.onModelDone && handlers.onModelDone(modelId)
-      handlers.onAllDone && handlers.onAllDone()
-      return
-    }
-    handlers.onModelChunk && handlers.onModelChunk(modelId, fullText.slice(0, i))
-  }, 30)
-  return { stop() { clearInterval(timer) } }
-}
-
-function buildDbMarkdown(p = {}) {
-  const name = p.projectName || '产品'
-  const industry = p.industryType || '通用行业'
-  const target = p.targetUser || '目标用户'
-  const db = p.dbType || 'MySQL'
-  const date = formatDate(new Date())
-  const extra = p.extraReq ? `\n> 补充要求：${p.extraReq}\n` : ''
-
-  const head = `# ${name} 数据库设计文档\n\n> 版本：v1.0 ｜ 状态：草稿 ｜ 生成日期：${date} ｜ 目标数据库：${db} ｜ 行业：${industry} ｜ 目标用户：${target}\n${extra}`
-
-  const goal = `## 1. 设计目标与约束\n- 支持${target}的核心业务数据持久化与查询。\n- 满足未来 1-3 年数据增长与并发需求。\n- 优先保证数据一致性与可维护性。\n`
-
-  const choice = `## 2. 数据库选型与部署架构\n- 主数据库：${db}。\n- 缓存：Redis（热点数据、会话、分布式锁）。\n- 部署：主从架构，定期全量 + 增量备份。\n`
-
-  const spec = `## 3. 全局命名与字段规范\n- 表名统一小写，下划线分隔，业务前缀如 \`biz_\`。\n- 主键使用 \`bigint\` 自增或雪花 ID。\n- 必有审计字段：\`create_by\`、\`create_time\`、\`update_by\`、\`update_time\`、\`remark\`、\`del_flag\`。\n- 软删除统一使用 \`del_flag\`（0 存在 / 2 删除）。\n`
-
-  const er = `## 4. 实体-关系总览\n核心实体：用户、项目、PRD、原型页面、原型组件、技术方案、数据库设计、澄清会话。\n主要关系：一个项目拥有多条 PRD/技术方案/库表记录；一个页面包含多个组件。\n`
-
-  const tables = `## 5. 核心表结构\n\n### 5.1 项目主表（ai_project）\n| 字段 | 类型 | 长度 | 可空 | 默认值 | 说明 |\n| --- | --- | --- | --- | --- | --- |\n| project_id | bigint | 20 | N | auto_increment | 主键 |\n| project_name | varchar | 64 | N | - | 项目名称 |\n| industry_type | varchar | 32 | Y | '' | 行业分类 |\n| step | varchar | 16 | Y | 'REQ' | 当前阶段 |\n| status | char | 1 | Y | '0' | 项目状态 |\n\n### 5.2 PRD 文档表（ai_prd_doc）\n| 字段 | 类型 | 长度 | 可空 | 默认值 | 说明 |\n| --- | --- | --- | --- | --- | --- |\n| doc_id | bigint | 20 | N | auto_increment | 主键 |\n| project_id | bigint | 20 | N | - | 项目ID |\n| content | longtext | - | Y | - | Markdown 内容 |\n| status | char | 1 | Y | '0' | 0草稿 1已确认 |\n`
-
-  const dict = `## 6. 关键业务字段字典\n- 项目阶段：REQ / CLARIFY / PRD / PROTO / TECH / DB / DONE。\n- 项目状态：0 正常 / 1 归档。\n`
-
-  const idx = `## 7. 索引与性能设计\n- ai_prd_doc.project_id 建立普通索引。\n- ai_project.step 建立普通索引便于阶段统计。\n- 列表查询优先走覆盖索引与缓存。\n`
-
-  const sec = `## 8. 安全与合规\n- 敏感字段（如手机号）加密存储。\n- 数据库账号按最小权限原则分配。\n- 开启审计日志记录关键变更。\n`
-
-  const ddl = `## 9. 可执行 DDL（${db}）\n\`\`\`sql\nCREATE TABLE ai_project (\n  project_id BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '项目ID',\n  project_name VARCHAR(64) NOT NULL COMMENT '项目名称',\n  step VARCHAR(16) DEFAULT 'REQ' COMMENT '当前阶段',\n  status CHAR(1) DEFAULT '0' COMMENT '项目状态',\n  PRIMARY KEY (project_id),\n  INDEX idx_step (step)\n) ENGINE=InnoDB COMMENT='AI项目表';\n\`\`\``
-
-  return head + goal + choice + spec + er + tables + dict + idx + sec + ddl
 }

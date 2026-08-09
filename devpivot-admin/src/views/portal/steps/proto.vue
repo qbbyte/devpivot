@@ -588,7 +588,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '@/api/ai/project'
 import {
   PALETTE, uid, buildComponent, generateProto, DEVICE_OPTIONS, DEVICE_MODELS, defaultStyle, ICON_LIST,
-  saveProtoDraft, loadProtoDraft, sendProtoChat, getProtoPages, saveProto, confirmProto, getProtoModels,
+  sendProtoChat, getProtoPages, saveProto, confirmProto, getProtoModels,
   applyProtoPatch, saveVersion, listVersions, getVersion, restoreVersion
 } from '@/api/ai/proto'
 import ProtoComponent from '@/components/proto/ProtoComponent.vue'
@@ -740,35 +740,21 @@ function pickIcon(name) {
 
 /* ---------------- 加载 / 生成 ---------------- */
 async function loadPages() {
-  // 优先从后端读取已存原型（权威数据源）
+  // 从后端读取已存原型（权威数据源）
   let backendPages = null
   try {
     backendPages = await getProtoPages(projectId.value)
   } catch (e) {
     backendPages = null
   }
-  const local = loadProtoDraft(projectId.value)
   if (backendPages && backendPages.length) {
     pages.value = backendPages
     currentPageUid.value = backendPages[0].uid
-    currentDevice.value = backendPages[0]?.deviceType || (local && local.deviceType) || 'WEB'
-    // 机型 / 自定义尺寸为前端 UI 偏好，后端未存，始终以本地草稿为准
-    currentModel.value = (local && local.deviceModel) || 'iphone-13'
-    customSize.width = (local && local.customSize && local.customSize.width) || 390
-    customSize.height = (local && local.customSize && local.customSize.height) || 844
-    return
-  }
-  // 后端无数据：回退本地草稿（离线可用）
-  if (local && local.pages && local.pages.length) {
-    pages.value = local.pages.map(p => {
-      const comps = (p.components || []).map(c => ({ ...c, interaction: c.interaction || { action: 'none', linkTo: '' }, style: { ...defaultStyle(), ...(c.style || {}) } }))
-      return { deviceType: 'WEB', ...p, components: comps }
-    })
-    currentPageUid.value = local.pages[0].uid
-    currentDevice.value = local.deviceType || pages.value[0]?.deviceType || 'WEB'
-    currentModel.value = local.deviceModel || 'iphone-13'
-    customSize.width = (local.customSize && local.customSize.width) || 390
-    customSize.height = (local.customSize && local.customSize.height) || 844
+    currentDevice.value = backendPages[0]?.deviceType || 'WEB'
+    // 机型 / 自定义尺寸为前端 UI 偏好，后端未存储，使用默认偏好
+    currentModel.value = 'iphone-13'
+    customSize.width = 390
+    customSize.height = 844
   } else {
     pages.value = []
     currentPageUid.value = ''
@@ -778,7 +764,7 @@ async function loadPages() {
 // 机型 / 设备类型 / 自定义尺寸变化自动持久化进草稿
 watch([currentModel, currentDevice, customSize], () => {
   if (pages.value && pages.value.length) {
-    saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
+    saveProto(projectId.value, pages.value, '人工')
   }
 })
 
@@ -811,7 +797,7 @@ function onGenerate() {
         onDone: () => {
           generating.value = false
           genProgress.value = ''
-          saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
+          saveProto(projectId.value, pages.value, '人工')
           proxy.$modal.msgSuccess('原型已生成并保存')
         },
         onError: () => { generating.value = false; genProgress.value = '' }
@@ -1021,12 +1007,10 @@ function removeKv(key, i) {
 
 /* ---------------- 保存 / 提交 ---------------- */
 function handleSave() {
-  // 本地草稿始终先写（离线兜底，保证本机不丢）
-  saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
   // 后端落库：成功才算真正保存，失败明确提示（避免「以为存了其实没存」）
   saveProto(projectId.value, pages.value, '人工')
     .then(() => { proxy.$modal.msgSuccess('已保存到服务器') })
-    .catch(() => { proxy.$modal.msgWarning('服务器端保存失败，已仅存到本地草稿，其他用户暂不可见') })
+    .catch(() => { proxy.$modal.msgError('保存失败，请稍后重试') })
 }
 function handleSubmit() {
   const total = pages.value.reduce((s, p) => s + p.components.length, 0)
@@ -1053,7 +1037,7 @@ function handleSubmit() {
     })
 }
 
-/* ---------------- AI 对话（mock 流式） ---------------- */
+/* ---------------- AI 对话（流式） ---------------- */
 const chatMessages = ref([])
 const chatInput = ref('')
 const compAiInput = ref('')
@@ -1094,7 +1078,7 @@ function sendChat() {
     { projectId: projectId.value, message: msg, pages: pages.value, model: currentModelCode() },
     {
       onChunk: (t) => { assistant.content = t; scrollChat() },
-      onDone: () => { chatGenerating.value = false; saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } }) },
+      onDone: () => { chatGenerating.value = false; saveProto(projectId.value, pages.value, '人工') },
       onError: () => { chatGenerating.value = false }
     }
   )
@@ -1127,7 +1111,7 @@ function sendCompAi() {
       onDone: () => {
         chatGenerating.value = false
         replacedOnce = false
-        saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
+        saveProto(projectId.value, pages.value, '人工')
         proxy.$modal.msgSuccess('已应用 AI 修改')
       },
       onError: () => { chatGenerating.value = false; replacedOnce = false }
@@ -1165,7 +1149,7 @@ function onRestoreVersion(row) {
       currentPageUid.value = pages.value.length ? pages.value[0].uid : ''
       selectedCompUid.value = ''
       if (res && res.deviceType) currentDevice.value = res.deviceType
-      saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
+      saveProto(projectId.value, pages.value, '人工')
       proxy.$modal.msgSuccess('已还原版本')
       versionDialogVisible.value = false
     }).catch(() => {}).finally(() => { restoringVersionId.value = null })
@@ -1179,7 +1163,7 @@ function previewVersion(row) {
     currentPageUid.value = pages.value.length ? pages.value[0].uid : ''
     selectedCompUid.value = ''
     if (res.version && res.version.deviceType) currentDevice.value = res.version.deviceType
-    saveProtoDraft(projectId.value, pages.value, { deviceModel: currentModel.value, deviceType: currentDevice.value, customSize: { ...customSize } })
+    saveProto(projectId.value, pages.value, '人工')
     proxy.$modal.msgInfo('已载入该版本预览，如需长期使用请点「还原」')
   }).catch(() => {})
 }

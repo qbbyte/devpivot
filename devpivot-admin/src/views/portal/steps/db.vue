@@ -11,10 +11,6 @@
         <span class="stage-pill"><span class="stage-dot"></span>数据库设计</span>
       </div>
       <div class="header-right">
-        <el-button class="header-btn" @click="openSettings">
-          <el-icon><Setting /></el-icon>
-          <span>生成设置</span>
-        </el-button>
         <el-button class="header-btn" @click="handleSaveDraft">
           <el-icon><DocumentChecked /></el-icon>
           <span>保存草稿</span>
@@ -39,7 +35,7 @@
                     <span>数据库设计</span>
                     <el-tag v-if="isEditing" size="small" type="warning" effect="light" class="edit-tag">编辑中</el-tag>
                   </h3>
-                  <div class="selected-models" v-if="sourceModelName">
+                  <div class="selected-models" v-if="sourceModelName && activeTab === 'md' && !isEditing">
                     <span class="sm-label">生成模型</span>
                     <span class="sm-chip">{{ sourceModelName }}</span>
                   </div>
@@ -49,7 +45,7 @@
                     <el-button text class="doc-action-btn" @click="enterEdit">
                       <el-icon><EditPen /></el-icon><span>编辑</span>
                     </el-button>
-                    <el-button text class="doc-action-btn" :loading="isGenerating" @click="openSettings">
+                    <el-button text class="doc-action-btn" :loading="isGenerating" @click="startGenerate">
                       <el-icon><Refresh /></el-icon><span>重新生成</span>
                     </el-button>
                   </template>
@@ -64,12 +60,29 @@
                 </div>
               </div>
 
+              <!-- 视图切换标签 -->
+              <div class="tab-bar" v-if="finalContent.trim() && !isGenerating">
+                <button class="tab-btn" :class="{ on: activeTab === 'tables' }" :disabled="!hasStructuredData" @click="activeTab = 'tables'">
+                  <el-icon><Grid /></el-icon><span>表结构</span>
+                </button>
+                <button class="tab-btn" :class="{ on: activeTab === 'er' }" :disabled="!hasStructuredData" @click="activeTab = 'er'">
+                  <el-icon><Share /></el-icon><span>ER 图</span>
+                </button>
+                <button class="tab-btn" :class="{ on: activeTab === 'ddl' }" :disabled="!ddlBlocks.length" @click="activeTab = 'ddl'">
+                  <el-icon><Document /></el-icon><span>DDL 预览</span>
+                </button>
+                <button class="tab-btn" :class="{ on: activeTab === 'md' }" @click="activeTab = 'md'">
+                  <el-icon><Memo /></el-icon><span>原文</span>
+                </button>
+                <span class="tab-count" v-if="hasStructuredData">{{ parsedTables.length }} 张表</span>
+              </div>
+
               <div class="doc-content" :class="{ 'is-editing': isEditing }">
                 <div v-if="!finalContent.trim() && !isGenerating" class="db-empty">
                   <el-icon :size="48" color="#c9cdd4"><Coin /></el-icon>
                   <p class="db-empty-title">数据库设计尚未生成</p>
-                  <p class="db-empty-desc">点击右上角「生成设置」配置数据库类型与补充要求，AI 将基于 PRD 与技术方案生成库表设计。</p>
-                  <el-button type="primary" class="db-empty-btn" @click="openSettings">
+                  <p class="db-empty-desc">AI 将基于 PRD 与技术方案生成数据库设计；生成后在「表结构 / DDL 预览」中复制 DDL 时可选择目标数据库方言（默认 MySQL）。</p>
+                  <el-button type="primary" class="db-empty-btn" @click="startGenerate">
                     <el-icon><MagicStick /></el-icon><span>开始生成</span>
                   </el-button>
                 </div>
@@ -77,10 +90,110 @@
                   <el-icon class="rotating"><Loading /></el-icon>
                   <span>正在生成数据库设计…</span>
                 </div>
-                <div v-show="!isEditing && finalContent.trim()" ref="previewRef" class="doc-markdown markdown-body" v-html="renderMarkdown(finalContent)"></div>
-                <div v-show="isEditing" class="db-editor">
+
+                <!-- 表结构视图 -->
+                <div v-show="activeTab === 'tables' && finalContent.trim() && hasStructuredData" class="tables-view">
+                  <div class="table-list">
+                    <div class="table-list-head">表列表 ({{ parsedTables.length }})</div>
+                    <div
+                      v-for="t in parsedTables"
+                      :key="t.name"
+                      class="table-item"
+                      :class="{ on: selectedTable === t.name }"
+                      @click="selectedTable = t.name"
+                    >
+                      <span class="ti-dot" :class="tableColor(t.name)"></span>
+                      <span class="ti-name">{{ t.name }}</span>
+                      <span class="ti-count">{{ t.columns.length }}</span>
+                    </div>
+                  </div>
+                  <div class="table-detail" v-if="selectedTableObj">
+                    <div class="td-head">
+                      <div class="td-head-left">
+                        <span class="td-name">{{ selectedTableObj.name }}</span>
+                        <span class="td-comment" v-if="selectedTableObj.comment">· {{ selectedTableObj.comment }}</span>
+                        <span class="td-engine" v-if="dbType">{{ dbType }}</span>
+                      </div>
+                      <div class="td-actions">
+                        <el-button text size="small" class="td-add" @click="openAddField">
+                          <el-icon><Plus /></el-icon><span>添加字段</span>
+                        </el-button>
+                        <el-button v-if="ddlBlocks.length" text size="small" class="td-copy" @click="copyDdl(selectedTableObj)">
+                          <el-icon><CopyDocument /></el-icon><span>复制 DDL</span>
+                        </el-button>
+                      </div>
+                    </div>
+                    <div class="td-scroll">
+                      <div class="td-tip" v-if="!selectedTableObj.columns.length">该表暂无可解析的字段（可能来自 Markdown 章节而非 DDL）。</div>
+                      <table v-else class="td-table">
+                        <thead>
+                          <tr><th>字段名</th><th>类型</th><th>可空</th><th>键</th><th>默认值</th><th>注释</th></tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(c, i) in selectedTableObj.columns" :key="i">
+                            <td class="col-name">{{ c.name }}</td>
+                            <td><span class="col-type">{{ c.type }}</span></td>
+                            <td><span class="badge" :class="c.nullable === 'N' ? 'badge-nn' : 'badge-null'">{{ c.nullable }}</span></td>
+                            <td>
+                              <span v-if="c.isPk" class="badge badge-pk">PK</span>
+                              <span v-else-if="c.isUnique" class="badge badge-uq">UQ</span>
+                              <span v-else-if="isFkCol(selectedTableObj, c.name)" class="badge badge-fk">FK</span>
+                            </td>
+                            <td class="col-default">{{ c.default || '—' }}</td>
+                            <td class="col-comment">{{ c.comment || '—' }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      <div class="td-sec" v-if="selectedTableObj.indexes && selectedTableObj.indexes.length">
+                        <div class="td-sec-title">索引</div>
+                        <div v-for="(idx, i) in selectedTableObj.indexes" :key="'i' + i" class="idx-row">
+                          <span class="badge" :class="idx.type === 'UNIQUE' ? 'badge-uq' : 'badge-idx'">{{ idx.type === 'UNIQUE' ? 'UQ' : 'IDX' }}</span>
+                          <span class="idx-name">{{ idx.name }}</span>
+                          <span class="idx-cols">{{ (idx.columns || []).join(', ') }}</span>
+                        </div>
+                      </div>
+
+                      <div class="td-sec" v-if="selectedTableObj.foreignKeys && selectedTableObj.foreignKeys.length">
+                        <div class="td-sec-title">外键</div>
+                        <div v-for="(fk, i) in selectedTableObj.foreignKeys" :key="'f' + i" class="fk-row">
+                          <span class="fk-col">{{ fk.column }}</span>
+                          <span class="fk-arrow">→</span>
+                          <span class="fk-ref" @click="selectedTable = fk.refTable">{{ fk.refTable }}.{{ fk.refColumn }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ER 图视图 -->
+                <div v-show="activeTab === 'er' && finalContent.trim() && hasStructuredData" ref="erRef" class="er-view"></div>
+                <div v-show="activeTab === 'er' && finalContent.trim() && !hasStructuredData" class="er-empty-tip">
+                  未检测到 CREATE TABLE 语句，无法生成 ER 图。
+                </div>
+
+                <!-- DDL 预览视图 -->
+                <div v-show="activeTab === 'ddl' && finalContent.trim() && ddlBlocks.length" class="ddl-view">
+                  <div v-for="(sql, i) in ddlBlocks" :key="i" class="ddl-block">
+                    <div class="ddl-toolbar">
+                      <span class="ddl-fname">{{ ddlTableName(sql) }}.sql</span>
+                      <el-button text size="small" class="ddl-copy" @click="requestCopyDdl(sql)">
+                        <el-icon><CopyDocument /></el-icon><span>复制</span>
+                      </el-button>
+                    </div>
+                    <pre class="ddl-code" v-html="highlightSql(sql)"></pre>
+                  </div>
+                </div>
+                <div v-show="activeTab === 'ddl' && finalContent.trim() && !ddlBlocks.length" class="er-empty-tip">
+                  未检测到 DDL 代码块（```sql ... ```）。
+                </div>
+
+                <!-- 原文视图 -->
+                <div v-show="activeTab === 'md' && !isEditing && finalContent.trim()" ref="previewRef" class="doc-markdown markdown-body" v-html="renderMarkdown(finalContent)"></div>
+                <div v-show="activeTab === 'md' && isEditing" class="db-editor">
                   <el-input v-model="finalContent" type="textarea" :rows="20" resize="none" placeholder="在此编辑数据库设计文档（Markdown）…" />
                 </div>
+
                 <div v-if="isGenerating && finalContent.trim()" class="generating-tip">
                   <el-icon class="rotating"><Loading /></el-icon>
                   <span>AI 正在生成…</span>
@@ -150,38 +263,23 @@
       </div>
     </main>
 
-    <!-- 生成设置弹窗 -->
-    <el-dialog v-model="showSettingsDialog" title="数据库设计生成设置" width="560px" :close-on-click-modal="false" align-center>
-      <div class="settings-body">
-        <div class="settings-section">
-          <div class="section-label">
-            <span class="label-dot db"></span>
-            <span class="label-text required">目标数据库类型</span>
-          </div>
-          <div class="db-type-list">
-            <div v-for="item in dbTypeOptions" :key="item.value" class="db-type-card" :class="{ active: settingsForm.dbType === item.value }" @click="settingsForm.dbType = item.value">
-              <div class="db-type-info">
-                <span class="db-type-name">{{ item.label }}</span>
-                <span class="db-type-desc">{{ item.desc }}</span>
-              </div>
-              <el-icon v-if="settingsForm.dbType === item.value" class="stack-check"><Select /></el-icon>
+    <!-- 复制 DDL 方言选择弹窗 -->
+    <el-dialog v-model="showCopyDialog" title="复制 DDL" width="480px" :close-on-click-modal="false" align-center>
+      <div class="copy-dialect-body">
+        <p class="copy-dialect-tip">选择目标数据库方言，复制时会自动转换为对应语法（默认 MySQL）。</p>
+        <div class="db-type-list">
+          <div v-for="item in copyDialectOptions" :key="item.value" class="db-type-card" :class="{ active: copyDialect === item.value }" @click="copyDialect = item.value">
+            <div class="db-type-info">
+              <span class="db-type-name">{{ item.label }}</span>
             </div>
+            <el-icon v-if="copyDialect === item.value" class="stack-check"><Select /></el-icon>
           </div>
-        </div>
-        <div class="settings-section">
-          <div class="section-label">
-            <span class="label-dot constraint"></span>
-            <span class="label-text">补充要求 / 约束</span>
-          </div>
-          <el-input v-model="settingsForm.extraReq" type="textarea" :rows="3" resize="none" placeholder="如：必须支持分库分表、字段命名采用下划线、敏感字段加密、统一使用 bigint 主键等" />
         </div>
       </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="showSettingsDialog = false">取消</el-button>
-          <el-button type="primary" :disabled="!settingsForm.dbType" @click="confirmSettings">
-            确认设置并生成
-          </el-button>
+          <el-button @click="showCopyDialog = false">取消</el-button>
+          <el-button type="primary" @click="confirmCopyDdl">复制</el-button>
         </div>
       </template>
     </el-dialog>
@@ -209,11 +307,47 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 添加字段弹窗 -->
+    <el-dialog v-model="showAddField" title="添加字段" width="520px" :close-on-click-modal="false" align-center>
+      <div class="add-field-body">
+        <div class="af-target">目标表：<b class="af-table">{{ addTargetTable }}</b></div>
+        <el-form :model="fieldForm" label-width="80px" class="af-form">
+          <el-form-item label="字段名" required>
+            <el-input v-model="fieldForm.name" placeholder="如 creator" />
+          </el-form-item>
+          <el-form-item label="类型" required>
+            <el-select v-model="fieldForm.type" filterable allow-create default-first-option placeholder="选择或输入类型" style="width:100%">
+              <el-option v-for="t in fieldTypeOptions" :key="t" :label="t" :value="t" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="可空">
+            <el-switch v-model="fieldForm.nullable" active-text="允许为空" inactive-text="NOT NULL" />
+          </el-form-item>
+          <el-form-item label="默认值">
+            <el-input v-model="fieldForm.default" placeholder="可选，如 '' / 0 / CURRENT_TIMESTAMP" />
+          </el-form-item>
+          <el-form-item label="注释">
+            <el-input v-model="fieldForm.comment" placeholder="字段说明" />
+          </el-form-item>
+          <el-form-item label="约束">
+            <el-checkbox v-model="fieldForm.isPk">主键 PK</el-checkbox>
+            <el-checkbox v-model="fieldForm.isUnique">唯一 UQ</el-checkbox>
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showAddField = false">取消</el-button>
+          <el-button type="primary" @click="confirmAddField">确认添加</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="StepDb">
-import { ref, reactive, computed, onMounted, nextTick, getCurrentInstance } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch, getCurrentInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '@/api/ai/project'
 import { getDbModels, getDbDoc, saveDbDoc, generateDb, submitDb } from '@/api/ai/db'
@@ -241,16 +375,13 @@ const previewRef = ref(null)
 const isEditing = ref(false)
 const editBackup = ref('')
 
-const showSettingsDialog = ref(false)
-const settingsForm = reactive({ dbType: 'MySQL', extraReq: '' })
-
-const dbTypeOptions = [
-  { value: 'MySQL', label: 'MySQL', desc: '关系型数据库，Web 应用主流选择' },
-  { value: 'PostgreSQL', label: 'PostgreSQL', desc: '高级关系型数据库，适合复杂查询与 JSON' },
-  { value: 'Redis', label: 'Redis', desc: '内存键值存储，缓存 / 会话 / 排行榜' },
-  { value: 'MongoDB', label: 'MongoDB', desc: '文档型数据库，灵活 Schema' },
-  { value: 'TiDB', label: 'TiDB', desc: '分布式 HTAP 数据库，水平扩展' },
-  { value: 'OTHER', label: '其他', desc: '自定义数据库类型' }
+// 复制 DDL 时可选的目标方言（仅 SQL 方言，Redis/MongoDB 等无 DDL 故不列入）
+const copyDialectOptions = [
+  { value: 'MySQL', label: 'MySQL' },
+  { value: 'PostgreSQL', label: 'PostgreSQL' },
+  { value: 'SQLServer', label: 'SQL Server' },
+  { value: 'Oracle', label: 'Oracle' },
+  { value: 'SQLite', label: 'SQLite' }
 ]
 
 const showModelDialog = ref(false)
@@ -259,6 +390,35 @@ const tempSelectedIds = ref([])
 // 拖拽分栏
 const splitPercent = ref(52)
 const dragging = ref(false)
+
+// 文档视图标签：tables / er / ddl / md
+const activeTab = ref('tables')
+const selectedTable = ref('')
+
+// ER 图容器
+const erRef = ref(null)
+let mermaidLib = null
+
+// ===== 结构化解析 =====
+const ddlBlocks = computed(() => extractDdlBlocks(finalContent.value))
+const parsedTables = computed(() => parseDbDoc(finalContent.value))
+const hasStructuredData = computed(() => parsedTables.value.length > 0)
+const selectedTableObj = computed(() => {
+  const t = parsedTables.value.find(x => x.name === selectedTable.value)
+  return t || parsedTables.value[0] || null
+})
+
+watch(parsedTables, (list) => {
+  if (list.length && (!selectedTable.value || !list.find(t => t.name === selectedTable.value))) {
+    selectedTable.value = list[0].name
+  }
+})
+watch(activeTab, (tab) => {
+  if (tab === 'er') renderEr()
+})
+watch(finalContent, () => {
+  if (activeTab.value === 'er') renderEr()
+})
 
 const canSubmit = computed(() => {
   return finalContent.value.trim().length > 0 && !isGenerating.value
@@ -273,8 +433,6 @@ function getProjectInfo() {
   getProject(projectId.value).then(response => {
     project.value = response.data || {}
     currentStep.value = response.data?.step || 'DB'
-    settingsForm.dbType = project.value.dbType || 'MySQL'
-    dbType.value = settingsForm.dbType
     loading.value = false
   }).catch(() => { loading.value = false })
 }
@@ -282,23 +440,24 @@ function getProjectInfo() {
 function loadModels() {
   getDbModels().then(res => {
     const data = res?.data ?? res
-    modelOptions.value = data?.models || []
-    selectedModels.value = (data?.models || [])[0] ? [data.models[0].modelId] : []
-    if (modelOptions.value.length && !chatModel.value.value) {
-      chatModel.value = { value: modelOptions.value[0].modelId, label: modelOptions.value[0].modelName }
+    const models = data?.models || []
+    if (models.length) {
+      modelOptions.value = models
+      selectedModels.value = [models[0].modelId]
+      if (!chatModel.value.value) chatModel.value = { value: models[0].modelId, label: models[0].modelName }
     }
+    // 后端无启用模型时不做本地兜底，由「开始生成」的「请先选择模型」提示引导用户配置
   }).catch(() => {})
 }
 
 function loadDoc() {
-  getDbDoc(projectId.value).then(res => {
+  return getDbDoc(projectId.value).then(res => {
     const doc = res?.data ?? res
     if (doc && doc.content) {
       finalContent.value = doc.content
       dbType.value = doc.dbType || dbType.value
       mainModelId.value = doc.sourceModel || ''
       hasGenerated.value = true
-      settingsForm.dbType = dbType.value
     }
   }).catch(() => {})
 }
@@ -313,31 +472,6 @@ const sourceModelName = computed(() => {
 })
 
 // ===== 设置弹窗 =====
-function openSettings() {
-  settingsForm.dbType = dbType.value || 'MySQL'
-  settingsForm.extraReq = extraReq.value
-  showSettingsDialog.value = true
-}
-
-function confirmSettings() {
-  if (!settingsForm.dbType) {
-    proxy.$modal.msgWarning('请选择目标数据库类型')
-    return
-  }
-  dbType.value = settingsForm.dbType
-  extraReq.value = settingsForm.extraReq
-  showSettingsDialog.value = false
-  if (!selectedModels.value.length) {
-    if (modelOptions.value.length) {
-      selectedModels.value = [modelOptions.value[0].modelId]
-    } else {
-      openModelDialog()
-      return
-    }
-  }
-  startGenerate()
-}
-
 // ===== 模型弹窗 =====
 function openModelDialog() {
   tempSelectedIds.value = [...selectedModels.value]
@@ -367,6 +501,7 @@ function startGenerate() {
   finalContent.value = ''
   hasGenerated.value = true
   isGenerating.value = true
+  activeTab.value = 'md'
   genController = generateDb(
     {
       projectId: projectId.value,
@@ -381,13 +516,16 @@ function startGenerate() {
       onModelChunk: (modelId, text) => {
         finalContent.value = text
         mainModelId.value = modelId
-        scrollPreview()
+        if (activeTab.value === 'md') scrollPreview()
       },
       onModelDone: () => {},
       onAllDone: () => {
         isGenerating.value = false
         genController = null
         persistDb()
+        if (parsedTables.value.length) activeTab.value = 'tables'
+        else if (ddlBlocks.value.length) activeTab.value = 'ddl'
+        else activeTab.value = 'md'
       },
       onError: (err) => {
         isGenerating.value = false
@@ -554,15 +692,561 @@ function renderMarkdown(md) {
   return html
 }
 
+/* ============ DDL / 结构化解析 ============ */
+
+// 提取 ```sql ... ``` 代码块
+function extractDdlBlocks(md) {
+  if (!md) return []
+  const re = /```sql\s*([\s\S]*?)```/gi
+  const blocks = []
+  let m
+  while ((m = re.exec(md))) {
+    const sql = m[1].trim()
+    if (sql) blocks.push(sql)
+  }
+  return blocks
+}
+
+// 将一个 DDL 块按 CREATE TABLE 语句拆分为多条（每条以 ; 结尾）
+// 注意：模型常在 CREATE TABLE 前加 `-- 注释`，故需先裁掉行首注释再判定
+function splitCreateTables(sql) {
+  return sql.split(';')
+    .map(s => s.trim())
+    .map(s => {
+      // 去掉语句前的注释/空行，定位 CREATE TABLE 真正起点
+      const idx = s.search(/CREATE\s+TABLE/i)
+      return idx >= 0 ? s.slice(idx) : ''
+    })
+    .filter(s => /^CREATE\s+TABLE/i.test(s))
+    .map(s => s + ';')
+}
+
+// 解析整篇文档为表数组（优先 DDL，回退 Markdown 表格）
+function parseDbDoc(md) {
+  if (!md) return []
+  const tables = []
+  extractDdlBlocks(md).forEach(b => {
+    splitCreateTables(b).forEach(stmt => {
+      const t = parseCreateTable(stmt)
+      if (t) tables.push(t)
+    })
+  })
+  if (tables.length) return tables
+  return parseMarkdownTables(md)
+}
+
+// 解析单个 CREATE TABLE
+function parseCreateTable(sql) {
+  const createMatch = sql.match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"]?([A-Za-z0-9_]+)[`"]?\s*\(/i)
+  if (!createMatch) return null
+  const tableName = createMatch[1]
+
+  const tblComment = sql.match(/\)[^;]*COMMENT\s*=\s*'([^']*)'/i)
+  const tableComment = tblComment ? tblComment[1] : ''
+
+  const startIdx = sql.indexOf('(', createMatch.index) + 1
+  let depth = 1
+  let endIdx = startIdx
+  for (let i = startIdx; i < sql.length; i++) {
+    if (sql[i] === '(') depth++
+    else if (sql[i] === ')') {
+      depth--
+      if (depth === 0) { endIdx = i; break }
+    }
+  }
+  const inner = sql.slice(startIdx, endIdx)
+  const parts = splitTopLevel(inner, ',')
+
+  const columns = []
+  const indexes = []
+  const foreignKeys = []
+  const pkColumns = []
+  const uniqueColumns = {}
+
+  for (const raw of parts) {
+    const line = raw.trim()
+    if (!line) continue
+    const upper = line.toUpperCase()
+    if (/^(ENGINE|DEFAULT CHARSET|CHARSET|COLLATE|AUTO_INCREMENT|COMMENT)\b/.test(upper)) continue
+    if (upper.startsWith('PRIMARY KEY')) { pkColumns.push(...extractParenCols(line)); continue }
+    if (upper.startsWith('UNIQUE KEY') || upper.startsWith('UNIQUE INDEX')) {
+      const idxName = (line.match(/KEY\s+[`"]?([A-Za-z0-9_]+)/i) || [])[1] || ''
+      const cols = extractParenCols(line)
+      indexes.push({ name: idxName, type: 'UNIQUE', columns: cols })
+      cols.forEach(c => { uniqueColumns[c] = true })
+      continue
+    }
+    if (/^(KEY|INDEX|FULLTEXT|SPATIAL)\b/.test(upper)) {
+      const idxName = (line.match(/(?:KEY|INDEX)\s+[`"]?([A-Za-z0-9_]+)/i) || [])[1] || ''
+      indexes.push({ name: idxName, type: 'INDEX', columns: extractParenCols(line) })
+      continue
+    }
+    if (upper.startsWith('CONSTRAINT') || upper.startsWith('FOREIGN KEY')) {
+      const fk = parseForeignKey(line)
+      if (fk) foreignKeys.push(fk)
+      continue
+    }
+    const col = parseColumn(line)
+    if (col) columns.push(col)
+  }
+
+  columns.forEach(c => {
+    if (pkColumns.includes(c.name)) c.isPk = true
+    if (uniqueColumns[c.name]) c.isUnique = true
+  })
+
+  return { name: tableName, comment: tableComment, columns, indexes, foreignKeys }
+}
+
+// 按顶层逗号切分（忽略括号内的逗号）
+function splitTopLevel(str, sep) {
+  const parts = []
+  let depth = 0
+  let cur = ''
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i]
+    if (ch === '(') depth++
+    else if (ch === ')') depth--
+    if (ch === sep && depth === 0) { parts.push(cur); cur = '' }
+    else cur += ch
+  }
+  if (cur.trim()) parts.push(cur)
+  return parts
+}
+
+// 提取 (a, b, c) 中的列名
+function extractParenCols(line) {
+  const m = line.match(/\(([^)]*)\)/)
+  if (!m) return []
+  return m[1].split(',').map(s => {
+    s = s.trim()
+    const n = s.match(/[`"]?([A-Za-z0-9_]+)/)
+    return n ? n[1] : s
+  })
+}
+
+// 解析外键行
+function parseForeignKey(line) {
+  const colM = line.match(/FOREIGN\s+KEY\s+\(?[`"]?([A-Za-z0-9_]+)[`"]?\)?/i)
+  const refM = line.match(/REFERENCES\s+[`"]?([A-Za-z0-9_]+)[`"]?\s*\(?[`"]?([A-Za-z0-9_]+)/i)
+  if (colM && refM) {
+    return { column: colM[1], refTable: refM[1], refColumn: refM[2] }
+  }
+  return null
+}
+
+// 解析列定义
+function parseColumn(line) {
+  const nameM = line.match(/^[`"]?([A-Za-z0-9_]+)[`"]?\s+/)
+  if (!nameM) return null
+  const name = nameM[1]
+  const rest = line.slice(nameM[0].length)
+  const typeM = rest.match(/^([A-Za-z0-9_]+(?:\s*\([^)]*\))?)/i)
+  const type = typeM ? typeM[1].replace(/\s+/g, ' ').toUpperCase() : ''
+  const remainder = typeM ? rest.slice(typeM[0].length) : rest
+  const upper = remainder.toUpperCase()
+  const nullable = /\bNOT\s+NULL\b/.test(upper) ? 'N' : 'Y'
+  const autoInc = /\bAUTO_INCREMENT\b/.test(upper)
+  const defaultM = remainder.match(/DEFAULT\s+([^\s,]+)/i)
+  let defaultVal = defaultM ? defaultM[1].replace(/^['"`]|['"`]$/g, '') : ''
+  if (autoInc) defaultVal = defaultVal || 'AUTO_INC'
+  const commentM = remainder.match(/COMMENT\s+'((?:[^'\\]|\\.)*)'/i)
+  const comment = commentM ? commentM[1].replace(/\\'/g, "'") : ''
+  const beforeComment = remainder.split(/\bCOMMENT\b/i)[0]
+  const upc = beforeComment.toUpperCase()
+  const isPkInline = /\bPRIMARY\s+KEY\b/.test(upc)
+  const isUniqueInline = /\bUNIQUE\b/.test(upc)
+  return { name, type, nullable, default: defaultVal, comment, isPk: isPkInline, isUnique: isUniqueInline }
+}
+
+// Markdown 表格回退解析（第 5 章核心表结构）
+function parseMarkdownTables(md) {
+  const lines = md.split('\n')
+  const tables = []
+  let cur = null
+  let headers = []
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+    const h = line.match(/^#{3,4}\s+.*?([A-Za-z0-9_]+)[）)]\s*(.*)$/i)
+    if (h) {
+      if (cur) tables.push(cur)
+      cur = { name: h[1], comment: (h[2] || '').replace(/^[（(]/, '').trim(), columns: [], indexes: [], foreignKeys: [] }
+      headers = []
+      continue
+    }
+    if (cur && line.startsWith('|')) {
+      const cells = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(s => s.trim())
+      if (!cells.length) continue
+      if (cells.every(c => /^[-:]+$/.test(c))) { headers = []; continue }
+      if (headers.length === 0) { headers = cells; continue }
+      const get = (...keys) => {
+        for (const k of keys) {
+          const idx = headers.findIndex(hh => hh.replace(/\s/g, '').includes(k.replace(/\s/g, '')))
+          if (idx >= 0) return cells[idx] || ''
+        }
+        return ''
+      }
+      const colName = get('字段名', '字段', '列名', '列')
+      if (!colName) continue
+      const key = get('键', '主键', '约束')
+      const note = get('说明', '注释')
+      cur.columns.push({
+        name: colName,
+        type: (get('类型') || '').toUpperCase(),
+        nullable: (get('可空') || '').toUpperCase().includes('N') ? 'N' : 'Y',
+        default: get('默认值') || '',
+        comment: note,
+        isPk: (key.toUpperCase().includes('PK') || note.includes('主键')),
+        isUnique: (key.toUpperCase().includes('U') || note.includes('唯一'))
+      })
+    }
+  }
+  if (cur) tables.push(cur)
+  return tables.filter(t => t.columns.length)
+}
+
+// 表名 → 颜色（确定性哈希）
+function tableColor(name) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return 'ti-dot-' + (h % 6)
+}
+
+function isFkCol(table, colName) {
+  return (table.foreignKeys || []).some(fk => fk.column === colName)
+}
+
+// ===== 手动添加字段 =====
+const showAddField = ref(false)
+const addTargetTable = ref('')
+const fieldForm = reactive({ name: '', type: 'VARCHAR(64)', nullable: true, default: '', comment: '', isPk: false, isUnique: false })
+const fieldTypeOptions = ['BIGINT(20)', 'INT', 'TINYINT', 'VARCHAR(64)', 'VARCHAR(255)', 'CHAR(1)', 'TEXT', 'DATETIME', 'TIMESTAMP', 'DATE', 'DECIMAL(10,2)', 'BOOLEAN', 'JSON']
+
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
+
+// 将 CREATE TABLE 内部按顶层逗号拆为带偏移的片段（忽略引号内的逗号）
+function splitTopLevelParts(str) {
+  const parts = []
+  let depth = 0, cur = '', start = 0, inQuote = null
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i]
+    if (inQuote) {
+      cur += ch
+      if (ch === inQuote) inQuote = null
+      continue
+    }
+    if (ch === "'" || ch === '"' || ch === '`') { inQuote = ch; cur += ch; continue }
+    if (ch === '(') depth++
+    else if (ch === ')') depth--
+    if (ch === ',' && depth === 0) { parts.push({ text: cur.trim(), start, end: i }); cur = ''; start = i + 1 }
+    else cur += ch
+  }
+  if (cur.trim()) parts.push({ text: cur.trim(), start, end: str.length })
+  return parts
+}
+
+// 构建一行列定义的 DDL
+function buildColumnDdlLine(f) {
+  let line = `${f.name} ${f.type}`
+  if (!f.nullable) line += ' NOT NULL'
+  if (f.isPk) line += ' PRIMARY KEY'
+  else if (f.isUnique) line += ' UNIQUE'
+  if (f.default !== '' && f.default != null) {
+    const d = String(f.default).trim()
+    const upper = d.toUpperCase()
+    const noQuote = /^-?\d+(\.\d+)?$/.test(d) || ['NULL', 'TRUE', 'FALSE', 'CURRENT_TIMESTAMP', 'NOW()'].includes(upper)
+    line += ' DEFAULT ' + (noQuote ? d : `'${d.replace(/'/g, "''")}'`)
+  }
+  if (f.comment) line += ` COMMENT '${f.comment.replace(/'/g, "''")}'`
+  return line
+}
+
+// 在指定 CREATE TABLE 的最后一列后插入新字段，返回新文档；找不到返回 null
+function insertColumnIntoDdl(md, tableName, colLine) {
+  const re = new RegExp('CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?[`"]?' + escapeRegExp(tableName) + '[`"]?\\s*\\(', 'i')
+  const m = md.match(re)
+  if (!m) return null
+  const startParen = m.index + m[0].length
+  let depth = 1, endParen = -1
+  for (let i = startParen; i < md.length; i++) {
+    if (md[i] === '(') depth++
+    else if (md[i] === ')') { depth--; if (depth === 0) { endParen = i; break } }
+  }
+  if (endParen < 0) return null
+  const inner = md.slice(startParen, endParen)
+  const parts = splitTopLevelParts(inner)
+  let lastColIdx = -1
+  for (let i = 0; i < parts.length; i++) {
+    const up = parts[i].text.toUpperCase()
+    const isConstraint = /^(PRIMARY KEY|UNIQUE KEY|UNIQUE INDEX|KEY|INDEX|FULLTEXT|SPATIAL|CONSTRAINT|FOREIGN KEY|ENGINE|DEFAULT CHARSET|CHARSET|COLLATE|AUTO_INCREMENT|COMMENT)\b/.test(up)
+    if (!isConstraint) lastColIdx = i
+  }
+  if (lastColIdx < 0) return null
+  const last = parts[lastColIdx]
+  // 插入点 = 该列定义最后一个非空白字符之后（避免把逗号插进注释/类型里）
+  const partRaw = inner.slice(last.start, last.end)
+  const colEndInInner = last.start + partRaw.trimEnd().length
+  const insertAt = startParen + colEndInInner
+  const insertText = ',\n  ' + colLine
+  return md.slice(0, insertAt) + insertText + md.slice(insertAt)
+}
+
+function openAddField() {
+  if (!selectedTableObj.value) return
+  addTargetTable.value = selectedTableObj.value.name
+  Object.assign(fieldForm, { name: '', type: 'VARCHAR(64)', nullable: true, default: '', comment: '', isPk: false, isUnique: false })
+  showAddField.value = true
+}
+
+function confirmAddField() {
+  const name = (fieldForm.name || '').trim()
+  const type = (fieldForm.type || '').trim()
+  if (!name) { proxy.$modal.msgWarning('请填写字段名'); return }
+  if (!/^[A-Za-z0-9_]+$/.test(name)) { proxy.$modal.msgWarning('字段名仅支持字母、数字、下划线'); return }
+  if (!type) { proxy.$modal.msgWarning('请选择或填写字段类型'); return }
+  const target = addTargetTable.value
+  const colLine = buildColumnDdlLine({ name, type, nullable: fieldForm.nullable, default: fieldForm.default, comment: fieldForm.comment, isPk: fieldForm.isPk, isUnique: fieldForm.isUnique })
+  const updated = insertColumnIntoDdl(finalContent.value, target, colLine)
+  if (updated == null) {
+    proxy.$modal.msgWarning('未在该表 DDL 中找到 CREATE TABLE，请到「原文」视图手动添加')
+    return
+  }
+  finalContent.value = updated
+  showAddField.value = false
+  proxy.$modal.msgSuccess(`已为 ${target} 添加字段：${name}`)
+}
+
+// ER 图源（mermaid erDiagram）
+function buildErSource() {
+  let src = 'erDiagram\n'
+  parsedTables.value.forEach(t => {
+    src += `  ${t.name} {\n`
+    t.columns.slice(0, 8).forEach(c => {
+      const tag = c.isPk ? 'PK' : (c.isUnique ? 'UK' : (isFkCol(t, c.name) ? 'FK' : ''))
+      const tp = (c.type || 'VARCHAR').replace(/[^A-Za-z0-9]/g, '')
+      src += `    ${tp} ${c.name} ${tag}\n`
+    })
+    src += '  }\n'
+  })
+  parsedTables.value.forEach(t => {
+    ;(t.foreignKeys || []).forEach(fk => {
+      src += `  ${t.name} ||--o{ ${fk.refTable} : "${fk.column}"\n`
+    })
+  })
+  return src
+}
+
+function loadMermaidScript() {
+  return new Promise((resolve, reject) => {
+    if (window.mermaid) return resolve(window.mermaid)
+    const s = document.createElement('script')
+    s.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js'
+    s.onload = () => resolve(window.mermaid)
+    s.onerror = () => reject(new Error('mermaid 脚本加载失败'))
+    document.head.appendChild(s)
+  })
+}
+
+async function renderEr() {
+  if (!erRef.value) return
+  if (!parsedTables.value.length) {
+    erRef.value.innerHTML = ''
+    return
+  }
+  try {
+    const m = await loadMermaidScript()
+    m.initialize({
+      startOnLoad: false,
+      theme: 'base',
+      securityLevel: 'loose',
+      themeVariables: {
+        primaryColor: '#e8f3ff',
+        primaryTextColor: '#1d2129',
+        primaryBorderColor: '#3370ff',
+        lineColor: '#86909c',
+        secondaryColor: '#fafbfc',
+        tertiaryColor: '#fff',
+        fontSize: '12px'
+      },
+      er: { entityPadding: 6, strokeWidth: 1, diagramPadding: 16 }
+    })
+    const src = buildErSource()
+    const { svg } = await m.render('er-' + Date.now(), src)
+    erRef.value.innerHTML = svg
+  } catch (e) {
+    erRef.value.innerHTML = '<div class="er-empty-tip">ER 图渲染失败：' + (e && e.message ? e.message : e) + '</div>'
+  }
+}
+
+// SQL 语法高亮
+function highlightSql(sql) {
+  if (!sql) return ''
+  const kw = /\b(CREATE|TABLE|IF|NOT|EXISTS|NULL|PRIMARY|KEY|UNIQUE|INDEX|FOREIGN|REFERENCES|DEFAULT|CONSTRAINT|ENGINE|CHARSET|COLLATE|AUTO_INCREMENT|COMMENT|ON|UPDATE|CURRENT_TIMESTAMP|INNODB|UNSIGNED|ZEROFILL)\b/gi
+  const tp = /\b(BIGINT|INT|INTEGER|TINYINT|SMALLINT|MEDIUMINT|DECIMAL|NUMERIC|FLOAT|DOUBLE|VARCHAR|CHAR|TEXT|LONGTEXT|MEDIUMTEXT|TINYTEXT|DATE|DATETIME|TIMESTAMP|TIME|YEAR|BOOLEAN|BOOL|JSON|BLOB|ENUM)\b/gi
+  let out = escapeHtml(sql)
+  const slots = []
+  out = out.replace(/'[^']*'/g, m => { slots.push(m); return `\u0000${slots.length - 1}\u0000` })
+  out = out.replace(/--[^\n]*/g, m => { slots.push(m); return `\u0000${slots.length - 1}\u0000` })
+  out = out.replace(kw, m => `<span class="sql-kw">${m}</span>`)
+  out = out.replace(tp, m => `<span class="sql-tp">${m}</span>`)
+  out = out.replace(/\u0000(\d+)\u0000/g, (_, i) => {
+    const s = slots[+i]
+    if (s.startsWith('--')) return `<span class="sql-cm">${s}</span>`
+    return `<span class="sql-st">${s}</span>`
+  })
+  return out
+}
+
+function ddlTableName(sql) {
+  const m = sql.match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"]?([A-Za-z0-9_]+)/i)
+  return m ? m[1] : 'schema'
+}
+
+function copyText(text) {
+  const done = () => proxy.$modal.msgSuccess('已复制')
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done))
+  } else {
+    fallbackCopy(text, done)
+  }
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  try { document.execCommand('copy'); done() } catch (e) { proxy.$modal.msgError('复制失败') }
+  document.body.removeChild(ta)
+}
+
+// 复制 DDL 前先让用户选择目标方言（默认 MySQL），再做最佳努力的方言转换
+const showCopyDialog = ref(false)
+const copyTargetText = ref('')
+const copyDialect = ref('MySQL')
+
+function requestCopyDdl(text) {
+  copyTargetText.value = text || ''
+  copyDialect.value = 'MySQL'
+  showCopyDialog.value = true
+}
+
+function confirmCopyDdl() {
+  const out = convertDdlToDialect(copyTargetText.value, copyDialect.value)
+  showCopyDialog.value = false
+  copyText(out)
+}
+
+function copyDdl(table) {
+  const block = ddlBlocks.value.find(sql => ddlTableName(sql) === table.name)
+  if (block) requestCopyDdl(block)
+  else proxy.$modal.msgWarning('未找到该表 DDL')
+}
+
+// 将 MySQL 风格 CREATE TABLE 转换为目标方言（最佳努力，覆盖常见生成形态）
+function convertDdlToDialect(sql, target) {
+  if (!target || target === 'MySQL') return sql
+  const t = String(target).toLowerCase()
+  const isPg = t === 'postgresql'
+  const isMs = t === 'sqlserver' || t === 'mssql'
+  const isOra = t === 'oracle'
+  const isSqlite = t === 'sqlite'
+  const needsQuote = isPg || isMs || isOra
+  const stripInlineComment = isPg || isMs || isOra
+  const commentOn = []
+
+  const nameM = sql.match(/CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"]?([A-Za-z0-9_]+)/i)
+  const tableName = nameM ? nameM[1] : null
+
+  const re = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"]?[A-Za-z0-9_]+[`"]?\s*\(/i
+  const m = sql.match(re)
+  if (!m) return sql
+  const startParen = m.index + m[0].length
+  let depth = 1, endParen = -1
+  for (let i = startParen; i < sql.length; i++) {
+    if (sql[i] === '(') depth++
+    else if (sql[i] === ')') { depth--; if (depth === 0) { endParen = i; break } }
+  }
+  if (endParen < 0) return sql
+  const head = sql.slice(0, startParen)
+  const inner = sql.slice(startParen, endParen)
+  const tail = sql.slice(endParen)
+
+  const parts = splitTopLevelParts(inner)
+  const converted = parts.map(p => {
+    let line = p.text
+    const up = line.toUpperCase()
+    const isConstraint = /^(PRIMARY KEY|UNIQUE KEY|UNIQUE INDEX|KEY|INDEX|FULLTEXT|SPATIAL|CONSTRAINT|FOREIGN KEY)\b/.test(up)
+    if (isConstraint) return line
+
+    // AUTO_INCREMENT → 各方言自增写法
+    if (/AUTO_INCREMENT/i.test(line)) {
+      const isPk = /\bPRIMARY\s+KEY\b/i.test(line)
+      line = line.replace(/\s*AUTO_INCREMENT\b/i, '')
+      if (isPg) line = line.replace(/\b(BIGINT|INT|SMALLINT|INTEGER|MEDIUMINT|TINYINT)\b(\(\d+\))?/i, '$1 GENERATED BY DEFAULT AS IDENTITY')
+      else if (isOra) line = line.replace(/\b(BIGINT|INT|SMALLINT|INTEGER|MEDIUMINT|TINYINT)\b(\(\d+\))?/i, 'NUMBER(19) GENERATED BY DEFAULT AS IDENTITY')
+      else if (isMs) line = line.replace(/\b(BIGINT|INT|SMALLINT|INTEGER|MEDIUMINT|TINYINT)\b(\(\d+\))?/i, '$1 IDENTITY(1,1)')
+      else if (isSqlite && isPk) {
+        line = line.replace(/\b(BIGINT|INT|SMALLINT|INTEGER|MEDIUMINT|TINYINT)\b(\(\d+\))?/i, 'INTEGER PRIMARY KEY AUTOINCREMENT')
+        line = line.replace(/\bNOT\s+NULL\b/i, '')
+      }
+    }
+    // 类型映射
+    if (isPg || isMs || isOra) line = line.replace(/\bDATETIME\b/i, 'TIMESTAMP')
+    if (isPg || isMs || isOra) line = line.replace(/\bTINYINT\(1\)\b/i, 'BOOLEAN')
+    line = line.replace(/\bJSON\b/i, isPg ? 'JSONB' : isOra ? 'CLOB' : isMs ? 'NVARCHAR(MAX)' : isSqlite ? 'TEXT' : 'JSON')
+    if (isOra) line = line.replace(/\bTEXT\b/i, 'CLOB')
+    if (isMs) line = line.replace(/\bTEXT\b/i, 'NVARCHAR(MAX)')
+    // 列内联 COMMENT → 方言改为 COMMENT ON COLUMN
+    const cm = line.match(/COMMENT\s+'((?:[^'\\]|\\.)*)'/i)
+    if (cm && stripInlineComment && tableName) {
+      const colM = line.match(/^[`"]?([A-Za-z0-9_]+)[`"]?\s/)
+      const colName = colM ? colM[1] : null
+      line = line.replace(/\s*COMMENT\s+'((?:[^'\\]|\\.)*)'/i, '')
+      if (colName) {
+        const qcol = needsQuote ? `"${tableName}"."${colName}"` : `${tableName}.${colName}`
+        commentOn.push(`COMMENT ON COLUMN ${qcol} IS '${cm[1].replace(/'/g, "''")}';`)
+      }
+    }
+    return line
+  })
+
+  // 清理 MySQL 表级选项
+  let tailClean = tail
+  tailClean = tailClean.replace(/\s*ENGINE\s*=\s*[A-Za-z0-9_]+/i, '')
+  tailClean = tailClean.replace(/\s*DEFAULT\s+CHARSET\s*=\s*[A-Za-z0-9_]+/i, '')
+  tailClean = tailClean.replace(/\s*CHARSET\s*=\s*[A-Za-z0-9_]+/i, '')
+  tailClean = tailClean.replace(/\s*COLLATE\s*=\s*[A-Za-z0-9_]+/i, '')
+  tailClean = tailClean.replace(/\s*AUTO_INCREMENT\s*=\s*\d+/i, '')
+  tailClean = tailClean.replace(/\s*COMMENT\s*=\s*'((?:[^'\\]|\\.)*)'/i, (mm, c) => {
+    if (stripInlineComment && tableName) {
+      const qt = needsQuote ? `"${tableName}"` : tableName
+      commentOn.push(`COMMENT ON TABLE ${qt} IS '${c.replace(/'/g, "''")}';`)
+    }
+    return ''
+  })
+  tailClean = tailClean.replace(/^\s*;\s*$/, '')
+
+  let result = head.trimEnd() + '\n  ' + converted.join(',\n  ') + tailClean.trim()
+  if (!result.trim().endsWith(';')) result = result.trim() + ';'
+  // 统一反引号：PG/MSSQL/Oracle 用双引号，SQLite 去掉
+  result = result.replace(/`/g, needsQuote ? '"' : '')
+  if (commentOn.length) result += '\n\n' + commentOn.join('\n')
+  return result
+}
+
 onMounted(() => {
   getProjectInfo()
   loadModels()
-  loadDoc()
-  setTimeout(() => {
-    if (!hasGenerated.value) {
-      showSettingsDialog.value = true
+  loadDoc().then(() => {
+    if (finalContent.value.trim()) {
+      activeTab.value = parsedTables.value.length ? 'tables' : (ddlBlocks.value.length ? 'ddl' : 'md')
+    } else {
+      activeTab.value = 'tables'
     }
-  }, 200)
+  })
 })
 </script>
 
@@ -713,6 +1397,7 @@ onMounted(() => {
 .doc-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .doc-action-btn { font-size: 13px; color: #4e5969; padding: 6px 10px; border-radius: 8px; transition: all 0.2s ease; }
 .doc-action-btn:hover { color: #3370ff; background: rgba(51, 112, 255, 0.06); }
+.doc-action-btn .el-icon { margin-right: 3px; }
 
 .submit-header-btn {
   color: #fff;
@@ -736,10 +1421,198 @@ onMounted(() => {
   transform: none;
 }
 
+/* 视图标签栏 */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid #f2f3f5;
+  flex-shrink: 0;
+}
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #86909c;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.tab-btn .el-icon { font-size: 14px; }
+.tab-btn:hover { color: #3370ff; }
+.tab-btn.on { color: #3370ff; border-bottom-color: #3370ff; font-weight: 500; }
+.tab-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.tab-btn:disabled:hover { color: #86909c; }
+.tab-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: #86909c;
+  background: #f2f3f5;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
 .doc-content { flex: 1; min-height: 0; position: relative; padding-top: 12px; display: flex; flex-direction: column; }
-.doc-content > .markdown-body:only-child,
-.doc-content > .db-editor:only-child { flex: 1; min-height: 0; }
 .doc-content.is-editing { padding-top: 0; }
+
+/* 表结构视图 */
+.tables-view { flex: 1; min-height: 0; display: flex; gap: 0; }
+.table-list {
+  width: 168px;
+  flex-shrink: 0;
+  border-right: 1px solid #f2f3f5;
+  background: #fafbfc;
+  padding: 8px 6px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.table-list-head {
+  font-size: 11px;
+  color: #c9cdd4;
+  padding: 2px 8px 6px;
+  letter-spacing: 0.04em;
+}
+.table-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: #4e5969;
+  transition: all 0.15s ease;
+}
+.table-item:hover { background: #f2f3f5; }
+.table-item.on { background: #e8f3ff; color: #3370ff; }
+.ti-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: #c9cdd4; }
+.ti-dot-0 { background: #3370ff; }
+.ti-dot-1 { background: #00b42a; }
+.ti-dot-2 { background: #ba7517; }
+.ti-dot-3 { background: #a32d2d; }
+.ti-dot-4 { background: #534ab7; }
+.ti-dot-5 { background: #0f6e56; }
+.ti-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono, 'SF Mono', Consolas, monospace); }
+.ti-count { font-size: 10px; color: #c9cdd4; background: #f2f3f5; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; }
+.table-item.on .ti-count { background: #cce0ff; color: #185fa5; }
+
+.table-detail { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.td-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 4px 12px;
+}
+.td-head-left { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.td-name { font-size: 16px; font-weight: 500; color: #1d2129; font-family: var(--font-mono, 'SF Mono', Consolas, monospace); }
+.td-comment { font-size: 12px; color: #86909c; }
+.td-engine { font-size: 11px; color: #185fa5; background: #e8f3ff; padding: 2px 7px; border-radius: 4px; }
+.td-copy { font-size: 12px; color: #4e5969; flex-shrink: 0; }
+.td-copy:hover { color: #3370ff; }
+.td-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.td-add { font-size: 12px; color: #3370ff; flex-shrink: 0; }
+.td-add:hover { background: rgba(51,112,255,0.06); }
+.td-add .el-icon { margin-right: 3px; }
+.add-field-body { padding: 4px 2px; }
+.af-target { font-size: 13px; color: #4e5969; margin-bottom: 14px; }
+.af-table { font-family: var(--font-mono, 'SF Mono', Consolas, monospace); color: #3370ff; }
+.af-form :deep(.el-input__inner), .af-form :deep(.el-textarea__inner) { border-radius: 8px; }
+.af-form .el-checkbox { margin-right: 18px; }
+.td-copy .el-icon { margin-right: 3px; }
+.td-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-right: 4px; }
+.td-tip { font-size: 12px; color: #86909c; padding: 8px 4px; }
+
+.td-table { width: 100%; border-collapse: collapse; }
+.td-table th {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: #86909c;
+  font-weight: 400;
+  text-align: left;
+  border-bottom: 1px solid #e5e6eb;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  position: sticky;
+  top: 0;
+  background: #fff;
+}
+.td-table td { padding: 6px 8px; font-size: 12.5px; border-bottom: 0.5px solid #f2f3f5; color: #1d2129; }
+.col-name { font-family: var(--font-mono, 'SF Mono', Consolas, monospace); font-weight: 500; }
+.col-type {
+  font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
+  font-size: 11.5px;
+  color: #534ab7;
+  background: #eeedfe;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.col-default { color: #86909c; font-family: var(--font-mono, 'SF Mono', Consolas, monospace); font-size: 11.5px; }
+.col-comment { color: #4e5969; }
+.badge { font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 500; }
+.badge-nn { background: #fcebeb; color: #a32d2d; }
+.badge-null { background: #f2f3f5; color: #86909c; }
+.badge-pk { background: #fff3e0; color: #ba7517; }
+.badge-uq { background: #e8f3ff; color: #185fa5; }
+.badge-fk { background: #eaf3de; color: #3b6d11; }
+.badge-idx { background: #eaf3de; color: #3b6d11; }
+
+.td-sec { margin-top: 14px; }
+.td-sec-title { font-size: 12px; font-weight: 500; color: #4e5969; margin-bottom: 6px; }
+.idx-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #86909c; padding: 2px 0; }
+.idx-name { font-family: var(--font-mono, 'SF Mono', Consolas, monospace); color: #4e5969; }
+.idx-cols { font-family: var(--font-mono, 'SF Mono', Consolas, monospace); }
+.fk-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #86909c; padding: 2px 0; }
+.fk-col { font-family: var(--font-mono, 'SF Mono', Consolas, monospace); color: #4e5969; }
+.fk-arrow { color: #c9cdd4; }
+.fk-ref { font-family: var(--font-mono, 'SF Mono', Consolas, monospace); color: #3370ff; cursor: pointer; }
+.fk-ref:hover { text-decoration: underline; }
+
+/* ER 图视图 */
+.er-view { flex: 1; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center; background: #fafbfc; }
+.er-view :deep(svg) { max-width: 100%; height: auto; }
+.er-empty-tip { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #86909c; padding: 24px; text-align: center; }
+
+/* DDL 预览视图 */
+.ddl-view { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+.ddl-block { border: 0.5px solid #e5e6eb; border-radius: 8px; overflow: hidden; }
+.ddl-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #fafbfc;
+  border-bottom: 0.5px solid #eee;
+}
+.ddl-fname { font-size: 12px; color: #4e5969; font-family: var(--font-mono, 'SF Mono', Consolas, monospace); display: flex; align-items: center; gap: 6px; }
+.ddl-fname::before { content: 'S'; display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 3px; background: #3370ff; color: #fff; font-size: 9px; font-weight: 600; }
+.ddl-copy { font-size: 12px; color: #4e5969; }
+.ddl-copy:hover { color: #3370ff; }
+.ddl-copy .el-icon { margin-right: 3px; }
+.ddl-code {
+  margin: 0;
+  padding: 12px 16px;
+  background: #fff;
+  font-family: var(--font-mono, 'SF Mono', Consolas, monospace);
+  font-size: 12px;
+  line-height: 1.75;
+  white-space: pre;
+  color: #1d2129;
+  overflow-x: auto;
+}
+.sql-kw { color: #534ab7; font-weight: 500; }
+.sql-tp { color: #ba7517; }
+.sql-st { color: #3b6d11; }
+.sql-cm { color: #c9cdd4; font-style: italic; }
+
+/* 原文 / 编辑器 / 空态 / 生成中 */
 .db-editor { flex: 1; min-height: 0; width: 100%; }
 .db-editor :deep(.el-textarea) { height: 100%; }
 .db-editor :deep(.el-textarea__inner) {
@@ -901,15 +1774,8 @@ onMounted(() => {
 .chat-send { flex-shrink: 0; }
 
 /* 设置弹窗 */
-.settings-body { padding: 6px 4px; }
-.settings-section { margin-bottom: 18px; }
-.settings-section:last-of-type { margin-bottom: 6px; }
-.section-label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.label-dot { width: 6px; height: 6px; border-radius: 50%; background: #c9cdd4; }
-.label-dot.db { background: #3370ff; }
-.label-dot.constraint { background: #f5a623; }
-.label-text { font-size: 14px; font-weight: 500; color: #1d2129; }
-.label-text.required::after { content: '*'; color: #d54941; margin-left: 4px; }
+.copy-dialect-body { padding: 4px 2px; }
+.copy-dialect-tip { font-size: 13px; color: #4e5969; margin: 0 0 14px; line-height: 1.5; }
 .db-type-list { display: flex; flex-direction: column; gap: 8px; }
 .db-type-card {
   position: relative;
@@ -933,15 +1799,6 @@ onMounted(() => {
   border: 1px solid #3370ff;
   display: flex; align-items: center; justify-content: center;
 }
-.settings-section :deep(.el-textarea__inner) {
-  border-radius: 8px;
-  border-color: #e5e6eb;
-  padding: 10px 12px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: #1d2129;
-}
-.settings-section :deep(.el-textarea__inner:focus) { border-color: #3370ff; }
 .dialog-footer { display: flex; justify-content: flex-end; gap: 10px; }
 
 /* 模型选择弹窗 */
@@ -973,5 +1830,7 @@ onMounted(() => {
   .db-section { overflow: visible; }
   .section-title-left { gap: 10px; }
   .selected-models { border-left: none; padding-left: 0; width: 100%; }
+  .tables-view { flex-direction: column; }
+  .table-list { width: 100%; flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid #f2f3f5; }
 }
 </style>

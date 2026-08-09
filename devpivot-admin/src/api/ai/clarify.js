@@ -126,6 +126,41 @@ export function adoptAnswer(data) {
   })
 }
 
+// ===================== 历史版本（/ai/clarify/version，复用后端 ai_version_record，bizType=CLARIFY） =====================
+
+// 保存当前澄清结论为历史版本：snapshot=完整澄清结论对象；versionName/remark/sourceModel 可选
+export function saveClarifyVersion(projectId, snapshot, versionName = '', remark = '', sourceModel = '') {
+  return request({
+    url: `/ai/clarify/version/${projectId}`,
+    method: 'post',
+    data: { snapshot, versionName, remark, sourceModel }
+  })
+}
+
+// 历史版本列表（含派生文件清单，不含大快照正文）
+export function listClarifyVersions(projectId) {
+  return request({
+    url: `/ai/clarify/versions/${projectId}`,
+    method: 'get'
+  }).then(res => res.data || [])
+}
+
+// 获取单个版本（含快照正文，供查看/还原）
+export function getClarifyVersion(versionId) {
+  return request({
+    url: `/ai/clarify/version/${versionId}`,
+    method: 'get'
+  }).then(res => res.data || {})
+}
+
+// 还原历史版本（把快照写回当前会话）
+export function restoreClarifyVersion(versionId) {
+  return request({
+    url: `/ai/clarify/version/restore/${versionId}`,
+    method: 'post'
+  })
+}
+
 // ===================== 后台管理·澄清问题记录 CRUD（/system/clarify） =====================
 // 注：以下接口与上面门户对话链路相互独立，对应后端 AiClarifyRecordController 的标准 CRUD。
 

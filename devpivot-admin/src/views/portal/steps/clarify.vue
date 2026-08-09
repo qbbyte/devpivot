@@ -279,11 +279,18 @@
 
     <el-drawer v-model="showHistory" title="历史版本" direction="rtl" size="420px" :with-header="true">
       <div class="history-drawer">
+        <div v-if="historyLoading" class="history-hint">加载中…</div>
+        <div v-else-if="!historyVersions.length" class="history-hint">暂无历史版本。提交澄清结果后将自动生成一份版本快照。</div>
         <div v-for="ver in historyVersions" :key="ver.version" class="history-item">
           <div class="history-head" @click="toggleVersion(ver.version)">
             <div class="history-head-top">
               <span class="history-version">{{ ver.version }}</span>
               <span class="history-status" :class="statusClass(ver.status)">{{ ver.status }}</span>
+              <button
+                class="file-view restore-btn"
+                :disabled="restoringVersionId === ver.versionId"
+                @click.stop="onRestoreVersion(ver)"
+              >{{ restoringVersionId === ver.versionId ? '还原中…' : '还原' }}</button>
               <el-icon class="history-caret" :class="{ open: expandedVersion === ver.version }">
                 <ArrowDown />
               </el-icon>
@@ -294,20 +301,24 @@
               <span>{{ ver.author }}</span>
             </div>
             <div class="history-summary">{{ ver.summary }}</div>
-            <div class="history-file-count">{{ ver.files.length }} 个文件</div>
+            <div class="history-file-count">{{ (ver.files || []).length }} 个文件</div>
           </div>
 
           <div class="history-files" v-show="expandedVersion === ver.version">
-            <div v-for="file in ver.files" :key="file.name" class="file-row">
+            <div v-for="file in (ver.files || [])" :key="file.name" class="file-row">
               <span class="file-badge" :class="'ft-' + file.type">{{ file.type.toUpperCase() }}</span>
               <span class="file-name" :title="file.name">{{ file.name }}</span>
               <span class="file-size">{{ file.size }}</span>
-              <button class="file-view" @click="viewFile(ver, file)">查看</button>
+              <button class="file-view" @click.stop="viewFile(ver, file)">查看</button>
             </div>
           </div>
         </div>
       </div>
     </el-drawer>
+
+    <el-dialog v-model="fileView" :title="fileViewTitle" width="680px" append-to-body>
+      <pre class="file-view-content">{{ fileViewContent }}</pre>
+    </el-dialog>
 
     <el-drawer v-model="showRetain" title="已保留要点" direction="rtl" size="420px" :with-header="true">
       <div class="retain-drawer">
@@ -416,7 +427,7 @@
 </template>
 
 <script setup name="StepClarify">
-import { ref, computed, onMounted, nextTick, getCurrentInstance, reactive } from 'vue'
+import { ref, computed, onMounted, nextTick, getCurrentInstance, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import useUserStore from '@/store/modules/user'
 import { getProject } from '@/api/ai/project'
@@ -427,9 +438,12 @@ import {
   getClarifySession,
   saveSession,
   sendMessage as sendMessageApi,
-  adoptAnswer
+  adoptAnswer,
+  listClarifyVersions,
+  getClarifyVersion,
+  saveClarifyVersion,
+  restoreClarifyVersion
 } from '@/api/ai/clarify'
-import { mockHistoryVersions } from './mockData'
 
 // 澄清访谈问卷（引导式结构化访谈，属产品设计，非 AI 假数据；AI 回答由后端真实返回）
 // TODO: 澄清问题当前为前端内置/兜底机制，并非 AI 动态生成：
@@ -565,15 +579,67 @@ function handleKeyEnter(e) {
 // 历史相关
 const showHistory = ref(false)
 const showRetain = ref(false)
-const historyVersions = ref(mockHistoryVersions)
-const expandedVersion = ref(mockHistoryVersions[0]?.version || '')
+const historyVersions = ref([])
+const expandedVersion = ref('')
+const historyLoading = ref(false)
+const fileView = ref(false)
+const fileViewTitle = ref('')
+const fileViewContent = ref('')
+const restoringVersionId = ref(null)
+
+// 打开历史抽屉时拉取真实版本列表（后端 ai_version_record，bizType=CLARIFY）
+watch(showHistory, (open) => {
+  if (open) loadClarifyVersions()
+})
+
+function loadClarifyVersions() {
+  historyLoading.value = true
+  listClarifyVersions(projectId.value)
+    .then(list => { historyVersions.value = list || [] })
+    .catch(() => { historyVersions.value = [] })
+    .finally(() => { historyLoading.value = false })
+}
 
 function toggleVersion(version) {
   expandedVersion.value = expandedVersion.value === version ? '' : version
 }
 
+// 查看单个文件：拉取该版本快照，按 file.key 取出对应内容展示
 function viewFile(ver, file) {
-  proxy.$modal.msgInfo(`正在预览 ${ver.version} · ${file.name}`)
+  fileViewTitle.value = `${ver.version} · ${file.name}`
+  getClarifyVersion(ver.versionId)
+    .then(res => {
+      const snap = (res && res.snapshot) || {}
+      const content = snap[file.key] !== undefined ? snap[file.key] : snap
+      fileViewContent.value = formatFileContent(content)
+      fileView.value = true
+    })
+    .catch(() => { proxy.$modal.msgError('加载版本内容失败') })
+}
+
+function formatFileContent(content) {
+  if (content === null || content === undefined) return ''
+  if (typeof content === 'string') return content
+  try {
+    return JSON.stringify(content, null, 2)
+  } catch (e) {
+    return String(content)
+  }
+}
+
+// 还原历史版本到当前会话
+function onRestoreVersion(ver) {
+  proxy.$modal.confirm(`确认还原到「${ver.version}」？将把该版本的对话/采纳/保留结论写回当前会话。`, '提示', {
+    confirmButtonText: '还原',
+    cancelButtonText: '取消',
+    type: 'info'
+  }).then(() => {
+    restoringVersionId.value = ver.versionId
+    restoreClarifyVersion(ver.versionId)
+      .then(() => { proxy.$modal.msgSuccess('已还原该历史版本到当前会话') })
+      .catch(() => { proxy.$modal.msgError('还原失败，请稍后重试') })
+      .finally(() => { restoringVersionId.value = null })
+  }).catch(() => {})
 }
 
 function statusClass(status) {
@@ -1060,7 +1126,7 @@ const clarifyConclusion = computed(() => {
         }
       }
     } else if (m.type === 'user_adopt') {
-      // mock 静态数据中采纳信息在 user_adopt 上，回查其前的多模型回答与问题
+      // 采纳信息在 user_adopt 上，回查其前的多模型回答与问题
       let mr = null
       let qq = q
       const idx = msgs.indexOf(m)
@@ -1217,6 +1283,9 @@ async function handleSubmit() {
     type: 'info'
   }).then(async () => {
     try {
+      // 先落一份历史版本快照（结论对象），再提交并推进 PRD；版本落库失败不影响主提交流程
+      const sourceModel = (result.selectedModels || []).map(m => m.name).join('、')
+      await saveClarifyVersion(projectId.value, result, '提交版本', result.summary, sourceModel).catch(() => {})
       await submitClarify(projectId.value, result)
       proxy.$modal.msgSuccess('澄清结果已提交，已生成需求澄清结论并推进到 PRD 阶段')
       // 提交后即退出本流程，回到门户首页（澄清负责人可能不负责后续阶段）
@@ -2529,6 +2598,47 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.history-hint {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--muted, #8a94a6);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.file-view.restore-btn {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border, #e5e7eb);
+  color: var(--accent, #4080ff);
+  padding: 1px 10px;
+  font-size: 12px;
+}
+
+.file-view.restore-btn:hover:not(:disabled) {
+  border-color: var(--accent, #4080ff);
+  background: rgba(64, 128, 255, 0.06);
+}
+
+.file-view.restore-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.file-view-content {
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+  padding: 14px;
+  background: var(--code-bg, #f6f8fa);
+  border-radius: var(--radius-sm, 8px);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .history-item {

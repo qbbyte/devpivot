@@ -58,12 +58,8 @@ export function submitTech(projectId, data) {
  *   - onError(err)                     整体出错
  * @returns {{ stop: Function }} 调用 stop() 可中断生成
  *
- * 说明（重要）：
- *  - 当前 generateTech 先尝试真实流式接口 /ai/tech/generate；
- *    该接口后端未实现时自动回退到前端多模型并行 mock，保证页面始终可用。
- *  - 后端就绪后，仅需确保 /ai/tech/generate 按 SSE 多路复用协议推送
- *    （事件 data 含 { type:'token'|'done'|'error', modelId, delta/content }），
- *    前端 streamGenerateTech 已兼容解析，无需改动页面。
+ * 说明：调用后端流式生成接口 /ai/tech/generate，原生 fetch 解析 SSE 多路复用协议
+ *   （事件 data 含 { type:'token'|'done'|'error', modelId, delta/content }）。
  */
 export function generateTech(params, handlers = {}) {
   const body = {
@@ -76,14 +72,12 @@ export function generateTech(params, handlers = {}) {
     extraReq: params.extraReq || '',
     upstream: params.upstream || ''
   }
-  return streamGenerateTech('/ai/tech/generate', body, handlers, () =>
-    mockGenerateTech(params, handlers)
-  )
+  return streamGenerateTech('/ai/tech/generate', body, handlers)
 }
 
 /* 原生 fetch 解析 SSE（text/event-stream），按 modelId 多路复用逐 token 累计后回调；
-   网络/HTTP 异常时调用 onFallback 回退本地 mock。返回 { stop } 兼容旧调用方。 */
-function streamGenerateTech(url, body, handlers = {}, onFallback) {
+   网络/HTTP 异常时通过 handlers.onError 上报错误。返回 { stop } 兼容旧调用方。 */
+function streamGenerateTech(url, body, handlers = {}) {
   const base = import.meta.env.VITE_APP_BASE_API || ''
   const ctrl = { stopped: false, stop() { this.stopped = true } }
   const fullByModel = {}
@@ -93,8 +87,6 @@ function streamGenerateTech(url, body, handlers = {}, onFallback) {
     body: JSON.stringify(body)
   }).then(resp => {
     const ct = resp.headers ? (resp.headers.get('content-type') || '') : ''
-    // 后端未实现该接口时，若依常返回 HTTP 200 + JSON（非 SSE）。
-    // 只有明确是 text/event-stream 才走真实解析，否则回退本地 mock，保证页面始终可用。
     if (!resp.ok || !resp.body || !ct.includes('text/event-stream')) {
       throw new Error('非 SSE 响应：HTTP ' + resp.status + ' ' + ct)
     }
@@ -143,107 +135,8 @@ function streamGenerateTech(url, body, handlers = {}, onFallback) {
     }
     pump()
   }).catch(err => {
-    console.warn('[tech] /ai/tech/generate 不可用，回退本地 mock：', err.message)
-    if (onFallback) onFallback()
+    console.error('[tech] /ai/tech/generate 请求失败：', err.message)
+    handlers.onError && handlers.onError(err)
   })
   return ctrl
-}
-
-/* ===================== 以下为前端 mock，后端就绪后整段删除 ===================== */
-
-function formatDate(d) {
-  const p = n => String(n).padStart(2, '0')
-  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`
-}
-
-function parseStack(techStack) {
-  if (!techStack) return { backend: 'Java', frontend: 'Vue 3' }
-  const parts = String(techStack).split(' + ')
-  return { backend: parts[0] || 'Java', frontend: parts[1] || 'Vue 3' }
-}
-
-// 多模型并行 mock 流：每个模型独立计时器，互不影响（模拟并发）
-function mockGenerateTech(params, handlers = {}) {
-  const models = (params.models && params.models.length) ? params.models : ['gpt4o']
-  const timers = []
-  let doneCount = 0
-  const checkAll = () => { if (++doneCount >= models.length) handlers.onAllDone && handlers.onAllDone() }
-
-  models.forEach((modelId, idx) => {
-    const fullText = buildTechMarkdown(params, modelId)
-    let i = 0
-    const stepSize = 12
-    const timer = setInterval(() => {
-      i += stepSize
-      if (i >= fullText.length) {
-        handlers.onModelChunk && handlers.onModelChunk(modelId, fullText)
-        clearInterval(timer)
-        handlers.onModelDone && handlers.onModelDone(modelId)
-        checkAll()
-        return
-      }
-      handlers.onModelChunk && handlers.onModelChunk(modelId, fullText.slice(0, i))
-    }, 30 + idx * 6)
-    timers.push(timer)
-  })
-
-  return {
-    stop() { timers.forEach(t => clearInterval(t)) }
-  }
-}
-
-// 根据前后端技术栈 + 模型风格生成差异化的技术方案 Markdown（用于对比视图体现多模型差异）
-function buildTechMarkdown(p = {}, modelId = 'gpt4o') {
-  const { backend, frontend } = parseStack(p.techStack)
-  const name = p.projectName || '产品'
-  const industry = p.industryType || '通用行业'
-  const target = p.targetUser || '目标用户'
-  const date = formatDate(new Date())
-  const extra = p.extraReq ? `\n> 补充要求：${p.extraReq}\n` : ''
-
-  const flavor = {
-    gpt4o: '（强调标准化分层与云原生弹性）',
-    deepseek: '（强调成本可控与落地节奏）',
-    claude: '（强调可维护性与合规治理）',
-    tongyi: '（强调国产化与生态集成）',
-    wenxin: '（强调中文业务场景与智能能力复用）'
-  }[modelId] || ''
-
-  const backendMap = {
-    'Java': { fw: 'Spring Boot 3.x + Spring Cloud Alibaba', orm: 'MyBatis-Plus', pkg: 'Maven 多模块', store: 'MySQL 8 + Redis', why: '成熟的微服务生态与团队储备，适合中大型长期演进', deploy: 'Kubernetes', prefix: 'biz_' },
-    'Python': { fw: 'FastAPI + SQLAlchemy 2.0', orm: 'SQLAlchemy', pkg: 'Poetry / uv 虚拟环境', store: 'PostgreSQL 15 + Redis', why: '开发效率高、AI/数据生态丰富，适合快速验证与数据密集型场景', deploy: 'Docker Compose / K8s', prefix: 't_' },
-    'Node.js': { fw: 'NestJS + TypeORM / Prisma', orm: 'TypeORM', pkg: 'pnpm 工作区', store: 'MySQL 8 + Redis', why: '前后端同构、事件驱动与 I/O 密集型场景表现优异', deploy: 'Kubernetes', prefix: 't_' },
-    'Go': { fw: 'Gin / Echo + GORM', orm: 'GORM', pkg: 'Go Modules', store: 'MySQL 8 + Redis', why: '高并发、编译快、资源占用低，适合高性能服务', deploy: 'Kubernetes', prefix: 't_' },
-    '.NET': { fw: 'ASP.NET Core 8 + EF Core', orm: 'EF Core', pkg: 'NuGet + SDK 风格项目', store: 'SQL Server / PostgreSQL + Redis', why: '企业级工具链完善，适合强类型复杂业务系统', deploy: 'Kubernetes', prefix: 'biz_' }
-  }
-  const feMap = {
-    'Vue 3': { fw: 'Vue 3 + Element Plus', state: 'Pinia', build: 'Vite', ssr: '可选 Nuxt 3' },
-    'React': { fw: 'React 18 + Ant Design', state: 'Zustand / Redux', build: 'Vite / webpack', ssr: '可选 Next.js' },
-    'Angular': { fw: 'Angular 17 + NG-ZORRO', state: 'RxJS 信号', build: 'Angular CLI', ssr: '可选 Angular Universal' },
-    'HTML5': { fw: 'HTML5 + 原生 JS', state: 'localStorage / 轻量 Store', build: '静态构建 / CDN', ssr: '无' }
-  }
-
-  const b = backendMap[backend] || backendMap['Java']
-  const f = feMap[frontend] || feMap['Vue 3']
-  const middleware = backend === 'Java' ? 'Nacos 注册配置中心、Sentinel 限流' : (backend === 'Python' ? 'Celery 异步任务、Redis 消息' : '消息队列 / 分布式缓存')
-
-  const head = `# ${name} 技术方案${flavor}\n\n> 版本：v1.0 ｜ 状态：草稿 ｜ 生成日期：${date} ｜ 技术栈：${backend} + ${frontend} ｜ 行业：${industry} ｜ 目标用户：${target}\n${extra}`
-
-  const stackSec = `## 1. 技术栈选型\n- 后端框架：${b.fw}\n- 前端框架：${f.fw}\n- 前端状态：${f.state}\n- 构建工具：${f.build}\n- 数据访问：${b.orm}\n- 工程化：${b.pkg}\n- 存储：${b.store}\n- 鉴权：JWT（无状态）\n- SSR 策略：${f.ssr}\n`
-
-  const arch = `## 2. 系统架构\n采用分层 + 领域驱动设计（DDD）风格：\n- 接入层：API 网关 / 负载均衡\n- 应用层：控制器、应用服务、领域服务\n- 领域层：实体、值对象、聚合根\n- 基础设施层：数据库、缓存、消息、第三方集成\n\n关键中间件：${middleware}。\n`
-
-  const modules = `## 3. 模块划分\n| 模块 | 职责 | 优先级 |\n| --- | --- | --- |\n| 用户与权限 user | 账号、角色、JWT 鉴权 | P0 |\n| 核心业务 core | ${name} 主流程领域逻辑 | P0 |\n| 内容/文档 content | PRD、原型、技术文档管理 | P1 |\n| 前端门户 portal | ${f.fw} 门户页面 | P0 |\n| 通知 notify | 站内信、Webhook | P2 |\n| 运维 observability | 日志、监控、链路追踪 | P1 |\n`
-
-  const decision = `## 4. 关键设计决策\n- 为什么选 ${backend}：${b.why}。\n- 为什么选 ${frontend}：${frontend === 'Vue 3' ? '渐进式框架、国内生态成熟、与 Element Plus 组合开发效率高' : (frontend === 'React' ? '组件生态丰富、灵活度高、适合复杂交互' : (frontend === 'Angular' ? '全栈框架规范统一、适合大型团队协作' : '极简、无构建依赖、适合轻量后台'))}。\n- 数据一致性：核心交易走本地事务 + 最终一致性补偿；非核心走异步消息。\n- 多租户：行级隔离（tenant_id）优先，必要时按库隔离。\n- 可扩展性：无状态服务 + 水平扩容，配置中心动态下发。\n`
-
-  const nfr = `## 5. 非功能设计\n- 性能：核心接口 P95 < 300ms，列表查询走缓存与分页。\n- 可用性：核心链路 ≥ 99.9%，多副本 + 健康探针。\n- 安全：传输 TLS、敏感字段加密、最小权限、审计日志。\n- 可观测：结构化日志 + 指标 + 分布式追踪。\n`
-
-  const deploy = `## 6. 部署与运维\n- 容器化：Docker + ${b.deploy}。\n- CI/CD：流水线含构建、单测、镜像推送、灰度发布。\n- 备份：数据库每日全量 + 增量，保留 30 天并定期演练恢复。\n`
-
-  const dbHint = `## 7. 对数据库阶段（DB）的输入提示\n- 建议主表前缀：${b.prefix}；统一主键 snowflake / UUID。\n- 必建索引：tenant_id、create_time、业务外键。\n- 枚举与字典统一收纳到字典表，避免硬编码。\n`
-
-  const risk = `## 8. 风险与依赖\n- 依赖模型服务稳定性与响应时延。\n- 需求变更须保证 PRD → 技术方案 → 库表一致。\n`
-
-  return head + stackSec + arch + modules + decision + nfr + deploy + dbHint + risk
 }

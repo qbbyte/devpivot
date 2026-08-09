@@ -106,12 +106,6 @@ export const constantRoutes = [
     meta: { title: '数据库设计' }
   },
   {
-    path: '/portal/project/:id/done',
-    component: () => import('@/views/portal/steps/done'),
-    hidden: true,
-    meta: { title: '项目完成' }
-  },
-  {
     path: '',
     component: Layout,
     redirect: '/portal',

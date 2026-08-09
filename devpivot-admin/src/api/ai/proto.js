@@ -2,10 +2,10 @@ import request from '@/utils/request'
 import { getToken } from '@/utils/auth'
 
 /* =========================================================================
- * 原型设计 · 门户接口层（mock 优先，后端就绪后删除 mock 分支）
+ * 原型设计 · 门户接口层（全部数据来自真实后端 /api/ai/proto/*，无 mock 兜底）
  *
  * 设计约定（与 prd/doc 同款）：
- *  - 前端先跑通，后端 /api/ai/proto/* 就绪后，把真实接口分支打开、删掉 mock 回退。
+ *  - 生成 / 局部改稿 / AI 对话均调用后端流式接口；页面与组件读写走后端库。
  *  - 数据模型对齐后端：
  *      ai_proto_page  : pageId/projectId/pageName/pageDesc/layout(JSON)/status(0草稿·1确认)/sourceModel
  *      ai_proto_component: compId/pageId/compType(LAYOUT·NAV·FORM·VIEW·BASE)/compName/
@@ -501,38 +501,6 @@ export function confirmProto(projectId) {
   return request({ url: `/ai/proto/confirm/${projectId}`, method: 'post', data: { projectId } })
 }
 
-/* ============================ 本地草稿持久化（mock 阶段唯一落库） ============================ */
-const draftKey = (projectId) => `proto_draft_${projectId}`
-
-export function saveProtoDraft(projectId, pages, meta = {}) {
-  try {
-    const payload = {
-      pages: JSON.parse(JSON.stringify(pages)),
-      deviceModel: meta.deviceModel || 'iphone-13',
-      deviceType: meta.deviceType || 'WEB',
-      customSize: meta.customSize || { width: 390, height: 844 }
-    }
-    localStorage.setItem(draftKey(projectId), JSON.stringify(payload))
-  } catch (e) { /* ignore */ }
-}
-
-export function loadProtoDraft(projectId) {
-  try {
-    const raw = localStorage.getItem(draftKey(projectId))
-    if (raw) {
-      const obj = JSON.parse(raw)
-      // 兼容旧版：直接是数组
-      if (Array.isArray(obj)) return { pages: obj, deviceModel: 'iphone-13', deviceType: 'WEB', customSize: { width: 390, height: 844 } }
-      return {
-        pages: obj.pages || [],
-        deviceModel: obj.deviceModel || 'iphone-13',
-        deviceType: obj.deviceType || 'WEB',
-        customSize: obj.customSize || { width: 390, height: 844 }
-      }
-    }
-  } catch (e) { /* ignore */ }
-  return null
-}
 
 /* ============================ 设备类型 ============================ */
 export const DEVICE_OPTIONS = [
@@ -679,123 +647,6 @@ export function restoreVersion(versionId) {
   return request({ url: `/ai/proto/version/restore/${versionId}`, method: 'post' }).then(res => res.data || {})
 }
 
-/* 根据项目信息 + 设备类型拼装一套合理页面+组件（mock） */
-function buildMockPages(p = {}, deviceType = 'WEB') {
-  const name = p.projectName || '产品'
-  if (deviceType && deviceType !== 'WEB') return buildMobilePages(p, deviceType)
-  return buildWebPages(p, name, deviceType)
-}
-
-function buildWebPages(p, name, deviceType = 'WEB') {
-  const listUid = uid('p')
-  const detailUid = uid('p')
-  const editUid = uid('p')
-
-  const listPage = {
-    uid: listUid, pageName: `${name} · 列表页`, pageDesc: '数据列表与操作入口', status: '0', deviceType,
-    components: [
-      buildComponent(PALETTE[0].items[0], { props: { menus: [name, '数据管理', '系统设置'] } }),
-      buildComponent(findPalette('table'), {
-        compName: '数据表格',
-        props: { columns: ['名称', '状态', '负责人', '更新时间', '操作'], rows: 5 }
-      }),
-      buildComponent(findPalette('button'), { compName: '新建', props: { text: '＋ 新建', linkTo: editUid } })
-    ]
-  }
-
-  const detailPage = {
-    uid: detailUid, pageName: `${name} · 详情页`, pageDesc: '单条数据详情展示', status: '0', deviceType,
-    components: [
-      buildComponent(PALETTE[0].items[0], { props: { menus: [name, '返回列表', '编辑'] } }),
-      buildComponent(findPalette('text'), { compName: '标题', props: { text: `${name} 详情` } }),
-      buildComponent(findPalette('input'), { compName: '名称', fieldName: 'name', props: { label: '名称', placeholder: '示例数据' } }),
-      buildComponent(findPalette('select'), { compName: '状态', fieldName: 'status', fieldType: 'ENUM', props: { label: '状态', options: ['启用', '停用'] } }),
-      buildComponent(findPalette('date'), { compName: '创建时间', fieldName: 'createTime', fieldType: 'DATE', props: { label: '创建时间' } }),
-      buildComponent(findPalette('textarea'), { compName: '备注', fieldName: 'remark', props: { label: '备注', rows: 2 } }),
-      buildComponent(findPalette('button'), { widthSpan: 2, compName: '返回', props: { text: '← 返回', linkTo: listUid } }),
-      buildComponent(findPalette('button'), { widthSpan: 2, compName: '编辑', props: { text: '编辑', linkTo: editUid, type: 'primary' } })
-    ]
-  }
-
-  const editPage = {
-    uid: editUid, pageName: `${name} · 新增/编辑页`, pageDesc: '表单录入与提交', status: '0', deviceType,
-    components: [
-      buildComponent(PALETTE[0].items[0], { props: { menus: [name, '返回列表', '保存'] } }),
-      buildComponent(findPalette('input'), { compName: '名称', fieldName: 'name', required: 'Y', props: { label: '名称', placeholder: '请输入名称' } }),
-      buildComponent(findPalette('select'), { compName: '类型', fieldName: 'type', fieldType: 'ENUM', props: { label: '类型', options: ['类型A', '类型B', '类型C'] } }),
-      buildComponent(findPalette('number'), { compName: '数量', fieldName: 'count', fieldType: 'NUMBER', props: { label: '数量' } }),
-      buildComponent(findPalette('date'), { compName: '生效日期', fieldName: 'effectDate', fieldType: 'DATE', props: { label: '生效日期' } }),
-      buildComponent(findPalette('switch'), { compName: '是否启用', fieldName: 'enabled', fieldType: 'BOOLEAN', props: { label: '是否启用' } }),
-      buildComponent(findPalette('textarea'), { compName: '描述', fieldName: 'desc', props: { label: '描述', rows: 3 } }),
-      buildComponent(findPalette('submit'), { widthSpan: 3, compName: '提交', props: { text: '保存提交', linkTo: listUid } })
-    ]
-  }
-
-  return [listPage, detailPage, editPage]
-}
-
-/* 移动端（H5 / 小程序）：卡片流首页 + 单元格列表 + 单列表单详情 + 个人中心 */
-function buildMobilePages(p, deviceType) {
-  const name = p.projectName || '产品'
-  const homeUid = uid('p')
-  const listUid = uid('p')
-  const detailUid = uid('p')
-  const mineUid = uid('p')
-  const tabs = ['首页', '分类', '我的']
-  const m = (type, overrides = {}) => buildComponent(findPalette(type), { widthSpan: 12, ...overrides })
-
-  const homePage = {
-    uid: homeUid, pageName: `${name} · 首页`, pageDesc: '移动端首页（卡片流）', status: '0', deviceType,
-    components: [
-      m('nav', { props: { menus: tabs } }),
-      m('input', { compName: '搜索', props: { label: '搜索商品', placeholder: '搜索' } }),
-      m('card', { widthSpan: 6, compName: '商品卡片', props: { title: '商品 A', desc: '¥99 · 已售 1.2k' } }),
-      m('card', { widthSpan: 6, compName: '商品卡片', props: { title: '商品 B', desc: '¥129 · 已售 860' } }),
-      m('button', { compName: '发布', props: { text: '＋ 发布', type: 'primary' } })
-    ]
-  }
-
-  const listPage = {
-    uid: listUid, pageName: `${name} · 列表`, pageDesc: '移动端列表（单元格）', status: '0', deviceType,
-    components: [
-      m('nav', { props: { menus: ['商品', '分类', '我的'] } }),
-      m('list', { compName: '商品列表', props: { items: ['商品 A · ¥99', '商品 B · ¥129', '商品 C · ¥59', '商品 D · ¥39'] } })
-    ]
-  }
-
-  const detailPage = {
-    uid: detailUid, pageName: `${name} · 详情`, pageDesc: '移动端详情（单列表单）', status: '0', deviceType,
-    components: [
-      m('nav', { props: { menus: ['详情', '编辑', '返回'] } }),
-      m('text', { compName: '标题', props: { text: `${name} 详情` } }),
-      m('input', { compName: '名称', fieldName: 'name', props: { label: '名称', placeholder: '示例' } }),
-      m('select', { compName: '规格', fieldName: 'spec', fieldType: 'ENUM', props: { label: '规格', options: ['标准', '豪华'] } }),
-      m('number', { compName: '数量', fieldName: 'count', fieldType: 'NUMBER', props: { label: '数量' } }),
-      m('textarea', { compName: '备注', fieldName: 'remark', props: { label: '备注', rows: 2 } }),
-      buildComponent(findPalette('button'), { widthSpan: 6, compName: '返回', props: { text: '← 返回', linkTo: listUid } }),
-      buildComponent(findPalette('button'), { widthSpan: 6, compName: '立即购买', props: { text: '立即购买', type: 'primary' } })
-    ]
-  }
-
-  const minePage = {
-    uid: mineUid, pageName: `${name} · 我的`, pageDesc: '移动端个人中心', status: '0', deviceType,
-    components: [
-      m('nav', { props: { menus: tabs } }),
-      m('list', { compName: '我的菜单', props: { items: ['我的订单', '收货地址', '优惠券', '设置'] } })
-    ]
-  }
-
-  return [homePage, listPage, detailPage, minePage]
-}
-
-function findPalette(type) {
-  for (const g of PALETTE) {
-    const hit = g.items.find(it => it.type === type)
-    if (hit) return hit
-  }
-  return PALETTE[1].items[0]
-}
-
 /* ============================ AI 对话（调用后端 /ai/proto/chat 流式 SSE） ============================ */
 /**
  * 原型设计 AI 对话（调真实后端流式接口，无模型时后端给规则兜底）
@@ -871,20 +722,4 @@ function parseProtoSse(raw) {
   } catch (e) {
     return null
   }
-}
-
-function buildChatReply(params) {
-  const msg = (params.message || '').trim()
-  const pages = params.pages || []
-  const pageNames = pages.map(p => p.pageName).join('、') || '（暂无页面）'
-  if (/表单|字段|输入/.test(msg)) {
-    return `针对表单设计，建议：\n1. 必填字段（带 *）放在表单靠前位置，降低填写中断率。\n2. 当前页面包含：${pageNames}。\n3. 可在右侧属性面板把 fieldType 设为 NUMBER/DATE/ENUM 以便下游「技术方案 / 数据库」自动推导列类型。\n4. 需要我直接生成一套标准增删改查表单吗？告诉我实体名即可。`
-  }
-  if (/列表|表格/.test(msg)) {
-    return `列表页建议：\n1. 操作列（查看/编辑/删除）固定靠右，配合分页与搜索框。\n2. 当前页面：${pageNames}。\n3. 「新建」按钮建议链接到新增/编辑页，形成可点击走查原型。\n4. 行数据可先放 5 行示例，便于演示。`
-  }
-  if (/导航|菜单/.test(msg)) {
-    return `导航设计建议：\n1. 顶部导航承载一级模块，当前建议菜单：${pageNames}。\n2. 导航项可配置 linkTo 实现页面间跳转走查。\n3. 保持菜单数量 ≤ 5 个，超出用「更多」收起。`
-  }
-  return `我已了解你的需求：「${msg || '（空）'}」。\n当前原型包含页面：${pageNames}。\n我可以帮你：\n- 设计某一页的表单 / 列表 / 导航结构\n- 调整组件栅格宽度（拖拽角柄即可）\n- 给出字段类型建议，方便后续生成数据库表\n\n请用一句话描述你想改的页面或组件，例如「给列表页加一个搜索框」。`
 }

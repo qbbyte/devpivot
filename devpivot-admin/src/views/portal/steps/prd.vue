@@ -301,7 +301,7 @@ const currentStep = ref('PRD')
 
 const stepIndex = computed(() => stepOrder.findIndex(s => s.value === currentStep.value))
 
-// ---- PRD 生成（mock 实现与预留接口均在 @/api/ai/doc 的 generatePrd）----
+// ---- PRD 生成（调用真实接口 @/api/ai/doc 的 generatePrd）----
 const templateType = ref('STANDARD')
 const genMode = ref('single')
 const docContent = ref('')
@@ -315,7 +315,7 @@ const editBackup = ref('')
 const clarifySummary = ref('')   // 上一阶段（AI 澄清）的结论，作为 PRD 生成上下文
 const prdDocId = ref(null)        // 后端 ai_prd_doc 主键（落库用），null 表示尚未入库
 
-// ---- 右侧 AI 对话（mock 实现与预留接口均在 @/api/ai/chat 的 sendChatMessage）----
+// ---- 右侧 AI 对话（调用真实流式接口 @/api/ai/chat 的 sendChatMessage）----
 const chatMessages = ref([])
 const chatInput = ref('')
 const chatGenerating = ref(false)
@@ -749,12 +749,12 @@ function scrollChatToBottom() {
   })
 }
 
-// 增强提示词：把简短/模糊输入扩写为结构化提问（当前前端 mock，后端就绪后改为调用 /ai/chat/enhance 真实接口，不加 /api 前缀）
+// 增强提示词：把简短/模糊输入扩写为结构化提问（本地启发式构造，仅包装用户自身输入，最终仍由真实后端 /ai/chat/send 处理）
 function enhancePrompt() {
   const raw = chatInput.value.trim()
   if (!raw || enhancing.value || chatGenerating.value) return
   enhancing.value = true
-  // 预留接口：后端就绪后改为 const res = await fetch('/ai/chat/enhance', {...}) 取增强结果
+  // 本地构造增强提示词（当前为前端启发式；若后端提供 /ai/chat/enhance 可在此替换为真实调用）
   setTimeout(() => {
     chatInput.value = buildEnhancedPrompt(raw)
     enhancing.value = false
@@ -763,7 +763,7 @@ function enhancePrompt() {
 }
 
 function buildEnhancedPrompt(raw) {
-  // mock 规则：补充角色、上下文与目标，让提问更具可执行性
+  // 启发式规则：补充角色、上下文与目标，让提问更具可执行性
   const projectName = project.value.projectName || '本产品'
   return `作为资深产品经理，请结合「${projectName}」的 PRD，针对以下问题给出具体、可执行的建议：\n\n${raw}\n\n请重点回应：① 目标用户与核心场景；② 关键约束（性能/安全/兼容性）；③ 可量化的验收标准。`
 }
@@ -844,7 +844,7 @@ function sendChat() {
     const block = quotes.map(x => '> ' + x).join('\n')
     question = (q ? block + '\n\n' + q : block)
   }
-  // 预留接口：当前用前端 mock，后端就绪后 sendChatMessage 内部切换为真实流式请求（接口前缀不带 /api）
+  // 调用真实流式接口 /ai/chat/send（由 @/api/ai/chat 的 sendChatMessage 发起 SSE）
   chatController = sendChatMessage(
     {
       projectId: projectId.value,

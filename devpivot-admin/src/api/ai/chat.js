@@ -29,11 +29,7 @@ export function addChat(data) {
  * @param {Object} handlers { onChunk(text), onDone(), onError(err) }
  * @returns {{ stop: Function }} 调用 stop() 可中断生成
  *
- * 说明（重要）：
- *  - 当前为前端 mock 数据，便于页面先行联调，无需后端。
- *  - 后端就绪后，删除 mock 分支，改为调用流式对话接口；
- *    注意接口前缀不要带 /api（例如 /ai/chat/send），
- *    并用原生 fetch 解析 SSE（参考 clarify.js 的 sendMessage 实现）。
+ * 说明：调用后端流式对话接口 /ai/chat/send，原生 fetch 解析 SSE。
  */
 export function sendChatMessage(params, handlers = {}) {
   const body = {
@@ -44,13 +40,12 @@ export function sendChatMessage(params, handlers = {}) {
     quotes: params.quotes || [],
     model: params.model
   }
-  // 优先调用真实流式接口 /ai/chat/send；后端不可用时回退前端 mock
-  return streamGenerate('/ai/chat/send', body, handlers, () => mockStreamGenerate(buildChatReply(params), handlers))
+  return streamGenerate('/ai/chat/send', body, handlers)
 }
 
 /* 原生 fetch 解析 SSE（text/event-stream），逐 token 累计后回调；
-   网络/HTTP 异常时调用 onFallback 回退本地 mock。返回 { stop } 兼容旧调用方。 */
-function streamGenerate(url, body, handlers = {}, onFallback) {
+   网络/HTTP 异常时通过 handlers.onError 上报错误。返回 { stop } 兼容旧调用方。 */
+function streamGenerate(url, body, handlers = {}) {
   const base = import.meta.env.VITE_APP_BASE_API || ''
   const ctrl = { stopped: false, stop() { this.stopped = true } }
   fetch(base + url, {
@@ -99,50 +94,8 @@ function streamGenerate(url, body, handlers = {}, onFallback) {
     }
     pump()
   }).catch(err => {
-    console.warn('[prd] /ai/chat/send 不可用，回退本地 mock：', err.message)
-    if (onFallback) onFallback()
+    console.error('[chat] /ai/chat/send 请求失败：', err.message)
+    handlers.onError && handlers.onError(err)
   })
   return ctrl
-}
-
-/* ===================== 以下为前端 mock，后端就绪后整段删除 ===================== */
-
-function buildChatReply(p = {}) {
-  const q = (p.question || '').trim() || '你的需求'
-  const name = p.projectName || '产品'
-  const docHint = p.docContent && p.docContent.length > 40
-    ? '我已读到当前 PRD 内容，可据此定向修订。'
-    : '当前 PRD 尚未生成，建议先产出文档再细化。'
-  const reply = [
-    `收到，关于「${q}」我有以下建议：`,
-    '',
-    '### 关联 PRD 要点',
-    `- 该需求可归入「功能范围 / 关键流程」章节，建议补充明确的验收口径`,
-    `- 需要与 ${name} 的目标用户诉求对齐，避免范围蔓延`,
-    `- 如涉及性能或安全约束，应在非功能需求中单独列项`,
-    '',
-    '### 处理建议',
-    `1. ${docHint}`,
-    '2. 若需改动具体章节，可直接告诉我「修订第 X 章 …」，我会给出修订后的内容',
-    '3. 确认后点击左侧「重新生成」或手动粘贴到文档区',
-    '',
-    '你可以继续补充其他需求点，或对某条建议追问细节。'
-  ].join('\n')
-  return reply
-}
-
-function mockStreamGenerate(fullText, handlers = {}) {
-  let i = 0
-  const stepSize = 6
-  const timer = setInterval(() => {
-    i += stepSize
-    if (i >= fullText.length) {
-      handlers.onChunk && handlers.onChunk(fullText)
-      clearInterval(timer)
-      handlers.onDone && handlers.onDone()
-      return
-    }
-    handlers.onChunk && handlers.onChunk(fullText.slice(0, i))
-  }, 30)
-  return { stop() { clearInterval(timer) } }
 }
