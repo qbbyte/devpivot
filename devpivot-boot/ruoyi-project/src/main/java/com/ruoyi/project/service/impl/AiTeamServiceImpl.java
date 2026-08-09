@@ -1,0 +1,381 @@
+package com.ruoyi.project.service.impl;
+
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.text.SimpleDateFormat;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.utils.DateUtils;
+import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.project.domain.AiTeam;
+import com.ruoyi.project.domain.AiTeamMember;
+import com.ruoyi.project.domain.AiTeamMessage;
+import com.ruoyi.project.domain.AiTeamMessageRead;
+import com.ruoyi.project.domain.AiTeamProject;
+import com.ruoyi.project.mapper.AiTeamMapper;
+import com.ruoyi.project.service.IAiTeamService;
+
+/**
+ * 团队模块业务层实现
+ * 
+ * @author devpivot
+ * @date 2026-08-09
+ */
+@Service
+public class AiTeamServiceImpl implements IAiTeamService
+{
+    private static final String ROLE_OWNER = "OWNER";
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_MEMBER = "MEMBER";
+
+    @Autowired
+    private AiTeamMapper teamMapper;
+
+    @Override
+    public List<AiTeam> listMyTeams(Long userId)
+    {
+        return teamMapper.selectMyTeams(userId);
+    }
+
+    @Override
+    public AiTeam getTeamDetail(Long teamId, Long userId)
+    {
+        AiTeam team = teamMapper.selectTeamDetail(teamId, userId);
+        if (team == null)
+        {
+            throw new ServiceException("团队不存在或已解散");
+        }
+        List<AiTeamMember> members = teamMapper.selectMembersByTeamId(teamId);
+        List<AiTeamProject> projects = teamMapper.selectProjectsByTeamId(teamId);
+        List<AiTeamMessage> messages = teamMapper.selectMessagesByTeamId(teamId);
+        for (AiTeamMessage msg : messages)
+        {
+            msg.setTime(formatTime(msg.getCreateTime()));
+            msg.setReadUsers(new ArrayList<>());
+        }
+        // 聚合已读人(排除当前用户)
+        List<Map<String, Object>> readers = teamMapper.selectReadersByTeamId(teamId, userId);
+        Map<Long, List<Map<String, Object>>> readerMap = new HashMap<>();
+        for (Map<String, Object> r : readers)
+        {
+            Long msgId = ((Number) r.get("msgId")).longValue();
+            readerMap.computeIfAbsent(msgId, k -> new ArrayList<>()).add(r);
+        }
+        for (AiTeamMessage msg : messages)
+        {
+            List<Map<String, Object>> list = readerMap.get(msg.getMsgId());
+            if (list != null)
+            {
+                msg.setReadUsers(list);
+            }
+        }
+        team.setMembers(members);
+        team.setProjects(projects);
+        team.setMessages(messages);
+        return team;
+    }
+
+    @Override
+    public Long createTeam(AiTeam team, Long userId, String username)
+    {
+        if (team.getTeamName() == null || team.getTeamName().trim().isEmpty())
+        {
+            throw new ServiceException("团队名称不能为空");
+        }
+        Date now = DateUtils.getNowDate();
+        team.setTeamName(team.getTeamName().trim());
+        if (team.getDescription() == null)
+        {
+            team.setDescription("");
+        }
+        team.setOwnerId(userId);
+        team.setStatus("0");
+        team.setDelFlag("0");
+        team.setCreateBy(username);
+        team.setCreateTime(now);
+        teamMapper.insertTeam(team);
+        Long teamId = team.getTeamId();
+        AiTeamMember owner = new AiTeamMember();
+        owner.setTeamId(teamId);
+        owner.setUserId(userId);
+        owner.setRole(ROLE_OWNER);
+        owner.setCreateBy(username);
+        owner.setCreateTime(now);
+        teamMapper.insertMember(owner);
+        return teamId;
+    }
+
+    @Override
+    public void updateTeam(AiTeam team, Long userId)
+    {
+        assertManager(team.getTeamId(), userId);
+        if (team.getTeamName() == null || team.getTeamName().trim().isEmpty())
+        {
+            throw new ServiceException("团队名称不能为空");
+        }
+        team.setTeamName(team.getTeamName().trim());
+        if (team.getDescription() == null)
+        {
+            team.setDescription("");
+        }
+        team.setUpdateBy(SecurityUtils.getUsername());
+        team.setUpdateTime(DateUtils.getNowDate());
+        teamMapper.updateTeam(team);
+    }
+
+    @Override
+    public void dissolveTeam(Long teamId, Long userId)
+    {
+        AiTeamMember me = assertMember(teamId, userId);
+        if (!ROLE_OWNER.equals(me.getRole()))
+        {
+            throw new ServiceException("仅团队创建者可解散团队");
+        }
+        teamMapper.dissolveTeam(teamId);
+    }
+
+    @Override
+    public void addMember(Long teamId, Long targetUserId, String role, Long operatorId)
+    {
+        assertManager(teamId, operatorId);
+        if (targetUserId == null)
+        {
+            throw new ServiceException("成员用户ID不能为空");
+        }
+        if (teamMapper.selectMember(teamId, targetUserId) != null)
+        {
+            throw new ServiceException("该用户已是团队成员");
+        }
+        String realRole = (role == null || !isValidRole(role)) ? ROLE_MEMBER : role;
+        AiTeamMember member = new AiTeamMember();
+        member.setTeamId(teamId);
+        member.setUserId(targetUserId);
+        member.setRole(realRole);
+        member.setCreateBy(SecurityUtils.getUsername());
+        member.setCreateTime(DateUtils.getNowDate());
+        teamMapper.insertMember(member);
+    }
+
+    @Override
+    public void removeMember(Long teamId, Long targetUserId, Long operatorId)
+    {
+        assertManager(teamId, operatorId);
+        if (targetUserId.equals(operatorId))
+        {
+            throw new ServiceException("不能移除自己");
+        }
+        AiTeamMember target = teamMapper.selectMember(teamId, targetUserId);
+        if (target == null)
+        {
+            throw new ServiceException("成员不存在");
+        }
+        if (ROLE_OWNER.equals(target.getRole()))
+        {
+            throw new ServiceException("不能移除团队创建者");
+        }
+        teamMapper.deleteMember(teamId, targetUserId);
+    }
+
+    @Override
+    public void changeMemberRole(Long teamId, Long targetUserId, String role, Long operatorId)
+    {
+        assertManager(teamId, operatorId);
+        if (!isValidRole(role))
+        {
+            throw new ServiceException("角色不合法");
+        }
+        if (targetUserId.equals(operatorId))
+        {
+            throw new ServiceException("不能修改自己的角色");
+        }
+        AiTeamMember target = teamMapper.selectMember(teamId, targetUserId);
+        if (target == null)
+        {
+            throw new ServiceException("成员不存在");
+        }
+        if (ROLE_OWNER.equals(target.getRole()))
+        {
+            throw new ServiceException("不能修改创建者角色");
+        }
+        teamMapper.updateMemberRole(teamId, targetUserId, role, SecurityUtils.getUsername(), DateUtils.getNowDate());
+    }
+
+    @Override
+    public void bindProject(Long teamId, Long projectId, Long operatorId)
+    {
+        assertManager(teamId, operatorId);
+        if (projectId == null)
+        {
+            throw new ServiceException("项目ID不能为空");
+        }
+        if (teamMapper.existsProject(teamId, projectId) > 0)
+        {
+            throw new ServiceException("该项目已关联本团队");
+        }
+        AiTeamProject project = new AiTeamProject();
+        project.setTeamId(teamId);
+        project.setProjectId(projectId);
+        project.setCreateBy(SecurityUtils.getUsername());
+        project.setCreateTime(DateUtils.getNowDate());
+        teamMapper.insertProject(project);
+    }
+
+    @Override
+    public void unbindProject(Long teamId, Long projectId, Long operatorId)
+    {
+        assertManager(teamId, operatorId);
+        teamMapper.deleteProject(teamId, projectId);
+    }
+
+    @Override
+    public AiTeamMessage sendMessage(Long teamId, Long userId, String content)
+    {
+        assertMember(teamId, userId);
+        if (content == null || (content = content.trim()).isEmpty())
+        {
+            throw new ServiceException("消息内容不能为空");
+        }
+        if (content.length() > 500)
+        {
+            content = content.substring(0, 500);
+        }
+        Date now = DateUtils.getNowDate();
+        AiTeamMessage msg = new AiTeamMessage();
+        msg.setTeamId(teamId);
+        msg.setUserId(userId);
+        msg.setContent(content);
+        msg.setCreateBy(SecurityUtils.getUsername());
+        msg.setCreateTime(now);
+        msg.setTime(formatTime(now));
+        msg.setReadUsers(new ArrayList<>());
+        teamMapper.insertMessage(msg);
+        return msg;
+    }
+
+    @Override
+    public void markRead(Long teamId, Long userId, List<Long> msgIds)
+    {
+        List<Long> unread = teamMapper.selectUnreadMessageIds(teamId, userId, msgIds);
+        if (unread == null || unread.isEmpty())
+        {
+            return;
+        }
+        Date now = DateUtils.getNowDate();
+        List<AiTeamMessageRead> list = new ArrayList<>(unread.size());
+        for (Long msgId : unread)
+        {
+            AiTeamMessageRead read = new AiTeamMessageRead();
+            read.setMsgId(msgId);
+            read.setTeamId(teamId);
+            read.setUserId(userId);
+            read.setCreateTime(now);
+            list.add(read);
+        }
+        teamMapper.insertReadIgnore(list);
+    }
+
+    @Override
+    public List<Map<String, Object>> searchUsers(String keyword)
+    {
+        return teamMapper.searchSysUser(keyword);
+    }
+
+    @Override
+    public void leaveTeam(Long teamId, Long userId)
+    {
+        AiTeamMember me = assertMember(teamId, userId);
+        if (ROLE_OWNER.equals(me.getRole()))
+        {
+            throw new ServiceException("创建者不能直接退出，请先转移所有权或解散团队");
+        }
+        teamMapper.deleteMember(teamId, userId);
+    }
+
+    @Override
+    public List<Map<String, Object>> listProjectOptions()
+    {
+        return teamMapper.selectProjectOptions();
+    }
+
+    @Override
+    public List<AiTeamMessage> listMessages(Long teamId, Long userId)
+    {
+        assertMember(teamId, userId);
+        List<AiTeamMessage> messages = teamMapper.selectMessagesByTeamId(teamId);
+        for (AiTeamMessage msg : messages)
+        {
+            msg.setTime(formatTime(msg.getCreateTime()));
+            msg.setReadUsers(new ArrayList<>());
+        }
+        // 聚合已读人(排除当前用户)
+        List<Map<String, Object>> readers = teamMapper.selectReadersByTeamId(teamId, userId);
+        Map<Long, List<Map<String, Object>>> readerMap = new HashMap<>();
+        for (Map<String, Object> r : readers)
+        {
+            Long msgId = ((Number) r.get("msgId")).longValue();
+            readerMap.computeIfAbsent(msgId, k -> new ArrayList<>()).add(r);
+        }
+        for (AiTeamMessage msg : messages)
+        {
+            List<Map<String, Object>> list = readerMap.get(msg.getMsgId());
+            if (list != null)
+            {
+                msg.setReadUsers(list);
+            }
+        }
+        return messages;
+    }
+
+    /** 校验当前用户是否为团队成员,返回其成员记录 */
+    private AiTeamMember assertMember(Long teamId, Long userId)
+    {
+        AiTeamMember me = teamMapper.selectMember(teamId, userId);
+        if (me == null)
+        {
+            throw new ServiceException("您不是该团队成员");
+        }
+        return me;
+    }
+
+    /** 校验当前用户是否为管理员(OWNER/ADMIN) */
+    private void assertManager(Long teamId, Long userId)
+    {
+        AiTeamMember me = assertMember(teamId, userId);
+        if (!ROLE_OWNER.equals(me.getRole()) && !ROLE_ADMIN.equals(me.getRole()))
+        {
+            throw new ServiceException("无操作权限(仅管理员/创建者可操作)");
+        }
+    }
+
+    private boolean isValidRole(String role)
+    {
+        return ROLE_OWNER.equals(role) || ROLE_ADMIN.equals(role) || ROLE_MEMBER.equals(role);
+    }
+
+    private String formatTime(Date date)
+    {
+        if (date == null)
+        {
+            return "";
+        }
+        Calendar c = Calendar.getInstance();
+        c.setTime(date);
+        Calendar now = Calendar.getInstance();
+        SimpleDateFormat sdf;
+        if (c.get(Calendar.YEAR) == now.get(Calendar.YEAR)
+                && c.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR))
+        {
+            sdf = new SimpleDateFormat("HH:mm");
+        }
+        else
+        {
+            sdf = new SimpleDateFormat("MM-dd HH:mm");
+        }
+        return sdf.format(date);
+    }
+}
