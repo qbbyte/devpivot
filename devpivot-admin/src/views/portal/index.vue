@@ -8,41 +8,22 @@
           </div>
           <span class="brand-name">AI 智能需求设计</span>
         </div>
-        <div class="portal-actions">
-          <el-button v-hasRole="['admin']" class="admin-btn" @click="goAdmin">
+        <nav class="portal-nav">
+          <router-link to="/portal" class="pn-item" :class="{ active: route.path === '/portal' }">工作台</router-link>
+          <router-link to="/portal/team" class="pn-item" :class="{ active: route.path.startsWith('/portal/team') }">我的团队</router-link>
+          <router-link v-hasRole="['admin']" to="/index" class="pn-item pn-admin">
             <el-icon><Setting /></el-icon>
             <span>进入管理后台</span>
-          </el-button>
-          <el-dropdown class="user-dropdown" trigger="hover" @command="handleCommand">
-            <div class="user-wrapper">
-              <img :src="userStore.avatar || defAva" class="user-avatar" />
-              <span class="user-name">{{ userStore.nickName || '未登录' }}</span>
-              <el-icon class="user-caret"><ArrowDown /></el-icon>
-            </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <router-link to="/user/profile">
-                  <el-dropdown-item>
-                    <el-icon><User /></el-icon>
-                    <span>个人中心</span>
-                  </el-dropdown-item>
-                </router-link>
-                <el-dropdown-item divided command="logout">
-                  <el-icon><SwitchButton /></el-icon>
-                  <span>退出登录</span>
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
+          </router-link>
+        </nav>
       </div>
     </header>
 
     <main class="portal-main">
       <section class="portal-hero">
         <div class="hero-left">
-          <h1>AI 项目工作台</h1>
-          <p>统一查看所有 AI 需求设计项目的进度与状态</p>
+          <h1>你好，{{ userStore.nickName || '访客' }} <span class="hero-wave">👋</span></h1>
+          <p>欢迎回到 AI 智能需求设计工作台，查看并推进你的项目</p>
         </div>
         <el-button type="primary" class="create-btn" @click="goCreate">
           <el-icon><Plus /></el-icon>
@@ -214,15 +195,15 @@
 
 <script setup name="Portal">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { Search, Check, Loading, ArrowRight, CircleCheck, ArrowDown, User, SwitchButton } from '@element-plus/icons-vue'
+import { Search, Check, Loading, ArrowRight, CircleCheck, User, SwitchButton } from '@element-plus/icons-vue'
 import { listProject } from '@/api/ai/project'
 import { useDict } from '@/utils/dict'
 import useUserStore from '@/store/modules/user'
-import defAva from '@/assets/images/profile.jpg'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const { ai_project_step, ai_project_status } = useDict('ai_project_step', 'ai_project_status')
 
@@ -346,16 +327,6 @@ function resetFilter() {
   filterStep.value = ''
 }
 
-function goAdmin() {
-  router.push('/index')
-}
-
-function handleCommand(command) {
-  if (command === 'logout') {
-    logout()
-  }
-}
-
 function logout() {
   ElMessageBox.confirm('确定注销并退出系统吗？', '提示', {
     confirmButtonText: '确定',
@@ -402,7 +373,7 @@ watch([searchKeyword, filterStatus, filterStep], () => {
 })
 
 onMounted(() => {
-  // 确保用户信息（昵称/头像）已加载，供右上角头像下拉展示
+  // 确保用户信息（昵称）已加载，供问候区账号入口展示
   if (!userStore.nickName) {
     userStore.getInfo().catch(() => {})
   }
@@ -416,8 +387,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   background: #f5f6f9;
-  padding: 0 24px;
-  overflow-x: clip;
+  padding: 0;
 }
 
 /* ===== Header ===== */
@@ -425,13 +395,14 @@ onMounted(() => {
   position: sticky;
   top: 0;
   z-index: 100;
-  margin: 0 -24px;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #eef0f3;
 }
 
 .portal-header-inner {
+  max-width: 1440px;
+  margin: 0 auto;
   height: 60px;
   padding: 0 24px;
   display: flex;
@@ -464,27 +435,48 @@ onMounted(() => {
   letter-spacing: 0.3px;
 }
 
-.admin-btn {
+.portal-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pn-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
   border-radius: 8px;
-  padding: 8px 16px;
-  font-size: 13px;
   color: #4e5969;
-  border-color: #e5e6eb;
+  font-size: 14px;
+  text-decoration: none;
+  transition: background 0.18s, color 0.18s;
+}
 
-  &:hover {
-    color: #3370ff;
-    border-color: #3370ff;
-    background: rgba(51, 112, 255, 0.06);
-  }
+.pn-item:hover {
+  background: #f2f5f9;
+  color: #1d2129;
+}
 
-  .el-icon { margin-right: 5px; }
+.pn-item.active {
+  color: #3370ff;
+  font-weight: 600;
+}
+
+.pn-item.active:hover {
+  background: transparent;
+}
+
+.pn-admin {
+  color: #86909c;
+  margin-left: 4px;
 }
 
 /* ===== Main ===== */
 .portal-main {
   flex: 1;
   width: 100%;
-  max-width: 1100px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 48px 24px 36px;
 }
@@ -512,6 +504,45 @@ onMounted(() => {
   font-size: 14px;
   color: #86909c;
   line-height: 1.6;
+}
+
+.hero-wave {
+  font-size: 24px;
+  display: inline-block;
+}
+
+.hero-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.ha-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #4e5969;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.18s;
+}
+
+.ha-link .el-icon {
+  font-size: 15px;
+}
+
+.ha-link:hover {
+  color: #3370ff;
+}
+
+.ha-logout:hover {
+  color: #f56c6c;
+}
+
+.ha-sep {
+  color: #d0d5dd;
 }
 
 .create-btn {
@@ -955,6 +986,13 @@ onMounted(() => {
 
   .project-card-right .step-percent {
     font-size: 18px;
+  }
+
+  .portal-header-inner {
+    padding: 0 16px;
+  }
+  .pn-item {
+    padding: 8px 10px;
   }
 }
 </style>
