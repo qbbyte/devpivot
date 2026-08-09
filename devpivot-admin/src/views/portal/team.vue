@@ -42,7 +42,10 @@
             <el-tag size="small" :type="t.myRole === 'OWNER' ? 'warning' : 'info'">
               {{ roleLabel(t.myRole) }}
             </el-tag>
-            <span class="tti-count">{{ t.members.length }} 人</span>
+            <span class="tti-count">{{ t.memberCount || 0 }} 人</span>
+            <span v-if="t.unreadCount > 0" class="tti-unread" :title="t.unreadCount + ' 条未读'">
+              {{ t.unreadCount > 99 ? '99+' : t.unreadCount }}
+            </span>
           </div>
         </div>
         <el-empty v-if="!teams.length" description="还没有团队，点击右上角创建" :image-size="70" />
@@ -55,9 +58,10 @@
             <h2 class="td-name">{{ activeTeam.teamName }}</h2>
             <p class="td-desc">{{ activeTeam.description || '暂无简介' }}</p>
           </div>
-          <div v-if="canManage" class="td-ops">
-            <el-button @click="openEdit">编辑</el-button>
-            <el-button type="danger" plain @click="dissolveTeam">解散团队</el-button>
+          <div class="td-ops">
+            <el-button v-if="canManage" @click="openEdit">编辑</el-button>
+            <el-button v-if="!isOwner" type="warning" plain @click="handleLeave">退出团队</el-button>
+            <el-button v-if="isOwner" type="danger" plain @click="handleDissolve">解散团队</el-button>
           </div>
         </div>
 
@@ -100,7 +104,7 @@
               <el-table-column label="成员" min-width="170">
                 <template #default="{ row }">
                   <div class="member-cell">
-                    <el-avatar :size="30">{{ row.nickName.charAt(0) }}</el-avatar>
+                    <el-avatar :size="30" :src="avatarUrl(row.avatar)">{{ row.nickName?.charAt(0) }}</el-avatar>
                     <div class="mc-text">
                       <div class="mc-name">{{ row.nickName }}</div>
                       <div class="mc-sub">@{{ row.userName }}</div>
@@ -150,13 +154,16 @@
                 class="chat-item"
                 :class="{ 'chat-mine': m.userId === currentUserId }"
               >
-                <el-avatar :size="34" class="chat-avatar">{{ m.nickName.charAt(0) }}</el-avatar>
+                <el-avatar :size="34" class="chat-avatar" :src="avatarUrl(m.avatar)">{{ m.nickName?.charAt(0) }}</el-avatar>
                 <div class="chat-bubble-wrap">
                   <div class="chat-meta">
                     <span class="chat-name">{{ m.nickName }}</span>
                     <span class="chat-time">{{ m.time }}</span>
                   </div>
                   <div class="chat-bubble">{{ m.content }}</div>
+                  <div v-if="m.readUsers && m.readUsers.length" class="chat-read">
+                    已读 {{ m.readUsers.length }} 人：{{ m.readUsers.map(r => r.nickName).join('、') }}
+                  </div>
                 </div>
               </div>
               <el-empty v-if="!activeTeam.messages.length" description="还没有消息，来发第一条吧" :image-size="70" />
@@ -216,7 +223,7 @@
           :class="{ disabled: isTeamMember(u.userId) }"
           @click="!isTeamMember(u.userId) && addMember(u)"
         >
-          <el-avatar :size="28">{{ u.nickName.charAt(0) }}</el-avatar>
+          <el-avatar :size="28" :src="avatarUrl(u.avatar)">{{ u.nickName?.charAt(0) }}</el-avatar>
           <div class="md-info">
             <div class="md-name">{{ u.nickName }}</div>
             <div class="md-sub">@{{ u.userName }} · {{ u.email }}</div>
@@ -227,75 +234,54 @@
         <el-empty v-if="!filteredDirectory.length" description="无匹配用户" :image-size="60" />
       </div>
     </el-dialog>
+
+    <!-- 关联项目 -->
+    <el-dialog v-model="bindDialogVisible" title="关联项目" width="460px">
+      <el-select
+        v-model="bindForm.projectId"
+        filterable
+        clearable
+        placeholder="选择要关联的项目（已关联的将禁用）"
+        style="width: 100%"
+      >
+        <el-option
+          v-for="p in projectOptions"
+          :key="p.projectId"
+          :label="p.projectName"
+          :value="p.projectId"
+          :disabled="isProjectBound(p.projectId)"
+        />
+      </el-select>
+      <template #footer>
+        <el-button @click="bindDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!bindForm.projectId" @click="submitBind">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Opportunity, Plus, Search, Setting, User, SwitchButton } from '@element-plus/icons-vue'
 import useUserStore from '@/store/modules/user'
+import defAva from '@/assets/images/profile.jpg'
+import {
+  listMyTeams, getTeamDetail, createTeam, updateTeam, dissolveTeam as dissolveTeamApi,
+  addTeamMember, removeTeamMember, changeTeamMemberRole,
+  bindTeamProject, unbindTeamProject, sendTeamMessage, markTeamRead, searchTeamUsers,
+  listProjectOptions, getTeamMessages, leaveTeam
+} from '@/api/ai/team'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
-const currentUserId = computed(() => userStore.id || userStore.userId || 1)
+const currentUserId = computed(() => userStore.id || userStore.userId)
 
-/* ===================== 模拟数据（后续替换为 /ai/team 真实接口） ===================== */
-// 平台用户目录：添加成员时从中检索
-const userDirectory = [
-  { userId: 1, nickName: '张管理员', userName: 'admin', email: 'admin@devpivot.com', title: '技术负责人' },
-  { userId: 2, nickName: '李开发', userName: 'devli', email: 'li@devpivot.com', title: '后端工程师' },
-  { userId: 3, nickName: '王设计', userName: 'wang', email: 'wang@devpivot.com', title: 'UI 设计师' },
-  { userId: 4, nickName: '赵测试', userName: 'zhao', email: 'zhao@devpivot.com', title: '测试工程师' },
-  { userId: 5, nickName: '钱产品', userName: 'qian', email: 'qian@devpivot.com', title: '产品经理' },
-  { userId: 6, nickName: '孙运维', userName: 'sun', email: 'sun@devpivot.com', title: '运维工程师' }
-]
-
-const teams = ref([
-  {
-    teamId: 1,
-    teamName: '平台研发组',
-    description: '负责 devPivot 平台核心功能开发',
-    ownerId: 1,
-    myRole: 'OWNER',
-    members: [
-      { userId: 1, nickName: '张管理员', userName: 'admin', role: 'OWNER', email: 'admin@devpivot.com', title: '技术负责人' },
-      { userId: 2, nickName: '李开发', userName: 'devli', role: 'ADMIN', email: 'li@devpivot.com', title: '后端工程师' },
-      { userId: 3, nickName: '王设计', userName: 'wang', role: 'MEMBER', email: 'wang@devpivot.com', title: 'UI 设计师' }
-    ],
-    projects: [
-      { projectId: 101, projectName: '智能客服系统', step: 'DB' },
-      { projectId: 102, projectName: '数据中台', step: 'PRD' }
-    ],
-    messages: [
-      { msgId: 1, userId: 2, nickName: '李开发', content: '智能客服系统这版 DB 设计我提交了一版，大家有空帮忙看下索引', time: '09:32' },
-      { msgId: 2, userId: 3, nickName: '王设计', content: '收到，原型那边我同步更新了对话流', time: '09:40' }
-    ]
-  },
-  {
-    teamId: 2,
-    teamName: '创新孵化小组',
-    description: '探索 AI 辅助研发的新场景',
-    ownerId: 5,
-    myRole: 'MEMBER',
-    members: [
-      { userId: 5, nickName: '钱产品', userName: 'qian', role: 'OWNER', email: 'qian@devpivot.com', title: '产品经理' },
-      { userId: 4, nickName: '赵测试', userName: 'zhao', role: 'MEMBER', email: 'zhao@devpivot.com', title: '测试工程师' },
-      { userId: 1, nickName: '张管理员', userName: 'admin', role: 'MEMBER', email: 'admin@devpivot.com', title: '技术负责人' }
-    ],
-    projects: [
-      { projectId: 103, projectName: 'AI 绘画工具', step: 'PROTO' }
-    ],
-    messages: [
-      { msgId: 1, userId: 5, nickName: '钱产品', content: 'AI 绘画工具进入原型阶段了，本周先打磨生图参数面板', time: '14:05' }
-    ]
-  }
-])
-/* ====================================================================================== */
-
-const activeTeam = ref(null)
+/* ===================== 团队数据(真实接口 /team) ===================== */
+const teams = ref([])          // 我的团队列表(摘要)
+const activeTeam = ref(null)   // 当前选中团队详情(含 members/projects/messages)
 const activeTab = ref('projects')
 
 const canManage = computed(() =>
@@ -310,10 +296,40 @@ const STEP_LABELS = {
 function roleLabel(r) { return ROLE_LABELS[r] || r }
 function stepLabel(s) { return STEP_LABELS[s] || s }
 
-function selectTeam(t) {
-  activeTeam.value = t
-  activeTab.value = 'projects'
+/** 拼接头像完整 URL
+ *  - 空值 → 默认头像 defAva（与全局导航一致）
+ *  - 已完整地址（默认头像 / 已带 /dev-api / /assets / /src / data: / http）→ 直接返回，避免二次拼接
+ *  - 后端原始相对路径（如 /profile/avatar/xxx.png）→ 拼 /dev-api 前缀
+ */
+function avatarUrl(avatar) {
+  if (!avatar) return defAva
+  if (/^(https?:\/\/|\/dev-api\/|\/assets\/|\/src\/assets\/|\/src\/|data:)/.test(avatar)) return avatar
+  return import.meta.env.VITE_APP_BASE_API + avatar
 }
+
+async function loadTeams() {
+  const res = await listMyTeams()
+  teams.value = res.data || []
+  if (teams.value.length) {
+    await selectTeam(teams.value[0])
+  } else {
+    activeTeam.value = null
+  }
+}
+
+async function selectTeam(t) {
+  const res = await getTeamDetail(t.teamId)
+  activeTeam.value = res.data
+  activeTab.value = 'projects'
+  scrollChatToBottom()
+}
+
+async function refreshDetail() {
+  if (!activeTeam.value) return
+  const res = await getTeamDetail(activeTeam.value.teamId)
+  activeTeam.value = res.data
+}
+
 function logout() {
   ElMessageBox.confirm('确定注销并退出系统吗？', '提示', {
     confirmButtonText: '确定',
@@ -345,106 +361,102 @@ function openEdit() {
   }
   teamDialogVisible.value = true
 }
-function submitTeam() {
+async function submitTeam() {
   if (!teamForm.value.teamName.trim()) {
     ElMessage.warning('请输入团队名称')
     return
   }
+  const payload = {
+    teamName: teamForm.value.teamName.trim(),
+    description: teamForm.value.description.trim()
+  }
   if (teamForm.value.teamId == null) {
-    const newTeam = {
-      teamId: Date.now(),
-      teamName: teamForm.value.teamName.trim(),
-      description: teamForm.value.description.trim(),
-      ownerId: currentUserId.value,
-      myRole: 'OWNER',
-      members: [{
-        userId: currentUserId.value,
-        nickName: userStore.nickName || '我',
-        userName: userStore.userName || 'me',
-        role: 'OWNER',
-        email: userStore.email || ''
-      }],
-      projects: []
-    }
-    teams.value.unshift(newTeam)
-    activeTeam.value = newTeam
+    const res = await createTeam(payload)
+    const createdId = res.data && res.data.teamId
+    ElMessage.success('创建成功')
+    await loadTeams()
+    if (createdId) await selectTeam({ teamId: createdId })
   } else {
-    const t = teams.value.find(x => x.teamId === teamForm.value.teamId)
-    if (t) {
-      t.teamName = teamForm.value.teamName.trim()
-      t.description = teamForm.value.description.trim()
-    }
+    await updateTeam({ teamId: teamForm.value.teamId, ...payload })
+    ElMessage.success('保存成功')
+    await loadTeams()
   }
   teamDialogVisible.value = false
-  ElMessage.success('保存成功')
 }
-function dissolveTeam() {
+function handleDissolve() {
   ElMessageBox.confirm('解散后团队及成员关系将被清除，确定吗？', '解散团队', { type: 'warning' })
-    .then(() => {
-      teams.value = teams.value.filter(x => x.teamId !== activeTeam.value.teamId)
-      activeTeam.value = teams.value[0] || null
+    .then(async () => {
+      await dissolveTeamApi(activeTeam.value.teamId)
       ElMessage.success('已解散团队')
+      await loadTeams()
     })
     .catch(() => {})
 }
 
 /* 成员管理 */
-function changeRole(row, val) {
-  row.role = val
+async function changeRole(row, val) {
+  await changeTeamMemberRole(activeTeam.value.teamId, row.userId, val)
   ElMessage.success('角色已更新')
+  await refreshDetail()
 }
-function removeMember(row) {
-  activeTeam.value.members = activeTeam.value.members.filter(m => m.userId !== row.userId)
+async function removeMember(row) {
+  await removeTeamMember(activeTeam.value.teamId, row.userId)
   ElMessage.success('已移除成员')
+  await refreshDetail()
 }
 
 /* 添加成员 */
 const memberDialogVisible = ref(false)
 const memberKeyword = ref('')
-const filteredDirectory = ref([...userDirectory])
+const filteredDirectory = ref([])
 
 function openAddMember() {
   memberKeyword.value = ''
-  filteredDirectory.value = userDirectory.slice()
   memberDialogVisible.value = true
+  loadDirectory('')
+}
+async function loadDirectory(k) {
+  try {
+    const res = await searchTeamUsers(k || '')
+    filteredDirectory.value = res.data || []
+  } catch (e) {
+    filteredDirectory.value = []
+  }
 }
 function filterDirectory() {
-  const k = memberKeyword.value.trim().toLowerCase()
-  filteredDirectory.value = userDirectory.filter(u =>
-    !k ||
-    u.nickName.toLowerCase().includes(k) ||
-    u.userName.toLowerCase().includes(k) ||
-    u.email.toLowerCase().includes(k)
-  )
+  loadDirectory(memberKeyword.value)
 }
 function isTeamMember(uid) {
   return activeTeam.value && activeTeam.value.members.some(m => m.userId === uid)
 }
-function addMember(u) {
+async function addMember(u) {
   if (isTeamMember(u.userId)) return
-  activeTeam.value.members.push({ ...u, role: 'MEMBER' })
+  await addTeamMember(activeTeam.value.teamId, u.userId, 'MEMBER')
   ElMessage.success(`已添加 ${u.nickName}`)
+  memberDialogVisible.value = false
+  await refreshDetail()
 }
 
-/* 项目关联（演示） */
-function unbindProject(row) {
-  activeTeam.value.projects = activeTeam.value.projects.filter(p => p.projectId !== row.projectId)
+/* 项目关联 */
+async function unbindProject(row) {
+  await unbindTeamProject(activeTeam.value.teamId, row.projectId)
   ElMessage.success('已解绑项目')
+  await refreshDetail()
 }
-function openBindProject() {
-  ElMessage.info('演示环境：关联项目将在接入真实接口后开放')
+async function openBindProject() {
+  bindForm.value = { projectId: null }
+  try {
+    const res = await listProjectOptions()
+    projectOptions.value = res.data || []
+  } catch (e) {
+    projectOptions.value = []
+  }
+  bindDialogVisible.value = true
 }
 
-/* 群聊（演示：消息存内存，刷新即重置） */
+/* 群聊 */
 const chatDraft = ref('')
 const chatListRef = ref(null)
-let chatSeq = 1000
-
-function nowTime() {
-  const d = new Date()
-  const p = (n) => String(n).padStart(2, '0')
-  return `${p(d.getHours())}:${p(d.getMinutes())}`
-}
 
 function scrollChatToBottom() {
   nextTick(() => {
@@ -453,23 +465,101 @@ function scrollChatToBottom() {
   })
 }
 
-function sendMessage() {
+async function sendMessage() {
   const text = chatDraft.value.trim()
   if (!text || !activeTeam.value) return
-  activeTeam.value.messages.push({
-    msgId: ++chatSeq,
-    userId: currentUserId.value,
-    nickName: userStore.nickName || '我',
-    content: text,
-    time: nowTime()
-  })
+  const res = await sendTeamMessage(activeTeam.value.teamId, text)
+  const msg = res.data
+  // sendMessage 后端未回传 nickName/avatar，用当前登录用户真实信息补全
+  msg.nickName = userStore.nickName
+  msg.avatar = userStore.avatar || ''
+  if (!msg.readUsers) msg.readUsers = []
+  activeTeam.value.messages.push(msg)
   chatDraft.value = ''
   scrollChatToBottom()
 }
 
-onMounted(() => {
-  if (!userStore.nickName) userStore.getInfo().catch(() => {})
-  if (teams.value.length) activeTeam.value = teams.value[0]
+/* 角色派生：是否创建者(创建者不可退出,用解散) */
+const isOwner = computed(() => activeTeam.value && activeTeam.value.myRole === 'OWNER')
+
+/* 清除本地未读红点 */
+function clearUnread(teamId) {
+  const t = teams.value.find(x => x.teamId === teamId)
+  if (t) t.unreadCount = 0
+}
+
+/* 退出团队(非创建者) */
+async function handleLeave() {
+  const tid = activeTeam.value && activeTeam.value.teamId
+  if (!tid) return
+  try {
+    await ElMessageBox.confirm('确定退出该团队吗？退出后需重新被邀请才能加入。', '退出团队', { type: 'warning' })
+  } catch (e) { return }
+  await leaveTeam(tid)
+  ElMessage.success('已退出团队')
+  stopPolling()
+  await loadTeams()
+}
+
+/* 关联项目(选择器数据源 + 弹窗状态) */
+const bindDialogVisible = ref(false)
+const projectOptions = ref([])
+const bindForm = ref({ projectId: null })
+function isProjectBound(pid) {
+  return activeTeam.value && activeTeam.value.projects.some(p => p.projectId === pid)
+}
+async function submitBind() {
+  const pid = bindForm.value.projectId
+  if (!pid || !activeTeam.value) return
+  await bindTeamProject(activeTeam.value.teamId, pid)
+  ElMessage.success('已关联项目')
+  bindDialogVisible.value = false
+  await refreshDetail()
+}
+
+/* 讨论区实时刷新(轮询) */
+const chatTimer = ref(null)
+function startPolling() {
+  stopPolling()
+  pollMessages()
+  chatTimer.value = setInterval(pollMessages, 5000)
+}
+function stopPolling() {
+  if (chatTimer.value) {
+    clearInterval(chatTimer.value)
+    chatTimer.value = null
+  }
+}
+async function pollMessages() {
+  if (!activeTeam.value) return
+  const tid = activeTeam.value.teamId
+  try {
+    const res = await getTeamMessages(tid)
+    const msgs = res.data || []
+    const prev = activeTeam.value.messages || []
+    const prevLast = prev.length ? prev[prev.length - 1].msgId : null
+    const newLast = msgs.length ? msgs[msgs.length - 1].msgId : null
+    activeTeam.value.messages = msgs
+    if (msgs.length > prev.length && newLast !== prevLast) {
+      scrollChatToBottom()
+    }
+    // 在讨论区即把"非自己发送"的消息标记为已读,并清除本地红点
+    if (activeTab.value === 'chat') {
+      markTeamRead(tid, []).then(() => clearUnread(tid)).catch(() => {})
+    }
+  } catch (e) { /* 忽略轮询错误 */ }
+}
+watch(activeTab, (val) => {
+  if (val === 'chat' && activeTeam.value) startPolling()
+  else stopPolling()
+})
+onUnmounted(() => stopPolling())
+
+onMounted(async () => {
+  if (!userStore.nickName) {
+    try { await userStore.getInfo() } catch (e) { }
+  }
+  await loadTeams()
 })
 </script>
 
@@ -618,6 +708,17 @@ onMounted(() => {
 .tti-count {
   font-size: 12px;
   color: #8a96a3;
+}
+.tti-unread {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #f53f3f;
+  color: #fff;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
 }
 .tp-detail {
   flex: 1;
@@ -783,6 +884,11 @@ onMounted(() => {
 .chat-mine .chat-bubble {
   background: linear-gradient(135deg, #3370ff, #5b8bff);
   color: #fff;
+}
+.chat-read {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #a0aab5;
 }
 .chat-input {
   display: flex;
