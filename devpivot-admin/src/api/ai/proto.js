@@ -439,6 +439,11 @@ export function buildComponent(item, overrides = {}) {
   return comp
 }
 
+// 获取可用模型列表与最大对比数（来自后端 ai_model_config 启用项）
+export function getProtoModels() {
+  return request({ url: '/ai/proto/models', method: 'get' })
+}
+
 /* ============================ 后端真实接口（门户门面 /ai/proto，无 /api 前缀） ============================ */
 // 后端页面 Map → 前端页面对象
 export function fromBackendPage(p = {}) {

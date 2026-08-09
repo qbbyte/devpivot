@@ -585,11 +585,10 @@
 <script setup name="StepProto">
 import { ref, computed, onMounted, getCurrentInstance, nextTick, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getProject, updateProject } from '@/api/ai/project'
-import { getModels } from '@/api/ai/clarify'
+import { getProject } from '@/api/ai/project'
 import {
   PALETTE, uid, buildComponent, generateProto, DEVICE_OPTIONS, DEVICE_MODELS, defaultStyle, ICON_LIST,
-  saveProtoDraft, loadProtoDraft, sendProtoChat, getProtoPages, saveProto, confirmProto,
+  saveProtoDraft, loadProtoDraft, sendProtoChat, getProtoPages, saveProto, confirmProto, getProtoModels,
   applyProtoPatch, saveVersion, listVersions, getVersion, restoreVersion
 } from '@/api/ai/proto'
 import ProtoComponent from '@/components/proto/ProtoComponent.vue'
@@ -634,10 +633,11 @@ function onSelectModel(val) {
 function currentModelCode() { return chatModelCode.value || 'deepseek' }
 async function loadModels() {
   try {
-    const res = await getModels()
-    const list = res?.data ?? res
+    const res = await getProtoModels()
+    const data = res?.data ?? res
+    const list = data?.models || (Array.isArray(data) ? data : [])
     if (Array.isArray(list) && list.length) {
-      modelOptions.value = list.map(m => ({ value: m.id, label: m.name }))
+      modelOptions.value = list.map(m => ({ value: m.modelId, label: m.modelName }))
       chatModel.value = modelOptions.value[0]
       return
     }

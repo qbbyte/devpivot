@@ -382,8 +382,7 @@ const dragging = ref(false)
 
 const doneCount = computed(() => modelResults.value.filter(r => r.status === 'done').length)
 const canSubmit = computed(() => {
-  const anyDone = modelResults.value.some(r => r.status === 'done')
-  return finalContent.value.trim().length > 0 && anyDone
+  return finalContent.value.trim().length > 0 && !isGenerating.value
 })
 const canConfirmSettings = computed(() => {
   const bOk = settingsForm.backendStack && (settingsForm.backendStack !== 'OTHER' || settingsForm.backendOther.trim())

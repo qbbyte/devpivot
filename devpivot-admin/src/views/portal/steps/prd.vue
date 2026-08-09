@@ -274,9 +274,9 @@ import {
   MagicStick
 } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
-import { getProject, updateProject } from '@/api/ai/project'
-import { getClarifySession, getModels } from '@/api/ai/clarify'
-import { generatePrd, getPrdDoc, savePrdDoc } from '@/api/ai/doc'
+import { getProject } from '@/api/ai/project'
+import { getClarifySession } from '@/api/ai/clarify'
+import { generatePrd, getPrdDoc, savePrdDoc, getDocModels, submitPrd } from '@/api/ai/doc'
 import { sendChatMessage } from '@/api/ai/chat'
 
 const { proxy } = getCurrentInstance()
@@ -340,13 +340,14 @@ function onSelectModel(val) {
 function currentModelCode() {
   return (chatModel.value && chatModel.value.value) || 'deepseek'
 }
-// 拉取真实可用模型列表（复用澄清接口的 /ai/clarify/models，不影响其他接口）
+// 拉取真实可用模型列表（/ai/doc/models）
 async function loadModels() {
   try {
-    const res = await getModels()
-    const list = res?.data ?? res
+    const res = await getDocModels()
+    const data = res?.data ?? res
+    const list = data?.models || (Array.isArray(data) ? data : [])
     if (Array.isArray(list) && list.length) {
-      modelOptions.value = list.map(m => ({ value: m.id, label: m.name }))
+      modelOptions.value = list.map(m => ({ value: m.modelId, label: m.modelName }))
       chatModel.value = modelOptions.value[0]
       return
     }
@@ -565,9 +566,14 @@ function handleSubmit() {
     return
   }
   submitting.value = true
-  const nextStep = stepOrder[stepIndex.value + 1]?.value || 'DONE'
-  updateProject({ projectId: projectId.value, step: nextStep }).then(() => {
-    proxy.$modal.msgSuccess('已提交')
+  const payload = {
+    docName: (project.value.projectName || '产品') + ' PRD',
+    templateType: templateType.value,
+    content: docContent.value,
+    sourceModel: currentModelCode()
+  }
+  submitPrd(projectId.value, payload).then(() => {
+    proxy.$modal.msgSuccess('已提交，进入原型设计阶段')
     submitting.value = false
     router.push('/portal')
   }).catch(() => {
