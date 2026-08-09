@@ -11,6 +11,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,8 +26,10 @@ import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.service.IAiModelConfigService;
 import com.ruoyi.project.domain.AiClarifySession;
 import com.ruoyi.project.domain.AiPrdDoc;
+import com.ruoyi.project.domain.AiProject;
 import com.ruoyi.project.service.IAiClarifySessionService;
 import com.ruoyi.project.service.IAiPrdDocService;
+import com.ruoyi.project.service.IAiProjectService;
 
 /**
  * 门户·PRD 生成流式接口（/ai/doc）
@@ -53,10 +57,85 @@ public class AiPrdGenController extends BaseController
     @Autowired
     private IAiPrdDocService prdDocService;
 
+    @Autowired
+    private IAiProjectService projectService;
+
     /** 流式推送任务线程池 */
     private static final ExecutorService STREAM_POOL = Executors.newCachedThreadPool();
 
     private static final Logger log = LoggerFactory.getLogger(AiPrdGenController.class);
+
+    /**
+     * 可用模型列表：返回 ai_model_config 中「启用」的模型，映射为前端所需的
+     * { modelId, modelName } 结构。本阶段为单模型，maxCompareCount 固定为 1。
+     */
+    @GetMapping("/models")
+    public AjaxResult models()
+    {
+        AiModelConfig query = new AiModelConfig();
+        query.setIsEnabled("0");
+        List<AiModelConfig> list = modelConfigService.selectAiModelConfigList(query);
+        List<Map<String, Object>> models = new ArrayList<>();
+        if (list != null)
+        {
+            for (AiModelConfig c : list)
+            {
+                if (c.getModelCode() == null || c.getModelCode().isEmpty())
+                {
+                    continue;
+                }
+                Map<String, Object> m = new HashMap<>(2);
+                m.put("modelId", c.getModelCode());
+                m.put("modelName", c.getModelName() == null ? c.getModelCode() : c.getModelName());
+                models.add(m);
+            }
+        }
+        Map<String, Object> data = new HashMap<>(2);
+        data.put("models", models);
+        data.put("maxCompareCount", 1);
+        return success(data);
+    }
+
+    /**
+     * 提交 PRD：落库 status=1（upsert）并推进项目阶段到 PROTO。
+     * 后端统一处理阶段推进，前端无需再单独调用项目更新接口。
+     */
+    @PostMapping("/submit/{projectId}")
+    public AjaxResult submit(@PathVariable("projectId") Long projectId,
+                             @RequestBody(required = false) Map<String, Object> body)
+    {
+        if (projectId == null) return error("项目ID不能为空");
+        Map<String, Object> b = body == null ? new HashMap<>(0) : body;
+
+        AiPrdDoc q = new AiPrdDoc();
+        q.setProjectId(projectId);
+        List<AiPrdDoc> list = prdDocService.selectAiPrdDocList(q);
+
+        AiPrdDoc doc = new AiPrdDoc();
+        doc.setProjectId(projectId);
+        doc.setDocName(str(b.get("docName"), "PRD"));
+        doc.setTemplateType(str(b.get("templateType"), "STANDARD"));
+        doc.setContent(b.get("content") == null ? "" : String.valueOf(b.get("content")));
+        doc.setSourceModel(str(b.get("sourceModel"), null));
+        doc.setStatus("1");
+
+        if (list != null && !list.isEmpty())
+        {
+            doc.setDocId(list.get(0).getDocId());
+            prdDocService.updateAiPrdDoc(doc);
+        }
+        else
+        {
+            prdDocService.insertAiPrdDoc(doc);
+        }
+
+        AiProject project = new AiProject();
+        project.setProjectId(projectId);
+        project.setStep("PROTO");
+        projectService.updateAiProject(project);
+
+        return success();
+    }
 
     /**
      * 生成 PRD（流式 SSE）

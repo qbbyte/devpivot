@@ -79,6 +79,37 @@ public class AiProtoController extends BaseController
     private static final ExecutorService STREAM_POOL = Executors.newCachedThreadPool();
 
     /**
+     * 可用模型列表：返回 ai_model_config 中「启用」的模型，映射为前端所需的
+     * { modelId, modelName } 结构。本阶段为单模型，maxCompareCount 固定为 1。
+     */
+    @GetMapping("/models")
+    public AjaxResult models()
+    {
+        AiModelConfig query = new AiModelConfig();
+        query.setIsEnabled("0");
+        List<AiModelConfig> list = modelConfigService.selectAiModelConfigList(query);
+        List<Map<String, Object>> models = new ArrayList<>();
+        if (list != null)
+        {
+            for (AiModelConfig c : list)
+            {
+                if (c.getModelCode() == null || c.getModelCode().isEmpty())
+                {
+                    continue;
+                }
+                Map<String, Object> m = new HashMap<>(2);
+                m.put("modelId", c.getModelCode());
+                m.put("modelName", c.getModelName() == null ? c.getModelCode() : c.getModelName());
+                models.add(m);
+            }
+        }
+        Map<String, Object> data = new HashMap<>(2);
+        data.put("models", models);
+        data.put("maxCompareCount", 1);
+        return success(data);
+    }
+
+    /**
      * 按项目读取已存原型页面（含组件）。门户加载原型工作台的权威数据源。
      */
     @GetMapping("/pages/{projectId}")
