@@ -1,6 +1,7 @@
 package com.ruoyi.project.service;
 
 import java.util.List;
+import java.util.Map;
 import com.ruoyi.project.domain.AiProject;
 
 /**
@@ -18,6 +19,24 @@ public interface IAiProjectService
      * @return AI项目
      */
     public AiProject selectAiProjectByProjectId(Long projectId);
+
+    /**
+     * 项目阶段概览（含每阶段状态与实现人）
+     * 门户团队页点击项目后以弹窗展示，故放开后台权限、仅要求登录态
+     *
+     * @param projectId 项目ID
+     * @return { projectId, projectName, step, assigneeName, phases:[{step,label,status,implementer}] }
+     */
+    public Map<String, Object> getProjectPhases(Long projectId);
+
+    /**
+     * 项目产物概览：聚合各阶段已生成的产物文本（需求基线/澄清记录/PRD/原型/技术方案/数据库设计）
+     * 门户团队页点击「产物」后以弹窗展示，供用户按需下载
+     *
+     * @param projectId 项目ID
+     * @return { projectId, projectName, artifacts:[{ step,label,type,fileName,content,hasData }] }
+     */
+    public Map<String, Object> getProjectArtifacts(Long projectId);
 
     /**
      * 查询AI项目列表

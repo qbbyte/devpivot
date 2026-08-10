@@ -84,6 +84,32 @@ public class TokenService
     }
 
     /**
+     * 获取用户身份信息(供 WebSocket 握手等无 HttpServletRequest 场景使用)
+     *
+     * @param token 令牌(不含 Bearer 前缀)
+     * @return 用户信息
+     */
+    public LoginUser getLoginUser(String token)
+    {
+        if (StringUtils.isNotEmpty(token))
+        {
+            try
+            {
+                Claims claims = parseToken(token);
+                // 解析对应的权限以及用户信息
+                String uuid = (String) claims.get(Constants.LOGIN_USER_KEY);
+                String userKey = getTokenKey(uuid);
+                return redisCache.getCacheObject(userKey);
+            }
+            catch (Exception e)
+            {
+                log.error("获取用户信息异常'{}'", e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    /**
      * 设置用户身份信息
      */
     public void setLoginUser(LoginUser loginUser)

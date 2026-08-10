@@ -3,6 +3,8 @@ package com.ruoyi.project.service;
 import java.util.List;
 import java.util.Map;
 import com.ruoyi.project.domain.AiTeam;
+import com.ruoyi.project.domain.AiTeamMember;
+import com.ruoyi.project.domain.AiTeamProject;
 import com.ruoyi.project.domain.AiTeamMessage;
 
 /**
@@ -18,6 +20,12 @@ public interface IAiTeamService
 
     /** 团队详情(聚合成员/项目/消息/已读) */
     AiTeam getTeamDetail(Long teamId, Long userId);
+
+    /** 团队成员分页列表(若依分页范式,返回 List 由 Controller 包装 TableDataInfo) */
+    List<AiTeamMember> listMembers(Long teamId, Long userId);
+
+    /** 团队关联项目分页列表 */
+    List<AiTeamProject> listProjects(Long teamId, Long userId);
 
     /** 创建团队(自动添加创建者为 OWNER) */
     Long createTeam(AiTeam team, Long userId, String username);

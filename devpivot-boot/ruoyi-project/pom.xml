@@ -27,9 +27,21 @@
             <groupId>com.ruoyi</groupId>
             <artifactId>ruoyi-ai</artifactId>
         </dependency>
+
+        <!-- 框架核心(WebSocket 鉴权复用 TokenService)-->
+        <dependency>
+            <groupId>com.ruoyi</groupId>
+            <artifactId>ruoyi-framework</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-webmvc</artifactId>
+        </dependency>
+
+        <!-- WebSocket / STOMP 实时推送(团队讨论区) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
     </dependencies>
 

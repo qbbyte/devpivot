@@ -13,9 +13,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.project.domain.AiTeam;
 import com.ruoyi.project.domain.AiTeamMessage;
+import com.ruoyi.project.domain.AiTeamMember;
+import com.ruoyi.project.domain.AiTeamProject;
 import com.ruoyi.project.service.IAiTeamService;
 
 /**
@@ -45,6 +48,26 @@ public class AiTeamController extends BaseController
     {
         Long userId = SecurityUtils.getUserId();
         return success(teamService.getTeamDetail(teamId, userId));
+    }
+
+    /** 团队成员分页列表(若依分页范式: startPage + getDataTable) */
+    @GetMapping("/{teamId}/members")
+    public TableDataInfo members(@PathVariable("teamId") Long teamId)
+    {
+        Long userId = SecurityUtils.getUserId();
+        startPage();
+        List<AiTeamMember> list = teamService.listMembers(teamId, userId);
+        return getDataTable(list);
+    }
+
+    /** 团队关联项目分页列表 */
+    @GetMapping("/{teamId}/projects")
+    public TableDataInfo projects(@PathVariable("teamId") Long teamId)
+    {
+        Long userId = SecurityUtils.getUserId();
+        startPage();
+        List<AiTeamProject> list = teamService.listProjects(teamId, userId);
+        return getDataTable(list);
     }
 
     /** 创建团队 */

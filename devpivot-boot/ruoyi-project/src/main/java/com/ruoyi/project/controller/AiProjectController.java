@@ -61,12 +61,32 @@ public class AiProjectController extends BaseController
 
     /**
      * 获取AI项目详细信息
+     * 注：门户项目总览页(/portal/project/:id)也依赖此接口，故放开后台权限，仅要求登录态即可访问
      */
-    @PreAuthorize("@ss.hasPermi('system:project:query')")
     @GetMapping(value = "/{projectId}")
     public AjaxResult getInfo(@PathVariable("projectId") Long projectId)
     {
         return success(aiProjectService.selectAiProjectByProjectId(projectId));
+    }
+
+    /**
+     * 项目阶段概览（含每阶段状态与实现人）
+     * 门户团队页点击项目后以弹窗展示，放开后台权限、仅要求登录态
+     */
+    @GetMapping("/{projectId}/phases")
+    public AjaxResult phases(@PathVariable("projectId") Long projectId)
+    {
+        return success(aiProjectService.getProjectPhases(projectId));
+    }
+
+    /**
+     * 项目产物概览（聚合各阶段产物文本，门户团队页「产物」按钮调用）
+     * 放开后台权限、仅要求登录态
+     */
+    @GetMapping("/{projectId}/artifacts")
+    public AjaxResult artifacts(@PathVariable("projectId") Long projectId)
+    {
+        return success(aiProjectService.getProjectArtifacts(projectId));
     }
 
     /**

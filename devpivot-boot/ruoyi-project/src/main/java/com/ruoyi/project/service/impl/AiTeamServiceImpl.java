@@ -8,7 +8,9 @@ import java.util.List;
 import java.util.Map;
 import java.text.SimpleDateFormat;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import com.ruoyi.common.core.domain.model.LoginUser;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.SecurityUtils;
@@ -19,6 +21,7 @@ import com.ruoyi.project.domain.AiTeamMessageRead;
 import com.ruoyi.project.domain.AiTeamProject;
 import com.ruoyi.project.mapper.AiTeamMapper;
 import com.ruoyi.project.service.IAiTeamService;
+import com.ruoyi.project.websocket.TeamReadEvent;
 
 /**
  * 团队模块业务层实现
@@ -35,6 +38,10 @@ public class AiTeamServiceImpl implements IAiTeamService
 
     @Autowired
     private AiTeamMapper teamMapper;
+
+    /** WebSocket 广播模板(团队讨论区实时推送) */
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     @Override
     public List<AiTeam> listMyTeams(Long userId)
@@ -78,6 +85,19 @@ public class AiTeamServiceImpl implements IAiTeamService
         team.setProjects(projects);
         team.setMessages(messages);
         return team;
+    }
+
+    @Override
+    public List<AiTeamMember> listMembers(Long teamId, Long userId)
+    {
+        // 复用详情中的成员查询;Controller 通过 startPage() 触发 PageHelper 分页
+        return teamMapper.selectMembersByTeamId(teamId);
+    }
+
+    @Override
+    public List<AiTeamProject> listProjects(Long teamId, Long userId)
+    {
+        return teamMapper.selectProjectsByTeamId(teamId);
     }
 
     @Override
@@ -253,7 +273,16 @@ public class AiTeamServiceImpl implements IAiTeamService
         msg.setCreateTime(now);
         msg.setTime(formatTime(now));
         msg.setReadUsers(new ArrayList<>());
+        // 补全发送者昵称/头像，避免前端手补；广播时所有订阅者拿到一致数据
+        LoginUser loginUser = SecurityUtils.getLoginUser();
+        if (loginUser != null && loginUser.getUser() != null)
+        {
+            msg.setNickName(loginUser.getUser().getNickName());
+            msg.setAvatar(loginUser.getUser().getAvatar());
+        }
         teamMapper.insertMessage(msg);
+        // 实时推送：广播到该团队频道，所有在线成员即时收到
+        messagingTemplate.convertAndSend("/topic/team/" + teamId, msg);
         return msg;
     }
 
@@ -277,6 +306,11 @@ public class AiTeamServiceImpl implements IAiTeamService
             list.add(read);
         }
         teamMapper.insertReadIgnore(list);
+        // 实时推送已读事件：让其他成员即时看到"已读 N 人"更新
+        LoginUser loginUser = SecurityUtils.getLoginUser();
+        String readerNick = loginUser != null && loginUser.getUser() != null ? loginUser.getUser().getNickName() : null;
+        TeamReadEvent event = new TeamReadEvent(teamId, unread, userId, readerNick);
+        messagingTemplate.convertAndSend("/topic/team/" + teamId + "/read", event);
     }
 
     @Override

@@ -210,6 +210,9 @@
                     <source>${java.version}</source>
                     <target>${java.version}</target>
                     <encoding>${project.build.sourceEncoding}</encoding>
+                    <!-- 关闭增量编译状态文件(createdFiles.lst/inputFiles.lst)写入，
+                         规避本环境对 target/maven-status 目录写入受限导致构建失败 -->
+                    <useIncrementalCompilation>false</useIncrementalCompilation>
                 </configuration>
             </plugin>
             <plugin>
