@@ -50,6 +50,8 @@ export default defineConfig(({ mode, command }) => {
         '/dev-api': {
           target: baseUrl,
           changeOrigin: true,
+          // 团队实时推送走原生 WebSocket：/dev-api/ws/team 需透传协议升级
+          ws: true,
           rewrite: (p) => p.replace(/^\/dev-api/, ''),
           // SSE 流式接口（/ai/clarify/send）不能被代理缓冲，否则前端一直“思考中”。
           // 对 text/event-stream 响应显式关闭缓冲并禁用缓存，确保分块即时转发。

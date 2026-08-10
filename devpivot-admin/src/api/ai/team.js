@@ -120,18 +120,44 @@ export function listProjectOptions() {
   })
 }
 
-// 轻量拉取团队消息(供讨论区轮询刷新)
-export function getTeamMessages(teamId) {
-  return request({
-    url: '/team/' + teamId + '/messages',
-    method: 'get'
-  })
-}
-
 // 退出团队
 export function leaveTeam(teamId) {
   return request({
     url: '/team/' + teamId + '/leave',
     method: 'delete'
+  })
+}
+
+// 团队成员分页列表(若依 TableDataInfo: { rows, total })
+export function listTeamMembers(teamId, params) {
+  return request({
+    url: '/team/' + teamId + '/members',
+    method: 'get',
+    params: params
+  })
+}
+
+// 团队关联项目分页列表
+export function listTeamProjects(teamId, params) {
+  return request({
+    url: '/team/' + teamId + '/projects',
+    method: 'get',
+    params: params
+  })
+}
+
+// 项目阶段概览(含每阶段状态与实现人)，弹窗展示用
+export function getProjectPhases(projectId) {
+  return request({
+    url: '/system/project/' + projectId + '/phases',
+    method: 'get'
+  })
+}
+
+// 项目产物概览(聚合各阶段产物文本)，「产物」按钮弹窗展示/下载用
+export function getProjectArtifacts(projectId) {
+  return request({
+    url: '/system/project/' + projectId + '/artifacts',
+    method: 'get'
   })
 }

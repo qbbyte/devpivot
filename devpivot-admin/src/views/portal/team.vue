@@ -68,117 +68,159 @@
         <el-tabs v-model="activeTab" class="td-tabs">
           <!-- 项目 -->
           <el-tab-pane label="项目" name="projects">
-            <div class="td-toolbar">
-              <span class="td-tab-count">{{ activeTeam.projects.length }} 个项目</span>
-              <el-button v-if="canManage" type="primary" size="small" @click="openBindProject">
-                <el-icon><Plus /></el-icon>
-                <span>关联项目</span>
-              </el-button>
+            <div class="tab-pane-inner">
+              <div class="td-toolbar">
+                <span class="td-tab-count">{{ projectTotal }} 个项目</span>
+                <el-button v-if="canManage" type="primary" size="small" @click="openBindProject">
+                  <el-icon><Plus /></el-icon>
+                  <span>关联项目</span>
+                </el-button>
+              </div>
+              <div class="tab-pane-body">
+                <el-table v-if="projectRows.length" v-loading="loadingProjects" :data="projectRows" border stripe @row-dblclick="openProject">
+                  <el-table-column label="项目名称" min-width="200">
+                    <template #default="{ row }">
+                      <span class="project-link" title="点击查看项目" @click="openProject(row)">{{ row.projectName }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="当前阶段" width="120">
+                    <template #default="{ row }">
+                      <el-tag size="small">{{ stepLabel(row.step) }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="150" align="center">
+                    <template #default="{ row }">
+                      <el-button type="primary" link size="small" @click="openArtifacts(row)">产物</el-button>
+                      <el-button type="danger" link size="small" :disabled="!canManage" @click="unbindProject(row)">解绑</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <div v-else class="empty-fill">
+                  <el-empty description="暂无关联项目" :image-size="70" />
+                </div>
+              </div>
+              <el-pagination
+                class="tab-pane-pager"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="projectTotal"
+                :page-size="projectQuery.pageSize"
+                :current-page="projectQuery.pageNum"
+                :page-sizes="[10, 20, 50]"
+                background
+                @current-change="handleProjectPageChange"
+                @size-change="handleProjectSizeChange"
+              />
             </div>
-            <el-table :data="activeTeam.projects" border stripe>
-              <el-table-column label="项目名称" prop="projectName" min-width="200" />
-              <el-table-column label="当前阶段" width="120">
-                <template #default="{ row }">
-                  <el-tag size="small">{{ stepLabel(row.step) }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="90" align="center">
-                <template #default="{ row }">
-                  <el-button type="danger" link size="small" :disabled="!canManage" @click="unbindProject(row)">解绑</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-            <el-empty v-if="!activeTeam.projects.length" description="暂无关联项目" :image-size="70" />
           </el-tab-pane>
 
           <!-- 成员 -->
           <el-tab-pane label="成员" name="members">
-            <div class="td-toolbar">
-              <span class="td-tab-count">{{ activeTeam.members.length }} 名成员</span>
-              <el-button v-if="canManage" type="primary" size="small" @click="openAddMember">
-                <el-icon><Plus /></el-icon>
-                <span>添加成员</span>
-              </el-button>
+            <div class="tab-pane-inner">
+              <div class="td-toolbar">
+                <span class="td-tab-count">{{ memberTotal }} 名成员</span>
+                <el-button v-if="canManage" type="primary" size="small" @click="openAddMember">
+                  <el-icon><Plus /></el-icon>
+                  <span>添加成员</span>
+                </el-button>
+              </div>
+              <div class="tab-pane-body">
+                <el-table v-if="memberRows.length" v-loading="loadingMembers" :data="memberRows" border stripe>
+                  <el-table-column label="成员" min-width="170">
+                    <template #default="{ row }">
+                      <div class="member-cell">
+                        <el-avatar :size="30" :src="avatarUrl(row.avatar)">{{ row.nickName?.charAt(0) }}</el-avatar>
+                        <div class="mc-text">
+                          <div class="mc-name">{{ row.nickName }}</div>
+                          <div class="mc-sub">@{{ row.userName }}</div>
+                        </div>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="邮箱" prop="email" min-width="190" />
+                  <el-table-column label="职务" prop="title" min-width="120" />
+                  <el-table-column label="角色" width="150">
+                    <template #default="{ row }">
+                      <el-select
+                        :model-value="row.role"
+                        size="small"
+                        :disabled="!canManage || row.userId === currentUserId || row.role === 'OWNER'"
+                        @change="(val) => changeRole(row, val)"
+                      >
+                        <el-option label="创建者" value="OWNER" />
+                        <el-option label="管理员" value="ADMIN" />
+                        <el-option label="成员" value="MEMBER" />
+                      </el-select>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="90" align="center">
+                    <template #default="{ row }">
+                      <el-button
+                        type="danger"
+                        link
+                        size="small"
+                        :disabled="!canManage || row.userId === currentUserId || row.role === 'OWNER'"
+                        @click="removeMember(row)"
+                      >移除</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <div v-else class="empty-fill">
+                  <el-empty description="暂无成员" :image-size="70" />
+                </div>
+              </div>
+              <el-pagination
+                class="tab-pane-pager"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="memberTotal"
+                :page-size="memberQuery.pageSize"
+                :current-page="memberQuery.pageNum"
+                :page-sizes="[10, 20, 50]"
+                background
+                @current-change="handleMemberPageChange"
+                @size-change="handleMemberSizeChange"
+              />
             </div>
-            <el-table :data="activeTeam.members" border stripe>
-              <el-table-column label="成员" min-width="170">
-                <template #default="{ row }">
-                  <div class="member-cell">
-                    <el-avatar :size="30" :src="avatarUrl(row.avatar)">{{ row.nickName?.charAt(0) }}</el-avatar>
-                    <div class="mc-text">
-                      <div class="mc-name">{{ row.nickName }}</div>
-                      <div class="mc-sub">@{{ row.userName }}</div>
-                    </div>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="邮箱" prop="email" min-width="190" />
-              <el-table-column label="职务" prop="title" min-width="120" />
-              <el-table-column label="角色" width="150">
-                <template #default="{ row }">
-                  <el-select
-                    :model-value="row.role"
-                    size="small"
-                    :disabled="!canManage || row.userId === currentUserId || row.role === 'OWNER'"
-                    @change="(val) => changeRole(row, val)"
-                  >
-                    <el-option label="创建者" value="OWNER" />
-                    <el-option label="管理员" value="ADMIN" />
-                    <el-option label="成员" value="MEMBER" />
-                  </el-select>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="90" align="center">
-                <template #default="{ row }">
-                  <el-button
-                    type="danger"
-                    link
-                    size="small"
-                    :disabled="!canManage || row.userId === currentUserId || row.role === 'OWNER'"
-                    @click="removeMember(row)"
-                  >移除</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
           </el-tab-pane>
 
           <!-- 讨论 -->
           <el-tab-pane label="讨论" name="chat">
-            <div class="td-toolbar">
-              <span class="td-tab-count">{{ activeTeam.messages.length }} 条消息</span>
-            </div>
-            <div ref="chatListRef" class="chat-list">
-              <div
-                v-for="m in activeTeam.messages"
-                :key="m.msgId"
-                class="chat-item"
-                :class="{ 'chat-mine': m.userId === currentUserId }"
-              >
-                <el-avatar :size="34" class="chat-avatar" :src="avatarUrl(m.avatar)">{{ m.nickName?.charAt(0) }}</el-avatar>
-                <div class="chat-bubble-wrap">
-                  <div class="chat-meta">
-                    <span class="chat-name">{{ m.nickName }}</span>
-                    <span class="chat-time">{{ m.time }}</span>
-                  </div>
-                  <div class="chat-bubble">{{ m.content }}</div>
-                  <div v-if="m.readUsers && m.readUsers.length" class="chat-read">
-                    已读 {{ m.readUsers.length }} 人：{{ m.readUsers.map(r => r.nickName).join('、') }}
+            <div class="chat-pane">
+              <div class="td-toolbar">
+                <span class="td-tab-count">{{ activeTeam.messages.length }} 条消息</span>
+              </div>
+              <div ref="chatListRef" class="chat-list">
+                <div
+                  v-for="m in activeTeam.messages"
+                  :key="m.msgId"
+                  class="chat-item"
+                  :class="{ 'chat-mine': m.userId === currentUserId }"
+                >
+                  <el-avatar :size="34" class="chat-avatar" :src="avatarUrl(m.avatar)">{{ m.nickName?.charAt(0) }}</el-avatar>
+                  <div class="chat-bubble-wrap">
+                    <div class="chat-meta">
+                      <span class="chat-name">{{ m.nickName }}</span>
+                      <span class="chat-time">{{ m.time }}</span>
+                    </div>
+                    <div class="chat-bubble">{{ m.content }}</div>
+                    <div v-if="m.readUsers && m.readUsers.length" class="chat-read">
+                      已读 {{ m.readUsers.length }} 人：{{ m.readUsers.map(r => r.nickName).join('、') }}
+                    </div>
                   </div>
                 </div>
+                <el-empty v-if="!activeTeam.messages.length" description="还没有消息，来发第一条吧" :image-size="70" />
               </div>
-              <el-empty v-if="!activeTeam.messages.length" description="还没有消息，来发第一条吧" :image-size="70" />
-            </div>
-            <div class="chat-input">
-              <el-input
-                v-model="chatDraft"
-                type="textarea"
-                :rows="2"
-                resize="none"
-                maxlength="500"
-                placeholder="输入消息，按 Enter 发送 / Shift+Enter 换行"
-                @keydown.enter.exact.prevent="sendMessage"
-              />
-              <el-button type="primary" :disabled="!chatDraft.trim()" @click="sendMessage">发送</el-button>
+              <div class="chat-input">
+                <el-input
+                  v-model="chatDraft"
+                  type="textarea"
+                  :rows="2"
+                  resize="none"
+                  maxlength="500"
+                  placeholder="输入消息，按 Enter 发送 / Shift+Enter 换行"
+                  @keydown.enter.exact.prevent="sendMessage"
+                />
+                <el-button type="primary" :disabled="!chatDraft.trim()" @click="sendMessage">发送</el-button>
+              </div>
             </div>
           </el-tab-pane>
         </el-tabs>
@@ -257,22 +299,155 @@
         <el-button type="primary" :disabled="!bindForm.projectId" @click="submitBind">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 项目阶段概览（点击项目名弹出，展示所有阶段与实现人） -->
+    <el-dialog
+      v-model="projectDialogVisible"
+      :title="dialogProject.projectName || '项目阶段概览'"
+      width="620px"
+      top="7vh"
+      class="phase-dialog-el"
+    >
+      <div v-loading="loadingPhases" class="phase-dialog">
+        <div class="pd-head">
+          <div class="pd-head-row">
+            <div class="pd-info">
+              <span class="pd-label">当前阶段</span>
+              <el-tag
+                size="small"
+                :type="dialogProject.step === 'DONE' ? 'success' : 'primary'"
+                effect="light"
+                round
+              >{{ stepLabel(dialogProject.step) }}</el-tag>
+            </div>
+            <div class="pd-info">
+              <span class="pd-label">项目负责人</span>
+              <span class="pd-value">{{ dialogProject.assigneeName || '未指派' }}</span>
+            </div>
+          </div>
+
+          <div class="pd-progress">
+            <span class="pd-progress-label">阶段进度</span>
+            <div class="pd-progress-track">
+              <div
+                class="pd-progress-bar"
+                :style="{ width: phaseProgressPercent + '%', background: dialogProject.step === 'DONE' ? '#67c23a' : '#409eff' }"
+              />
+            </div>
+            <span class="pd-progress-text" :class="{ done: dialogProject.step === 'DONE' }">
+              {{ phaseProgressText }}
+            </span>
+          </div>
+        </div>
+
+        <div class="pd-timeline" :style="{ '--done-percent': phaseProgressPercent + '%' }">
+          <div
+            v-for="(p, idx) in dialogProject.phases"
+            :key="p.step"
+            class="pd-phase"
+            :class="[p.status, { last: idx === dialogProject.phases.length - 1 }]"
+            @click="gotoPhase(p.step)"
+          >
+            <div class="pd-phase-index">
+              <el-icon v-if="p.status === 'done'"><Check /></el-icon>
+              <span v-else>{{ idx + 1 }}</span>
+            </div>
+            <div class="pd-phase-body">
+              <div class="pd-phase-top">
+                <span class="pd-phase-name">{{ p.label }}</span>
+                <el-tag
+                  size="small"
+                  :type="p.status === 'done' ? 'success' : p.status === 'current' ? 'warning' : 'info'"
+                  effect="light"
+                  round
+                >{{ p.status === 'done' ? '已完成' : p.status === 'current' ? '进行中' : '未开始' }}</el-tag>
+              </div>
+              <div class="pd-phase-owner" :class="{ empty: !p.implementer }">
+                <el-icon><User /></el-icon>
+                <span>{{ p.implementer ? '实现人：' + phaseImplementerName(p.implementer) : '实现人未记录' }}</span>
+              </div>
+            </div>
+            <el-icon class="pd-enter"><Right /></el-icon>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="projectDialogVisible = false">关闭</el-button>
+        <el-button type="primary" :icon="Right" @click="gotoProject(dialogProject)">进入项目</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 项目产物弹窗：列出各阶段产物并支持下载 -->
+    <el-dialog
+      v-model="artifactDialogVisible"
+      :title="artifactDialog.projectName ? artifactDialog.projectName + ' · 项目产物' : '项目产物'"
+      width="600px"
+      top="8vh"
+      class="artifact-dialog-el"
+    >
+      <div v-loading="loadingArtifacts" class="artifact-dialog">
+        <div v-if="artifactDialog.artifacts.length" class="art-list">
+          <div
+            v-for="(a, idx) in artifactDialog.artifacts"
+            :key="a.step"
+            class="art-item"
+            :class="{ 'art-empty': !a.hasData }"
+          >
+            <div class="art-item-head">
+              <span class="art-index">{{ idx + 1 }}</span>
+              <span class="art-name">{{ a.label }}</span>
+              <el-tag size="small" effect="plain" round>{{ a.type === 'json' ? 'JSON' : 'Markdown' }}</el-tag>
+            </div>
+            <div class="art-item-body">
+              <span v-if="a.hasData" class="art-tip">可下载为 {{ a.fileName }}</span>
+              <span v-else class="art-tip empty">本阶段暂无产物</span>
+              <div class="art-actions">
+                <el-button
+                  type="primary"
+                  size="small"
+                  plain
+                  :disabled="!a.hasData"
+                  :icon="Download"
+                  @click="downloadArtifact(a)"
+                >下载</el-button>
+                <el-button
+                  v-if="a.step === 'PROTO'"
+                  type="success"
+                  size="small"
+                  plain
+                  :disabled="!a.hasData"
+                  :icon="Download"
+                  @click="downloadProtoHtml(a)"
+                >下载 HTML</el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <el-empty v-else description="暂无产物数据" :image-size="80" />
+      </div>
+      <template #footer>
+        <el-button @click="artifactDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Opportunity, Plus, Search, Setting, User, SwitchButton } from '@element-plus/icons-vue'
+import { Opportunity, Plus, Search, Setting, User, SwitchButton, Check, Right, Download } from '@element-plus/icons-vue'
 import useUserStore from '@/store/modules/user'
 import defAva from '@/assets/images/profile.jpg'
 import {
   listMyTeams, getTeamDetail, createTeam, updateTeam, dissolveTeam as dissolveTeamApi,
   addTeamMember, removeTeamMember, changeTeamMemberRole,
   bindTeamProject, unbindTeamProject, sendTeamMessage, markTeamRead, searchTeamUsers,
-  listProjectOptions, getTeamMessages, leaveTeam
+  listProjectOptions, leaveTeam,   listTeamMembers, listTeamProjects, getProjectPhases, getProjectArtifacts
 } from '@/api/ai/team'
+import { getProtoPages } from '@/api/ai/proto'
+import { protoToHtml } from '@/utils/protoHtml'
+import { subscribeTeam, unsubscribeTeam, disconnectWs } from '@/api/ai/teamWs'
 
 const router = useRouter()
 const route = useRoute()
@@ -283,6 +458,183 @@ const currentUserId = computed(() => userStore.id || userStore.userId)
 const teams = ref([])          // 我的团队列表(摘要)
 const activeTeam = ref(null)   // 当前选中团队详情(含 members/projects/messages)
 const activeTab = ref('projects')
+
+/* ===== 成员/项目分页状态(后端若依分页) ===== */
+const memberQuery = reactive({ pageNum: 1, pageSize: 10 })
+const memberRows = ref([])
+const memberTotal = ref(0)
+const loadingMembers = ref(false)
+const projectQuery = reactive({ pageNum: 1, pageSize: 10 })
+const projectRows = ref([])
+const projectTotal = ref(0)
+const loadingProjects = ref(false)
+
+/* ===== 项目阶段概览弹窗 ===== */
+const projectDialogVisible = ref(false)
+const dialogProject = ref({ projectName: '', assigneeName: '', step: '', phases: [] })
+const loadingPhases = ref(false)
+
+// 阶段 → 项目门户路由段（DONE 无独立页，落到最后一个可用阶段 db）
+const STEP_ROUTE = {
+  REQ: 'req', CLARIFY: 'clarify', PRD: 'prd',
+  PROTO: 'proto', TECH: 'tech', DB: 'db', DONE: 'db'
+}
+// 团队成员 userName → nickName 映射，用于把实现人登录名转成昵称
+const userNameToNick = computed(() => {
+  const map = {}
+  ;(activeTeam.value?.members || []).forEach(m => { map[m.userName] = m.nickName })
+  return map
+})
+function phaseImplementerName(username) {
+  if (!username) return '—'
+  return userNameToNick.value[username] || username
+}
+function openProject(row) {
+  if (!row || !row.projectId) return
+  projectDialogVisible.value = true
+  loadingPhases.value = true
+  dialogProject.value = { projectId: row.projectId, projectName: row.projectName, assigneeName: '', step: row.step, phases: [] }
+  getProjectPhases(row.projectId).then(res => {
+    const d = res.data || {}
+    dialogProject.value = {
+      projectId: row.projectId,
+      projectName: d.projectName || row.projectName,
+      assigneeName: d.assigneeName || '未指派',
+      step: d.step,
+      phases: d.phases || []
+    }
+  }).catch(() => {
+    dialogProject.value.phases = []
+  }).finally(() => {
+    loadingPhases.value = false
+  })
+}
+// 弹窗内：进入项目总览页（应用内跳转，不新开标签页）
+function gotoProject(row) {
+  if (!row || !row.projectId) return
+  projectDialogVisible.value = false
+  router.push({ path: '/portal/project/' + row.projectId })
+}
+// 弹窗内：进入某具体阶段（应用内跳转，不新开标签页）
+function gotoPhase(step) {
+  const id = dialogProject.value.projectId
+  if (!id) return
+  const seg = STEP_ROUTE[step] || 'clarify'
+  projectDialogVisible.value = false
+  router.push({ path: '/portal/project/' + id + '/' + seg })
+}
+
+/* ===================== 项目产物弹窗 ===================== */
+const artifactDialogVisible = ref(false)
+const loadingArtifacts = ref(false)
+const artifactDialog = reactive({ projectId: null, projectName: '', artifacts: [] })
+
+// 项目行「产物」按钮：打开项目产物弹窗
+function openArtifacts(row) {
+  if (!row || !row.projectId) return
+  artifactDialogVisible.value = true
+  loadingArtifacts.value = true
+  artifactDialog.projectId = row.projectId
+  artifactDialog.projectName = row.projectName || ''
+  artifactDialog.artifacts = []
+  getProjectArtifacts(row.projectId).then(res => {
+    const d = res.data || {}
+    artifactDialog.projectName = d.projectName || row.projectName || ''
+    artifactDialog.artifacts = d.artifacts || []
+  }).catch(() => {
+    artifactDialog.artifacts = []
+  }).finally(() => {
+    loadingArtifacts.value = false
+  })
+}
+
+// 前端按内容类型生成文件并触发下载（产物均为库内文本，无需后端落盘）
+function downloadArtifact(a) {
+  if (!a || !a.hasData) return
+  const content = a.content || ''
+  const mime = a.type === 'json' ? 'application/json' : 'text/markdown'
+  const blob = new Blob([content], { type: mime + ';charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = a.fileName || 'artifact'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+// 原型设计额外支持导出为可离线打开的静态 HTML
+async function downloadProtoHtml(a) {
+  if (!a || !a.hasData || !artifactDialog.projectId) return
+  const pages = await getProtoPages(artifactDialog.projectId)
+  const html = protoToHtml(pages, artifactDialog.projectName || '原型设计')
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = '原型设计.html'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+const phaseProgressPercent = computed(() => {
+  const list = dialogProject.value.phases || []
+  if (!list.length) return 0
+  const done = list.filter(p => p.status === 'done').length
+  return Math.round((done / list.length) * 100)
+})
+const phaseProgressText = computed(() => {
+  const total = (dialogProject.value.phases || []).length
+  const done = (dialogProject.value.phases || []).filter(p => p.status === 'done').length
+  if (dialogProject.value.step === 'DONE') return `全部 ${total} 个阶段已完成`
+  return `已完成 ${done} / ${total} 个阶段`
+})
+
+async function loadMembers() {
+  if (!activeTeam.value) return
+  loadingMembers.value = true
+  try {
+    const res = await listTeamMembers(activeTeam.value.teamId, { ...memberQuery })
+    memberRows.value = res.rows || []
+    memberTotal.value = res.total || 0
+  } finally {
+    loadingMembers.value = false
+  }
+}
+
+async function loadProjects() {
+  if (!activeTeam.value) return
+  loadingProjects.value = true
+  try {
+    const res = await listTeamProjects(activeTeam.value.teamId, { ...projectQuery })
+    projectRows.value = res.rows || []
+    projectTotal.value = res.total || 0
+  } finally {
+    loadingProjects.value = false
+  }
+}
+
+function handleMemberPageChange(page) {
+  memberQuery.pageNum = page
+  loadMembers()
+}
+function handleMemberSizeChange(size) {
+  memberQuery.pageNum = 1
+  memberQuery.pageSize = size
+  loadMembers()
+}
+function handleProjectPageChange(page) {
+  projectQuery.pageNum = page
+  loadProjects()
+}
+function handleProjectSizeChange(size) {
+  projectQuery.pageNum = 1
+  projectQuery.pageSize = size
+  loadProjects()
+}
 
 const canManage = computed(() =>
   activeTeam.value && (activeTeam.value.myRole === 'OWNER' || activeTeam.value.myRole === 'ADMIN')
@@ -318,9 +670,18 @@ async function loadTeams() {
 }
 
 async function selectTeam(t) {
+  if (activeTeam.value && activeTeam.value.teamId !== t.teamId) {
+    unsubscribeTeam(activeTeam.value.teamId)
+  }
   const res = await getTeamDetail(t.teamId)
   activeTeam.value = res.data
   activeTab.value = 'projects'
+  // 切换团队后重置分页并加载成员/项目第一页
+  memberQuery.pageNum = 1
+  projectQuery.pageNum = 1
+  await Promise.all([loadMembers(), loadProjects()])
+  reinitSeen()
+  await subscribeTeam(t.teamId, onWsMessage, onWsRead)
   scrollChatToBottom()
 }
 
@@ -328,6 +689,7 @@ async function refreshDetail() {
   if (!activeTeam.value) return
   const res = await getTeamDetail(activeTeam.value.teamId)
   activeTeam.value = res.data
+  reinitSeen()
 }
 
 function logout() {
@@ -398,11 +760,13 @@ async function changeRole(row, val) {
   await changeTeamMemberRole(activeTeam.value.teamId, row.userId, val)
   ElMessage.success('角色已更新')
   await refreshDetail()
+  await loadMembers()
 }
 async function removeMember(row) {
   await removeTeamMember(activeTeam.value.teamId, row.userId)
   ElMessage.success('已移除成员')
   await refreshDetail()
+  await loadMembers()
 }
 
 /* 添加成员 */
@@ -435,6 +799,7 @@ async function addMember(u) {
   ElMessage.success(`已添加 ${u.nickName}`)
   memberDialogVisible.value = false
   await refreshDetail()
+  await loadMembers()
 }
 
 /* 项目关联 */
@@ -442,6 +807,7 @@ async function unbindProject(row) {
   await unbindTeamProject(activeTeam.value.teamId, row.projectId)
   ElMessage.success('已解绑项目')
   await refreshDetail()
+  await loadProjects()
 }
 async function openBindProject() {
   bindForm.value = { projectId: null }
@@ -475,6 +841,8 @@ async function sendMessage() {
   msg.avatar = userStore.avatar || ''
   if (!msg.readUsers) msg.readUsers = []
   activeTeam.value.messages.push(msg)
+  // 本地发送的消息先入 seen，避免随后收到的服务端广播重复追加
+  seenMsgIds.value.add(msg.msgId)
   chatDraft.value = ''
   scrollChatToBottom()
 }
@@ -497,7 +865,7 @@ async function handleLeave() {
   } catch (e) { return }
   await leaveTeam(tid)
   ElMessage.success('已退出团队')
-  stopPolling()
+  unsubscribeTeam(tid)
   await loadTeams()
 }
 
@@ -515,45 +883,67 @@ async function submitBind() {
   ElMessage.success('已关联项目')
   bindDialogVisible.value = false
   await refreshDetail()
+  await loadProjects()
 }
 
-/* 讨论区实时刷新(轮询) */
-const chatTimer = ref(null)
-function startPolling() {
-  stopPolling()
-  pollMessages()
-  chatTimer.value = setInterval(pollMessages, 5000)
+/* 讨论区实时刷新(WebSocket 推送) */
+const seenMsgIds = ref(new Set())
+
+/** 以当前激活团队已加载的消息重置去重集合，避免重订阅/刷新后重复追加 */
+function reinitSeen() {
+  seenMsgIds.value = new Set((activeTeam.value?.messages || []).map(m => m.msgId))
 }
-function stopPolling() {
-  if (chatTimer.value) {
-    clearInterval(chatTimer.value)
-    chatTimer.value = null
+
+/** 收到新消息：仅处理/归属当前激活团队，按 msgId 去重增量追加 */
+function onWsMessage(msg) {
+  if (!msg || !msg.msgId) return
+  if (!activeTeam.value || activeTeam.value.teamId !== msg.teamId) {
+    bumpUnread(msg.teamId)
+    return
+  }
+  if (seenMsgIds.value.has(msg.msgId)) return
+  seenMsgIds.value.add(msg.msgId)
+  activeTeam.value.messages.push(msg)
+  if (activeTab.value === 'chat') {
+    scrollChatToBottom()
+    markTeamRead(msg.teamId, []).then(() => clearUnread(msg.teamId)).catch(() => {})
+  } else {
+    bumpUnread(msg.teamId)
   }
 }
-async function pollMessages() {
-  if (!activeTeam.value) return
-  const tid = activeTeam.value.teamId
-  try {
-    const res = await getTeamMessages(tid)
-    const msgs = res.data || []
-    const prev = activeTeam.value.messages || []
-    const prevLast = prev.length ? prev[prev.length - 1].msgId : null
-    const newLast = msgs.length ? msgs[msgs.length - 1].msgId : null
-    activeTeam.value.messages = msgs
-    if (msgs.length > prev.length && newLast !== prevLast) {
-      scrollChatToBottom()
+
+/** 收到已读事件：更新本地面板中对应消息的"已读 N 人" */
+function onWsRead(ev) {
+  if (!ev || !activeTeam.value || activeTeam.value.teamId !== ev.teamId) return
+  const ids = ev.msgIds || []
+  for (const m of (activeTeam.value.messages || [])) {
+    if (ids.includes(m.msgId)) {
+      if (!m.readUsers) m.readUsers = []
+      if (!m.readUsers.some(r => r.userId === ev.readerUserId) && ev.readerUserId !== currentUserId.value) {
+        m.readUsers.push({ userId: ev.readerUserId, nickName: ev.readerNickName })
+      }
     }
-    // 在讨论区即把"非自己发送"的消息标记为已读,并清除本地红点
-    if (activeTab.value === 'chat') {
-      markTeamRead(tid, []).then(() => clearUnread(tid)).catch(() => {})
-    }
-  } catch (e) { /* 忽略轮询错误 */ }
+  }
 }
+
+/** 非激活团队(或不在 chat 标签页)收到消息时，本地累加未读红点 */
+function bumpUnread(teamId) {
+  const t = teams.value.find(x => x.teamId === teamId)
+  if (t) t.unreadCount = (t.unreadCount || 0) + 1
+}
+
+// 切换到讨论标签页时，标记已读并清除本地红点
 watch(activeTab, (val) => {
-  if (val === 'chat' && activeTeam.value) startPolling()
-  else stopPolling()
+  if (val === 'chat' && activeTeam.value) {
+    markTeamRead(activeTeam.value.teamId, []).then(() => clearUnread(activeTeam.value.teamId)).catch(() => {})
+  } else if (val === 'members') {
+    // 切到成员 tab 时刷新当前分页数据
+    loadMembers()
+  } else if (val === 'projects') {
+    loadProjects()
+  }
 })
-onUnmounted(() => stopPolling())
+onUnmounted(() => disconnectWs())
 
 onMounted(async () => {
   if (!userStore.nickName) {
@@ -565,10 +955,12 @@ onMounted(async () => {
 
 <style scoped>
 .team-page {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #f5f6f9;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 /* ===== 顶部品牌导航条（与工作台首页一致） ===== */
 .portal-header {
@@ -648,7 +1040,10 @@ onMounted(async () => {
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  padding: 24px 24px 36px;
+  padding: 16px 24px 36px;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 .tp-list-head {
   display: flex;
@@ -663,8 +1058,10 @@ onMounted(async () => {
   flex: 1;
   display: flex;
   gap: 16px;
-  padding: 24px 0 0;
-  align-items: flex-start;
+  padding: 0;
+  align-items: stretch;
+  min-height: 0;
+  box-sizing: border-box;
 }
 .tp-list {
   width: 260px;
@@ -673,8 +1070,10 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 14px;
   box-shadow: 0 2px 10px rgba(31, 45, 61, 0.05);
-  max-height: calc(100vh - 120px);
+  height: calc(100vh - 112px);
+  max-height: calc(100vh - 112px);
   overflow: auto;
+  box-sizing: border-box;
 }
 .tp-team-item {
   padding: 12px;
@@ -726,7 +1125,11 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 20px 22px;
   box-shadow: 0 2px 10px rgba(31, 45, 61, 0.05);
-  min-height: calc(100vh - 120px);
+  min-height: 0;
+  height: calc(100vh - 112px);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 .tp-detail-empty {
   flex: 1;
@@ -757,6 +1160,33 @@ onMounted(async () => {
   display: flex;
   gap: 10px;
 }
+
+/* 标签页自适应高度：内容区撑满，单个 tab 超出时内部滚动 */
+/* 注意：Element Plus 内部 DOM（.el-tabs__content / .el-tab-pane）在 <style scoped> 下
+   不带当前组件的 data-v 属性，普通后代选择器匹配不到，必须用 :deep() 才能命中 */
+.td-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.td-tabs :deep(.el-tabs__header) {
+  flex-shrink: 0;
+}
+.td-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.td-tabs :deep(.el-tab-pane) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
 .td-toolbar {
   display: flex;
   align-items: center;
@@ -823,15 +1253,364 @@ onMounted(async () => {
   font-size: 18px;
 }
 
+/* 项目/成员 tab 内容撑满 pane */
+.project-link {
+  color: #409eff;
+  cursor: pointer;
+  font-weight: 500;
+}
+.project-link:hover {
+  text-decoration: underline;
+}
+.tab-pane-inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.tab-pane-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+.tab-pane-body > .el-table {
+  flex: 1;
+}
+.empty-fill {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 分页条：固定在内容区底部，不随表格滚动 */
+.tab-pane-pager {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+}
+
+/* ===== 项目阶段概览弹窗 ===== */
+.phase-dialog-el :deep(.el-dialog__body) {
+  padding: 18px 22px 10px;
+}
+.phase-dialog-el :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 16px 22px 14px;
+  border-bottom: 1px solid #f0f1f3;
+}
+.phase-dialog-el :deep(.el-dialog__title) {
+  font-weight: 600;
+  font-size: 17px;
+  color: #1f2329;
+}
+.phase-dialog-el :deep(.el-dialog__footer) {
+  padding: 12px 22px 18px;
+  border-top: 1px solid #f0f1f3;
+}
+.phase-dialog {
+  min-height: 120px;
+}
+.pd-head {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #f0f1f3;
+  margin-bottom: 18px;
+}
+.pd-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.pd-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pd-label {
+  font-size: 12px;
+  color: #909399;
+}
+.pd-value {
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
+}
+.pd-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pd-progress-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #909399;
+}
+.pd-progress-track {
+  flex: 1;
+  height: 8px;
+  background: #ebedf0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.pd-progress-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.pd-progress-text {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #606266;
+  white-space: nowrap;
+}
+.pd-progress-text.done {
+  color: #67c23a;
+  font-weight: 500;
+}
+.pd-timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-left: 0;
+}
+.pd-timeline::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  top: 18px;
+  bottom: 18px;
+  width: 2px;
+  background: linear-gradient(180deg, #67c23a var(--done-percent, 0%), #ebedf0 var(--done-percent, 0%));
+  border-radius: 1px;
+  z-index: 0;
+}
+.pd-phase {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px 12px 44px;
+  margin-bottom: 10px;
+  border: 1px solid #ebedf0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(31, 45, 61, 0.04);
+}
+.pd-phase:last-child,
+.pd-phase.last {
+  margin-bottom: 0;
+}
+.pd-phase:hover {
+  border-color: #409eff;
+  box-shadow: 0 6px 18px rgba(64, 158, 255, 0.12);
+  transform: translateY(-2px);
+}
+.pd-phase.done:hover {
+  border-color: #67c23a;
+  box-shadow: 0 6px 18px rgba(103, 194, 58, 0.12);
+}
+.pd-phase.current {
+  border-color: #e6a23c;
+  background: linear-gradient(135deg, #fffbf5, #fdf6ec);
+  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.1);
+}
+.pd-phase.current:hover {
+  border-color: #e6a23c;
+  box-shadow: 0 6px 18px rgba(230, 162, 60, 0.14);
+}
+.pd-phase.current .pd-phase-index {
+  background: #e6a23c;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(230, 162, 60, 0.15);
+}
+.pd-phase.done .pd-phase-index {
+  background: #67c23a;
+  color: #fff;
+  box-shadow: 0 0 0 4px rgba(103, 194, 58, 0.12);
+}
+.pd-phase.todo .pd-phase-index {
+  background: #f2f3f5;
+  color: #909399;
+}
+.pd-phase.todo {
+  background: #fafbfc;
+}
+.pd-phase.todo .pd-phase-name {
+  color: #8a9099;
+}
+.pd-phase-index {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #86909c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 1;
+  transition: all 0.25s ease;
+}
+.pd-phase-body {
+  flex: 1;
+  min-width: 0;
+}
+.pd-phase-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.pd-phase-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2329;
+}
+.pd-phase-owner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #646a73;
+}
+.pd-phase-owner.empty {
+  color: #c0c4cc;
+}
+.pd-phase-owner .el-icon {
+  color: #a0aab5;
+}
+.pd-enter {
+  flex-shrink: 0;
+  color: #c0c4cc;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: all 0.25s ease;
+}
+.pd-phase:hover .pd-enter {
+  opacity: 1;
+  transform: translateX(2px);
+  color: #409eff;
+}
+.pd-phase.done:hover .pd-enter {
+  color: #67c23a;
+}
+.pd-phase.current:hover .pd-enter {
+  color: #e6a23c;
+}
+
+/* ===== 项目产物弹窗 ===== */
+.artifact-dialog-el :deep(.el-dialog__body) {
+  padding: 18px 22px 12px;
+}
+.artifact-dialog {
+  min-height: 120px;
+}
+.art-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.art-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid #ebedf0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(31, 45, 61, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.art-item:hover {
+  border-color: #409eff;
+  box-shadow: 0 4px 14px rgba(64, 158, 255, 0.1);
+}
+.art-item.art-empty {
+  background: #fafbfc;
+  border-style: dashed;
+}
+.art-item-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.art-index {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #ecf5ff;
+  color: #409eff;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.art-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2329;
+}
+.art-item.art-empty .art-name {
+  color: #909399;
+}
+.art-item-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.art-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.art-tip {
+  font-size: 12px;
+  color: #646a73;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.art-tip.empty {
+  color: #c0c4cc;
+}
+
 /* ===== 群聊 ===== */
+.chat-pane {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
 .chat-list {
-  height: calc(100vh - 360px);
-  min-height: 280px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 8px 4px 4px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 0;
 }
 .chat-item {
   display: flex;
