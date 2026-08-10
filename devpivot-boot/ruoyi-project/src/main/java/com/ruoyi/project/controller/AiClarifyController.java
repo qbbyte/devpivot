@@ -31,6 +31,8 @@ import com.ruoyi.project.domain.AiClarifySession;
 import com.ruoyi.project.domain.AiVersionRecord;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
+import com.ruoyi.ai.prompt.PromptTemplateService;
+import com.ruoyi.ai.prompt.RenderedPrompt;
 import com.ruoyi.project.service.IAiClarifySessionService;
 import com.ruoyi.project.service.IAiVersionRecordService;
 import com.ruoyi.ai.service.IAiModelConfigService;
@@ -55,6 +57,9 @@ public class AiClarifyController extends BaseController
 
     @Autowired
     private AiModelClient aiModelClient;
+
+    @Autowired
+    private PromptTemplateService promptTemplateService;
 
     @Autowired
     private IAiModelConfigService modelConfigService;
@@ -236,9 +241,11 @@ public class AiClarifyController extends BaseController
         session.setStatus("0");
         aiClarifySessionService.saveSession(session);
 
-        String systemPrompt = "你是一名资深需求分析师，正在协助用户澄清软件需求。"
-                + "针对用户给出的回答，给出专业、结构化、可落地的分析与建议。"
-                + "使用中文，重点突出，可适当分点，避免空洞套话。";
+        // 提示词工程化：从 ai_prompt_template 读取澄清默认模板并渲染变量（DB 缺失时回退内置常量，零回归）
+        Map<String, Object> clarifyVars = new HashMap<>(2);
+        clarifyVars.put("message", message);
+        RenderedPrompt clarifyRendered = promptTemplateService.render("CLARIFY", modelIds.get(0), clarifyVars);
+        String systemPrompt = clarifyRendered.getSystemPrompt();
 
         Map<String, StringBuilder> contents = new ConcurrentHashMap<>();
         Map<String, Long> latencies = new ConcurrentHashMap<>();
@@ -274,7 +281,7 @@ public class AiClarifyController extends BaseController
                 StringBuilder full = new StringBuilder();
                 try
                 {
-                    aiModelClient.chatStream(mid, systemPrompt, message, delta -> {
+                    aiModelClient.chatStream(mid, systemPrompt, clarifyRendered.getUserPrompt(), delta -> {
                         full.append(delta);
                         try
                         {

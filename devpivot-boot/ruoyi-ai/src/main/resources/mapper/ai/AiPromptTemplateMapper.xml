@@ -10,6 +10,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="sceneType"    column="scene_type"    />
         <result property="templateName"    column="template_name"    />
         <result property="templateContent"    column="template_content"    />
+        <result property="userTemplate"    column="user_template"    />
         <result property="modelSpecific"    column="model_specific"    />
         <result property="isDefault"    column="is_default"    />
         <result property="isEnabled"    column="is_enabled"    />
@@ -21,7 +22,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectAiPromptTemplateVo">
-        select template_id, template_code, scene_type, template_name, template_content, model_specific, is_default, is_enabled, create_by, create_time, update_by, update_time, remark from ai_prompt_template
+        select template_id, template_code, scene_type, template_name, template_content, user_template, model_specific, is_default, is_enabled, create_by, create_time, update_by, update_time, remark from ai_prompt_template
     </sql>
 
     <select id="selectAiPromptTemplateList" parameterType="AiPromptTemplate" resultMap="AiPromptTemplateResult">
@@ -31,6 +32,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="sceneType != null  and sceneType != ''"> and scene_type = #{sceneType}</if>
             <if test="templateName != null  and templateName != ''"> and template_name like concat('%', #{templateName}, '%')</if>
             <if test="templateContent != null  and templateContent != ''"> and template_content = #{templateContent}</if>
+            <if test="userTemplate != null  and userTemplate != ''"> and user_template = #{userTemplate}</if>
             <if test="modelSpecific != null  and modelSpecific != ''"> and model_specific = #{modelSpecific}</if>
             <if test="isDefault != null  and isDefault != ''"> and is_default = #{isDefault}</if>
             <if test="isEnabled != null  and isEnabled != ''"> and is_enabled = #{isEnabled}</if>
@@ -49,6 +51,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="sceneType != null">scene_type,</if>
             <if test="templateName != null">template_name,</if>
             <if test="templateContent != null">template_content,</if>
+            <if test="userTemplate != null">user_template,</if>
             <if test="modelSpecific != null">model_specific,</if>
             <if test="isDefault != null">is_default,</if>
             <if test="isEnabled != null">is_enabled,</if>
@@ -63,6 +66,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="sceneType != null">#{sceneType},</if>
             <if test="templateName != null">#{templateName},</if>
             <if test="templateContent != null">#{templateContent},</if>
+            <if test="userTemplate != null">#{userTemplate},</if>
             <if test="modelSpecific != null">#{modelSpecific},</if>
             <if test="isDefault != null">#{isDefault},</if>
             <if test="isEnabled != null">#{isEnabled},</if>
@@ -81,6 +85,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="sceneType != null">scene_type = #{sceneType},</if>
             <if test="templateName != null">template_name = #{templateName},</if>
             <if test="templateContent != null">template_content = #{templateContent},</if>
+            <if test="userTemplate != null">user_template = #{userTemplate},</if>
             <if test="modelSpecific != null">model_specific = #{modelSpecific},</if>
             <if test="isDefault != null">is_default = #{isDefault},</if>
             <if test="isEnabled != null">is_enabled = #{isEnabled},</if>

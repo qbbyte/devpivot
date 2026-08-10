@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
+import com.ruoyi.ai.prompt.PromptTemplateService;
+import com.ruoyi.ai.prompt.RenderedPrompt;
 import com.ruoyi.ai.service.IAiModelConfigService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -54,6 +56,9 @@ public class AiDbController extends BaseController
 {
     @Autowired
     private AiModelClient aiModelClient;
+
+    @Autowired
+    private PromptTemplateService promptTemplateService;
 
     @Autowired
     private IAiModelConfigService modelConfigService;
@@ -245,17 +250,19 @@ public class AiDbController extends BaseController
         // 上游上下文：优先回源 PRD 与技术方案，使生成真正参考上一阶段产物
         String upstream = buildUpstream(projectId);
 
-        String systemPrompt = "你是一名资深数据库架构师，擅长基于产品需求文档（PRD）与技术方案，产出可直接用于研发落地的"
-                + "企业标准数据库设计文档。请输出结构清晰的 Markdown，必须包含以下章节："
-                + "1. 设计目标与约束（容量/并发/一致性/灾备）；2. 数据库选型与部署架构；"
-                + "3. 全局命名与字段规范（表前缀、主键、审计字段、软删除、编码）；"
-                + "4. 实体-关系总览（ER 图文字描述 + 核心表清单）；"
-                + "5. 核心表结构（每表含字段名、类型、长度、是否可空、默认值、主外键、索引、注释）；"
-                + "6. 关键业务字段字典（状态、类型等枚举值）；7. 索引与性能设计（覆盖查询、分库分表策略）；"
-                + "8. 安全与合规（敏感字段加密、权限、审计）；9. 可执行 DDL（按选定数据库类型生成）。"
-                + "语言专业、重点突出，避免空洞套话。";
-
-        String userPrompt = buildUserPrompt(projectName, industryType, targetUser, dbType, extraReq, upstream);
+        // 提示词工程化：从 ai_prompt_template 渲染（DB 缺失时回退内置常量，零回归）
+        String extraBlock = (extraReq != null && !extraReq.trim().isEmpty())
+                ? "【补充要求】\n" + extraReq + "\n\n" : "";
+        Map<String, Object> dbVars = new HashMap<>(8);
+        dbVars.put("projectName", projectName);
+        dbVars.put("industryType", industryType);
+        dbVars.put("targetUser", targetUser);
+        dbVars.put("dbType", dbType);
+        dbVars.put("upstream", upstream);
+        dbVars.put("extraBlock", extraBlock);
+        RenderedPrompt dbPrompt = promptTemplateService.render("DB", usedModel, dbVars);
+        String systemPrompt = dbPrompt.getSystemPrompt();
+        String userPrompt = dbPrompt.getUserPrompt();
 
         try
         {
@@ -297,26 +304,6 @@ public class AiDbController extends BaseController
             }
         });
         return emitter;
-    }
-
-    /** 组装用户提示词 */
-    private String buildUserPrompt(String projectName, String industryType, String targetUser,
-                                    String dbType, String extraReq, String upstream)
-    {
-        StringBuilder sb = new StringBuilder();
-        sb.append("请为以下项目生成数据库设计文档：\n\n");
-        sb.append("项目名称：").append(projectName).append("\n");
-        sb.append("所属行业：").append(industryType).append("\n");
-        sb.append("目标用户：").append(targetUser).append("\n");
-        sb.append("目标数据库类型：").append(dbType).append("\n\n");
-        sb.append("【上游资料（来自上一阶段，仅作为上下文，请勿原样写入文档）】\n");
-        sb.append(upstream).append("\n\n");
-        if (extraReq != null && !extraReq.trim().isEmpty())
-        {
-            sb.append("【补充要求】\n").append(extraReq).append("\n\n");
-        }
-        sb.append("请直接输出数据库设计文档正文（Markdown），并在合适位置给出可执行的 DDL。");
-        return sb.toString();
     }
 
     /** 回源读取项目最新 PRD 与技术方案内容，作为生成上下文；无资料时返回提示 */

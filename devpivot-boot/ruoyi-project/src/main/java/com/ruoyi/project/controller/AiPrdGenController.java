@@ -23,6 +23,8 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
+import com.ruoyi.ai.prompt.PromptTemplateService;
+import com.ruoyi.ai.prompt.RenderedPrompt;
 import com.ruoyi.ai.service.IAiModelConfigService;
 import com.ruoyi.project.domain.AiClarifySession;
 import com.ruoyi.project.domain.AiPrdDoc;
@@ -47,6 +49,9 @@ public class AiPrdGenController extends BaseController
 {
     @Autowired
     private AiModelClient aiModelClient;
+
+    @Autowired
+    private PromptTemplateService promptTemplateService;
 
     @Autowired
     private IAiModelConfigService modelConfigService;
@@ -187,12 +192,18 @@ public class AiPrdGenController extends BaseController
             clarifyContext = buildClarifyContext(projectId);
         }
 
-        String systemPrompt = "你是一名资深产品经理，擅长撰写结构清晰、可直接用于研发拆解的企业标准 PRD。"
-                + "请基于给定的项目信息与需求澄清结论，产出规范的产品需求文档（Markdown 格式）。"
-                + "文档须包含：修订记录、产品概述、范围（In/Out Scope）、功能需求（含功能清单表与用户故事）、"
-                + "非功能需求、验收标准、里程碑等章节。语言专业、重点突出，避免空洞套话。";
-
-        String userPrompt = buildUserPrompt(projectName, industryType, targetUser, templateType, mode, clarifyContext);
+        // 提示词工程化：从 ai_prompt_template 读取 PRD 默认模板并渲染变量（DB 缺失时回退内置常量，零回归）
+        String tpl = "STANDARD".equals(templateType) ? "标准" : "DETAIL".equals(templateType) ? "详细" : "精简";
+        Map<String, Object> prdVars = new HashMap<>(8);
+        prdVars.put("templateLabel", tpl);
+        prdVars.put("mode", mode);
+        prdVars.put("projectName", projectName);
+        prdVars.put("industryType", industryType);
+        prdVars.put("targetUser", targetUser);
+        prdVars.put("clarifyContext", clarifyContext);
+        RenderedPrompt prdRendered = promptTemplateService.render("PRD", model, prdVars);
+        String systemPrompt = prdRendered.getSystemPrompt();
+        String userPrompt = prdRendered.getUserPrompt();
 
         try
         {
@@ -281,21 +292,7 @@ public class AiPrdGenController extends BaseController
         return success(doc.getDocId());
     }
 
-    /** 组装用户提示词 */
-    private String buildUserPrompt(String projectName, String industryType, String targetUser,
-                                    String templateType, String mode, String clarifyContext)
-    {
-        String tpl = "STANDARD".equals(templateType) ? "标准" : "DETAIL".equals(templateType) ? "详细" : "精简";
-        StringBuilder sb = new StringBuilder();
-        sb.append("请为以下项目生成一份【").append(tpl).append("】模板的 PRD（生成模式：").append(mode).append("）：\n\n");
-        sb.append("项目名称：").append(projectName).append("\n");
-        sb.append("所属行业：").append(industryType).append("\n");
-        sb.append("目标用户：").append(targetUser).append("\n\n");
-        sb.append("【需求澄清结论（来自上一阶段 AI 澄清，仅作为上下文，请勿原样写入文档）】\n");
-        sb.append(clarifyContext).append("\n\n");
-        sb.append("请直接输出 PRD 文档正文（Markdown）。");
-        return sb.toString();
-    }
+    // 用户提示词构建已迁移到 ai_prompt_template.user_template，由 PromptTemplateService.render 统一处理（见 generate 方法）。
 
     /** 回源澄清会话，提取干净的需求上下文文本 */
     private String buildClarifyContext(Long projectId)

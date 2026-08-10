@@ -1,6 +1,7 @@
 package com.ruoyi.project.controller;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
+import com.ruoyi.ai.prompt.PromptTemplateService;
+import com.ruoyi.ai.prompt.RenderedPrompt;
 import com.ruoyi.ai.service.IAiModelConfigService;
 import com.ruoyi.common.core.controller.BaseController;
 
@@ -35,6 +38,9 @@ public class AiPrdChatController extends BaseController
 {
     @Autowired
     private AiModelClient aiModelClient;
+
+    @Autowired
+    private PromptTemplateService promptTemplateService;
 
     @Autowired
     private IAiModelConfigService modelConfigService;
@@ -76,11 +82,26 @@ public class AiPrdChatController extends BaseController
         String docContent = body.get("docContent") == null ? "" : String.valueOf(body.get("docContent"));
         List<Object> quotesObj = body.get("quotes") instanceof List ? (List<Object>) body.get("quotes") : null;
 
-        String systemPrompt = "你是一名资深产品经理助手，正在帮助用户审阅、修改与完善 PRD 文档。"
-                + "请结合用户提供的当前 PRD 文档内容与引用片段，给出专业、可落地的建议或修订后的内容。"
-                + "如涉及具体章节改写，请直接给出改写后的 Markdown 片段，便于用户复制回文档。使用中文，重点突出。";
-
-        String userPrompt = buildUserPrompt(question, docContent, quotesObj);
+        // 提示词工程化：从 ai_prompt_template 渲染（DB 缺失回退内置常量，零回归）
+        String docContentVar = docContent.isEmpty() ? "（文档尚未生成）" : docContent;
+        StringBuilder qb = new StringBuilder();
+        if (quotesObj != null && !quotesObj.isEmpty())
+        {
+            qb.append("【用户引用的 PRD 片段】\n");
+            for (int i = 0; i < quotesObj.size(); i++)
+            {
+                qb.append((i + 1)).append(". ").append(quotesObj.get(i)).append("\n");
+            }
+            qb.append("\n");
+        }
+        String questionVar = question.isEmpty() ? "（请针对以上引用的 PRD 内容给出修改建议）" : question;
+        Map<String, Object> polishVars = new HashMap<>(3);
+        polishVars.put("docContent", docContentVar);
+        polishVars.put("quotesBlock", qb.toString());
+        polishVars.put("question", questionVar);
+        RenderedPrompt polishPrompt = promptTemplateService.render("POLISH", model, polishVars);
+        String systemPrompt = polishPrompt.getSystemPrompt();
+        String userPrompt = polishPrompt.getUserPrompt();
 
         try
         {
@@ -117,24 +138,6 @@ public class AiPrdChatController extends BaseController
             }
         });
         return emitter;
-    }
-
-    private String buildUserPrompt(String question, String docContent, List<Object> quotesObj)
-    {
-        StringBuilder sb = new StringBuilder();
-        sb.append("【当前 PRD 文档内容】\n");
-        sb.append(docContent.isEmpty() ? "（文档尚未生成）" : docContent).append("\n\n");
-        if (quotesObj != null && !quotesObj.isEmpty())
-        {
-            sb.append("【用户引用的 PRD 片段】\n");
-            for (int i = 0; i < quotesObj.size(); i++)
-            {
-                sb.append((i + 1)).append(". ").append(quotesObj.get(i)).append("\n");
-            }
-            sb.append("\n");
-        }
-        sb.append("【用户的问题/要求】\n").append(question.isEmpty() ? "（请针对以上引用的 PRD 内容给出修改建议）" : question);
-        return sb.toString();
     }
 
     /** 取第一个启用模型的 modelCode，无配置时回退 "deepseek" */

@@ -30,9 +30,13 @@ public class AiPromptTemplate extends BaseEntity
     @Excel(name = "模板名称")
     private String templateName;
 
-    /** 模板内容 */
-    @Excel(name = "模板内容")
+    /** 模板内容(system 提示词) */
+    @Excel(name = "模板内容(system提示词)")
     private String templateContent;
+
+    /** 用户提示词模板(支持 {{变量}}) */
+    @Excel(name = "用户提示词模板(支持{{变量}})")
+    private String userTemplate;
 
     /** 多模型差异化Prompt(JSON) */
     @Excel(name = "多模型差异化Prompt(JSON)")
@@ -96,6 +100,16 @@ public class AiPromptTemplate extends BaseEntity
         return templateContent;
     }
 
+    public void setUserTemplate(String userTemplate) 
+    {
+        this.userTemplate = userTemplate;
+    }
+
+    public String getUserTemplate() 
+    {
+        return userTemplate;
+    }
+
     public void setModelSpecific(String modelSpecific) 
     {
         this.modelSpecific = modelSpecific;
@@ -134,6 +148,7 @@ public class AiPromptTemplate extends BaseEntity
             .append("sceneType", getSceneType())
             .append("templateName", getTemplateName())
             .append("templateContent", getTemplateContent())
+            .append("userTemplate", getUserTemplate())
             .append("modelSpecific", getModelSpecific())
             .append("isDefault", getIsDefault())
             .append("isEnabled", getIsEnabled())

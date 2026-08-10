@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
+import com.ruoyi.ai.prompt.PromptTemplateService;
+import com.ruoyi.ai.prompt.RenderedPrompt;
 import com.ruoyi.ai.service.IAiModelConfigService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -52,6 +54,9 @@ public class AiTechController extends BaseController
 {
     @Autowired
     private AiModelClient aiModelClient;
+
+    @Autowired
+    private PromptTemplateService promptTemplateService;
 
     @Autowired
     private IAiModelConfigService modelConfigService;
@@ -240,14 +245,19 @@ public class AiTechController extends BaseController
         // 上游上下文：优先回源 PRD 文档，使生成真正参考上一阶段产物
         String upstream = buildUpstream(projectId);
 
-        String systemPrompt = "你是一名资深技术架构师，擅长基于产品需求文档（PRD）与业务约束，产出可直接指导研发的"
-                + "企业标准技术方案。请输出结构清晰的 Markdown，必须包含以下章节："
-                + "1. 技术栈选型；2. 系统架构（分层/DDD/关键中间件）；3. 模块划分（职责与优先级）；"
-                + "4. 关键设计决策（含选型理由、数据一致性、多租户、可扩展性）；5. 非功能设计（性能/可用性/安全/可观测）；"
-                + "6. 部署与运维（容器化/CI-CD/备份）；7. 对数据库阶段（DB）的输入提示（表前缀/索引/字典）；"
-                + "8. 风险与依赖。语言专业、重点突出，避免空洞套话。";
-
-        String userPrompt = buildUserPrompt(projectName, industryType, targetUser, techStack, extraReq, upstream);
+        // 提示词工程化：从 ai_prompt_template 渲染（DB 缺失时回退内置常量，零回归）
+        String extraBlock = (extraReq != null && !extraReq.trim().isEmpty())
+                ? "【补充要求】\n" + extraReq + "\n\n" : "";
+        Map<String, Object> techVars = new HashMap<>(8);
+        techVars.put("projectName", projectName);
+        techVars.put("industryType", industryType);
+        techVars.put("targetUser", targetUser);
+        techVars.put("techStack", techStack);
+        techVars.put("upstream", upstream);
+        techVars.put("extraBlock", extraBlock);
+        RenderedPrompt techPrompt = promptTemplateService.render("TECH", usedModel, techVars);
+        String systemPrompt = techPrompt.getSystemPrompt();
+        String userPrompt = techPrompt.getUserPrompt();
 
         try
         {
@@ -289,26 +299,6 @@ public class AiTechController extends BaseController
             }
         });
         return emitter;
-    }
-
-    /** 组装用户提示词 */
-    private String buildUserPrompt(String projectName, String industryType, String targetUser,
-                                    String techStack, String extraReq, String upstream)
-    {
-        StringBuilder sb = new StringBuilder();
-        sb.append("请为以下项目生成技术方案：\n\n");
-        sb.append("项目名称：").append(projectName).append("\n");
-        sb.append("所属行业：").append(industryType).append("\n");
-        sb.append("目标用户：").append(targetUser).append("\n");
-        sb.append("指定技术栈：").append(techStack).append("\n\n");
-        sb.append("【上游资料（来自上一阶段，仅作为上下文，请勿原样写入文档）】\n");
-        sb.append(upstream).append("\n\n");
-        if (extraReq != null && !extraReq.trim().isEmpty())
-        {
-            sb.append("【补充要求】\n").append(extraReq).append("\n\n");
-        }
-        sb.append("请直接输出技术方案文档正文（Markdown）。");
-        return sb.toString();
     }
 
     /** 回源读取项目最新 PRD 文档内容，作为生成上下文；无 PRD 时返回提示 */

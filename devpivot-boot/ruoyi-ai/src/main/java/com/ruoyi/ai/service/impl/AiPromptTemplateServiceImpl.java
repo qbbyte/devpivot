@@ -93,4 +93,52 @@ public class AiPromptTemplateServiceImpl implements IAiPromptTemplateService
     {
         return aiPromptTemplateMapper.deleteAiPromptTemplateByTemplateId(templateId);
     }
+
+    @Override
+    public int setDefault(Long templateId)
+    {
+        AiPromptTemplate target = selectAiPromptTemplateByTemplateId(templateId);
+        if (target == null)
+        {
+            return 0;
+        }
+        // 同场景其他「默认」模板置为非默认（保证互斥）
+        AiPromptTemplate q = new AiPromptTemplate();
+        q.setSceneType(target.getSceneType());
+        List<AiPromptTemplate> list = selectAiPromptTemplateList(q);
+        for (AiPromptTemplate o : list)
+        {
+            if (!o.getTemplateId().equals(templateId) && "Y".equals(o.getIsDefault()))
+            {
+                o.setIsDefault("N");
+                updateAiPromptTemplate(o);
+            }
+        }
+        target.setIsDefault("Y");
+        target.setIsEnabled("0");
+        return updateAiPromptTemplate(target);
+    }
+
+    @Override
+    public Long clone(Long templateId)
+    {
+        AiPromptTemplate src = selectAiPromptTemplateByTemplateId(templateId);
+        if (src == null)
+        {
+            return null;
+        }
+        src.setTemplateId(null);
+        String suffix = "_v" + (System.currentTimeMillis() % 100000L);
+        src.setTemplateCode((src.getTemplateCode() == null ? "T" : src.getTemplateCode()) + suffix);
+        src.setTemplateName((src.getTemplateName() == null ? "模板" : src.getTemplateName()) + " 副本");
+        src.setIsDefault("N");
+        src.setIsEnabled("1"); // 默认停用，避免误用
+        src.setCreateBy(null);
+        src.setCreateTime(null);
+        src.setUpdateBy(null);
+        src.setUpdateTime(null);
+        src.setRemark("克隆自模板#" + templateId);
+        insertAiPromptTemplate(src);
+        return src.getTemplateId();
+    }
 }

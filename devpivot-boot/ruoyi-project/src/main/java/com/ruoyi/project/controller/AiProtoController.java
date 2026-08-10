@@ -40,6 +40,8 @@ import com.ruoyi.project.service.IAiProtoVersionService;
 import com.ruoyi.project.service.IAiProjectService;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
+import com.ruoyi.ai.prompt.PromptTemplateService;
+import com.ruoyi.ai.prompt.RenderedPrompt;
 import com.ruoyi.ai.service.IAiModelConfigService;
 
 /**
@@ -69,6 +71,9 @@ public class AiProtoController extends BaseController
 
     @Autowired
     private AiModelClient aiModelClient;
+
+    @Autowired
+    private PromptTemplateService promptTemplateService;
 
     @Autowired
     private IAiModelConfigService modelConfigService;
@@ -260,12 +265,16 @@ public class AiProtoController extends BaseController
             return emitter;
         }
 
-        String systemPrompt = "你是一名资深原型/交互设计师，正在协助用户设计软件原型。"
-                + "针对用户的问题，给出简洁、专业、可落地的设计建议，使用中文，避免空洞套话，不超过 300 字。";
+        // 提示词工程化：从 ai_prompt_template 按 templateCode 渲染（DB 缺失回退内置常量，零回归）
+        Map<String, Object> chatVars = new HashMap<>(1);
+        chatVars.put("message", message);
+        RenderedPrompt chatPrompt = promptTemplateService.renderByCode("PROTO_CHAT", modelId, chatVars);
+        String systemPrompt = chatPrompt.getSystemPrompt();
+        String userPrompt = chatPrompt.getUserPrompt();
         STREAM_POOL.submit(() -> {
             try
             {
-                aiModelClient.chatStream(modelId, systemPrompt, message, delta -> {
+                aiModelClient.chatStream(modelId, systemPrompt, userPrompt, delta -> {
                     try
                     {
                         emitter.send(SseEmitter.event().name("token")
@@ -407,18 +416,15 @@ public class AiProtoController extends BaseController
                     return;
                 }
                 String currentJson = JSON.toJSONString(currentPages);
-                String patchHint = "你是一名原型设计师。下面是当前原型的全部页面与组件（JSON）：\n" + currentJson
-                        + "\n\n用户要求做如下修改：\n" + (instruction == null ? "" : instruction)
-                        + "\n\n要求：\n1. 仅修改用户明确要求的页面/组件，其余页面与组件必须原样保留"
-                        + "（不要删减、不要重排、不要改名称、不要改字段名、不要改 widthSpan）。\n"
-                        + "2. 输出修改后的【完整】页面 JSON 数组，结构与输入完全一致"
-                        + "（每页含 pageName/pageDesc/deviceType/components；每组件含 type/compType/compName/"
-                        + "fieldName/fieldType/required/widthSpan/props/style/interaction）。\n"
-                        + "3. 只输出 JSON 数组，不要任何解释文字。";
+                // 提示词工程化：从 ai_prompt_template 按 templateCode 渲染（DB 缺失回退内置常量，零回归）
+                Map<String, Object> patchVars = new HashMap<>(2);
+                patchVars.put("currentJson", currentJson);
+                patchVars.put("instruction", instruction == null ? "" : instruction);
+                RenderedPrompt patchPrompt = promptTemplateService.renderByCode("PROTO_PATCH", modelId, patchVars);
                 StringBuilder sb = new StringBuilder();
                 aiModelClient.chatStream(modelId,
-                        "你是资深原型/交互设计师，擅长按指令精确修改原型 JSON，且绝不改动用户未要求的部分。",
-                        patchHint, delta -> {
+                        patchPrompt.getSystemPrompt(),
+                        patchPrompt.getUserPrompt(), delta -> {
                             sb.append(delta);
                             try
                             {
@@ -681,17 +687,15 @@ public class AiProtoController extends BaseController
         String modelId = resolveModel(model);
         if (modelId == null) return null;
 
-        String schemaHint = "请只输出一个 JSON 数组，每个元素为页面对象："
-                + "{\"pageName\":\"页面名\",\"pageDesc\":\"说明\",\"deviceType\":\"" + deviceType + "\","
-                + "\"components\":[{\"type\":\"组件渲染键(如 nav/table/button/input/card/text)\","
-                + "\"compType\":\"大类(NAV/FORM/VIEW/LAYOUT/BASE)\",\"compName\":\"组件显示名\","
-                + "\"fieldName\":\"字段名(可选)\",\"fieldType\":\"STRING/NUMBER/DATE/ENUM(可选)\","
-                + "\"required\":\"Y/N\",\"widthSpan\":1-12,\"props\":{业务参数对象},\"style\":{},\"interaction\":{\"action\":\"none\"}"
-                + "}]}。不要输出任何解释文字，只输出 JSON。";
-        String userMsg = "项目名：" + (projectName == null ? "未命名产品" : projectName)
-                + "；设备类型：" + deviceType + "。"
-                + (prdText != null && !prdText.isEmpty() ? ("；需求背景：" + prdText) : "")
-                + " 请生成一套合理、可点击走查的原型页面（网页端 3 页：列表/详情/新增；移动端 4 页：首页/列表/详情/我的）。";
+                // 提示词工程化：从 ai_prompt_template 按 templateCode 渲染（DB 缺失回退内置常量，零回归）
+        String prdBlock = (prdText != null && !prdText.isEmpty()) ? "；需求背景：" + prdText + " " : "";
+        Map<String, Object> genVars = new HashMap<>(3);
+        genVars.put("projectName", projectName == null ? "未命名产品" : projectName);
+        genVars.put("deviceType", deviceType);
+        genVars.put("prdBlock", prdBlock);
+        RenderedPrompt genPrompt = promptTemplateService.renderByCode("PROTO_GEN", modelId, genVars);
+        String schemaHint = genPrompt.getSystemPrompt();
+        String userMsg = genPrompt.getUserPrompt();
 
         StringBuilder sb = new StringBuilder();
         aiModelClient.chatStream(modelId, schemaHint, userMsg, delta -> {

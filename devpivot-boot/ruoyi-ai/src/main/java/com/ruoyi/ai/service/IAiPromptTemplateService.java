@@ -58,4 +58,22 @@ public interface IAiPromptTemplateService
      * @return 结果
      */
     public int deleteAiPromptTemplateByTemplateId(Long templateId);
+
+    /**
+     * 互斥设为默认模板：同场景其他模板置为「非默认」，本模板置为「默认 + 启用」。
+     * 用于版本回滚（把某历史版本重新设为生效模板）。
+     *
+     * @param templateId 目标模板主键
+     * @return 结果
+     */
+    public int setDefault(Long templateId);
+
+    /**
+     * 克隆模板为新版本：复制除主键外的全部字段，新模板 code 带时间戳后缀、默认「非默认 + 停用」，
+     * 便于在不影响线上生效模板的前提下试验新提示词。返回新模板主键。
+     *
+     * @param templateId 源模板主键
+     * @return 新模板主键
+     */
+    public Long clone(Long templateId);
 }
