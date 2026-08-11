@@ -277,6 +277,8 @@
 <script setup name="Template">
 import { listTemplate, getTemplate, delTemplate, addTemplate, updateTemplate, clearTemplateCache, tryRunTemplate, cloneTemplate, setDefaultTemplate } from "@/api/ai/template"
 import { listAiconfig } from "@/api/ai/aiconfig"
+import request from '@/utils/request'
+import { getToken } from '@/utils/auth'
 
 const { proxy } = getCurrentInstance()
 const { sys_yes_no, ai_scene_type, sys_normal_disable } = useDict('sys_yes_no', 'ai_scene_type', 'sys_normal_disable')
@@ -427,6 +429,15 @@ function handleUpdate(row) {
 function submitForm() {
   proxy.$refs["templateRef"].validate(valid => {
     if (valid) {
+      // modelSpecific 非空时校验 JSON 格式，避免错 JSON 持久化后渲染时仅 warn 跳过
+      if (form.value.modelSpecific && form.value.modelSpecific.trim()) {
+        try {
+          JSON.parse(form.value.modelSpecific)
+        } catch (e) {
+          proxy.$modal.msgError("多模型差异化(JSON) 格式错误：" + e.message)
+          return
+        }
+      }
       if (form.value.templateId != null) {
         updateTemplate(form.value).then(() => {
           proxy.$modal.msgSuccess("修改成功")
@@ -516,6 +527,7 @@ function submitTry() {
     if (!valid) return
     tryLoading.value = true
     tryResult.value = ''
+    trySource.value = ''
     const data = {
       sceneType: tryForm.sceneType,
       templateCode: tryForm.templateCode,
@@ -523,13 +535,65 @@ function submitTry() {
       userInput: tryForm.userInput,
       vars: tryForm.vars
     }
-    tryRunTemplate(data).then(res => {
-      tryResult.value = (res.data && res.data.output) || ''
-      trySource.value = (res.data && res.data.source) || ''
-    }).catch(() => {}).finally(() => {
+    const base = (request.defaults && request.defaults.baseURL) || '/dev-api'
+    const token = getToken() || ''
+    fetch(base + '/system/template/tryRun', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? 'Bearer ' + token : ''
+      },
+      body: JSON.stringify(data)
+    }).then(resp => {
+      if (!resp.ok) {
+        tryLoading.value = false
+        proxy.$modal.msgError('试跑请求失败：HTTP ' + resp.status)
+        return
+      }
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+      const pump = () => reader.read().then(({ done, value }) => {
+        if (done) {
+          if (buffer.length) handleSseChunk(buffer)
+          tryLoading.value = false
+          return
+        }
+        buffer += decoder.decode(value, { stream: true })
+        let idx
+        while ((idx = buffer.indexOf('\n\n')) >= 0) {
+          const chunk = buffer.substring(0, idx)
+          buffer = buffer.substring(idx + 2)
+          handleSseChunk(chunk)
+        }
+        return pump()
+      })
+      pump()
+    }).catch(() => {
       tryLoading.value = false
     })
   })
+}
+
+/** 解析单条 SSE 事件块：message 事件增量追加到结果，meta 事件读取渲染来源 */
+function handleSseChunk(chunk) {
+  const lines = chunk.split('\n')
+  let eventName = 'message'
+  const dataLines = []
+  for (const line of lines) {
+    if (line.startsWith('event:')) eventName = line.substring(6).trim()
+    else if (line.startsWith('data:')) dataLines.push(line.substring(5))
+  }
+  const dataStr = dataLines.join('\n').trim()
+  if (!dataStr) return
+  if (eventName === 'meta') {
+    try {
+      const meta = JSON.parse(dataStr)
+      trySource.value = meta.source || ''
+    } catch (e) { /* 忽略无法解析的 meta */ }
+  } else {
+    tryResult.value += dataStr
+  }
 }
 
 function onTryClosed() {
