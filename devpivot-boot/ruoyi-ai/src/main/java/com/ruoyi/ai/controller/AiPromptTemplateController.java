@@ -3,6 +3,9 @@ package com.ruoyi.ai.controller;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.io.IOException;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +17,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -44,6 +49,9 @@ public class AiPromptTemplateController extends BaseController
 
     @Autowired
     private AiModelClient aiModelClient;
+
+    /** 试跑流式输出线程池（避免阻塞 HTTP 请求线程） */
+    private static final ExecutorService TRY_RUN_POOL = Executors.newCachedThreadPool();
 
     /**
      * 查询Prompt模板列表
@@ -131,34 +139,47 @@ public class AiPromptTemplateController extends BaseController
     }
 
     /**
-     * 试跑：用当前模板渲染后的 system/user 直接调用模型，返回输出（dry-run，便于验证提示词效果）。
+     * 试跑（流式 SSE）：用当前模板渲染后的 system/user 直接调用模型，逐字推送输出，
+     * 避免大输出阻塞 HTTP 请求线程（管理员工具，长生成场景更稳）。
      */
     @PreAuthorize("@ss.hasPermi('system:template:query')")
-    @PostMapping("/tryRun")
-    public AjaxResult tryRun(@RequestBody TryRunBody body)
+    @PostMapping(value = "/tryRun", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter tryRun(@RequestBody TryRunBody body)
     {
+        SseEmitter emitter = new SseEmitter(120000L);
         if (body == null)
         {
-            return AjaxResult.error("请求体缺失");
+            emitter.completeWithError(new IllegalArgumentException("请求体缺失"));
+            return emitter;
         }
         if (body.modelCode == null || body.modelCode.isBlank())
         {
-            return AjaxResult.error("请选择试跑模型");
+            emitter.completeWithError(new IllegalArgumentException("请选择试跑模型"));
+            return emitter;
         }
         Map<String, Object> vars = body.vars == null ? new HashMap<>(2) : body.vars;
 
         RenderedPrompt rp;
-        if (body.templateCode != null && !body.templateCode.isBlank())
+        try
         {
-            rp = promptTemplateService.renderByCode(body.templateCode, body.modelCode, vars);
+            if (body.templateCode != null && !body.templateCode.isBlank())
+            {
+                rp = promptTemplateService.renderByCode(body.templateCode, body.modelCode, vars);
+            }
+            else if (body.sceneType != null && !body.sceneType.isBlank())
+            {
+                rp = promptTemplateService.render(body.sceneType, body.modelCode, vars);
+            }
+            else
+            {
+                emitter.completeWithError(new IllegalArgumentException("请指定 sceneType 或 templateCode"));
+                return emitter;
+            }
         }
-        else if (body.sceneType != null && !body.sceneType.isBlank())
+        catch (Exception e)
         {
-            rp = promptTemplateService.render(body.sceneType, body.modelCode, vars);
-        }
-        else
-        {
-            return AjaxResult.error("请指定 sceneType 或 templateCode");
+            emitter.completeWithError(e);
+            return emitter;
         }
 
         String user = rp.getUserPrompt();
@@ -166,15 +187,42 @@ public class AiPromptTemplateController extends BaseController
         {
             user = user + "\n\n" + body.userInput;
         }
+        final String sysPrompt = rp.getSystemPrompt();
+        final String finalUser = user;
+        final String source = rp.getSource();
 
-        String output = aiModelClient.chat(body.modelCode, rp.getSystemPrompt(), user);
-
-        Map<String, Object> data = new HashMap<>(4);
-        data.put("output", output);
-        data.put("source", rp.getSource());
-        data.put("systemPrompt", rp.getSystemPrompt());
-        data.put("userPrompt", user);
-        return AjaxResult.success(data);
+        TRY_RUN_POOL.submit(() -> {
+            try
+            {
+                aiModelClient.chatStream(body.modelCode, sysPrompt, finalUser, delta -> {
+                    try
+                    {
+                        emitter.send(SseEmitter.event().data(delta));
+                    }
+                    catch (IOException ex)
+                    {
+                        throw new RuntimeException(ex);
+                    }
+                });
+                // 末尾发送元信息（渲染来源 + 完整 system/user），便于前端展示
+                Map<String, Object> meta = new HashMap<>(3);
+                meta.put("source", source);
+                meta.put("systemPrompt", sysPrompt);
+                meta.put("userPrompt", finalUser);
+                emitter.send(SseEmitter.event().name("meta").data(meta));
+                emitter.complete();
+            }
+            catch (Exception e)
+            {
+                try
+                {
+                    emitter.send(SseEmitter.event().data("\n（试跑失败：" + e.getMessage() + "）"));
+                }
+                catch (IOException ignored) { }
+                emitter.complete();
+            }
+        });
+        return emitter;
     }
 
     /**

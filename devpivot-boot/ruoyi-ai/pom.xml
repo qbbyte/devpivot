@@ -29,6 +29,12 @@
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
 
+        <!-- spring-webmvc：提供 SseEmitter（后台模板试跑流式输出端点依赖 webmvc 栈） -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>

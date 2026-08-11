@@ -4,6 +4,7 @@ import java.util.List;
 import com.ruoyi.common.utils.DateUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.ruoyi.ai.mapper.AiPromptTemplateMapper;
 import com.ruoyi.ai.domain.AiPromptTemplate;
 import com.ruoyi.ai.service.IAiPromptTemplateService;
@@ -95,6 +96,7 @@ public class AiPromptTemplateServiceImpl implements IAiPromptTemplateService
     }
 
     @Override
+    @Transactional
     public int setDefault(Long templateId)
     {
         AiPromptTemplate target = selectAiPromptTemplateByTemplateId(templateId);

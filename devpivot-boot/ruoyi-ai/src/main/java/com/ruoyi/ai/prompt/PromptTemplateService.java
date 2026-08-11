@@ -51,6 +51,9 @@ public class PromptTemplateService
     /** sceneType -> 缓存条目 */
     private final ConcurrentHashMap<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
+    /** templateCode|modelCode -> 缓存条目（renderByCode 使用） */
+    private final ConcurrentHashMap<String, CodeCacheEntry> codeCache = new ConcurrentHashMap<>();
+
     /**
      * 按场景渲染提示词（使用默认模型时 modelCode 可传 null）。
      *
@@ -85,13 +88,38 @@ public class PromptTemplateService
     public void clearCache()
     {
         cache.clear();
+        codeCache.clear();
         log.info("[prompt] 渲染缓存已主动清空");
     }
 
     /**
      * 按模板编码渲染（适用于同一场景存在多套命名模板时显式指定）。
      */
+    /**
+     * 按模板编码渲染（适用于同一场景存在多套命名模板时显式指定）。
+     * 增加按 templateCode|modelCode 的短缓存，避免 PROTO 等场景多个子任务重复查库。
+     */
     public RenderedPrompt renderByCode(String templateCode, String modelCode, Map<String, Object> vars)
+    {
+        String cacheKey = templateCode + "|" + (modelCode == null ? "" : modelCode);
+        long now = System.currentTimeMillis();
+        CodeCacheEntry ce = codeCache.get(cacheKey);
+        RawTpl raw;
+        if (ce != null && ce.expireAt > now)
+        {
+            raw = ce.raw;
+        }
+        else
+        {
+            raw = resolveByCode(templateCode, modelCode);
+            codeCache.put(cacheKey, new CodeCacheEntry(raw, now + CACHE_TTL_MS));
+        }
+        // 变量替换每次执行（vars 随请求变化），缓存的是未替换的原始模板
+        return new RenderedPrompt(renderVars(raw.sys, vars), renderVars(raw.usr, vars), raw.sceneType, raw.source);
+    }
+
+    /** 按模板编码解析出原始（未做变量替换）system/user（DB -> 内置常量 -> 空兜底） */
+    private RawTpl resolveByCode(String templateCode, String modelCode)
     {
         AiPromptTemplate tpl = aiPromptTemplateService.selectAiPromptTemplateList(
                 new AiPromptTemplate() { { setTemplateCode(templateCode); } })
@@ -103,11 +131,10 @@ public class PromptTemplateService
             if (builtin != null)
             {
                 log.warn("[prompt] 未找到模板编码={}，回退内置常量", templateCode);
-                return new RenderedPrompt(renderVars(builtin[0], vars), renderVars(builtin[1], vars),
-                        null, "BUILTIN");
+                return new RawTpl(builtin[0], builtin[1], null, "BUILTIN");
             }
             log.warn("[prompt] 未找到模板编码={} 且无内置常量，标记 FALLBACK", templateCode);
-            return new RenderedPrompt("", "", null, "FALLBACK");
+            return new RawTpl("", "", null, "FALLBACK");
         }
         String sys = tpl.getTemplateContent() == null ? "" : tpl.getTemplateContent();
         String usr = tpl.getUserTemplate() == null ? "" : tpl.getUserTemplate();
@@ -128,7 +155,7 @@ public class PromptTemplateService
                 log.warn("[prompt] 模板编码={} 的 model_specific 解析失败，忽略", templateCode);
             }
         }
-        return new RenderedPrompt(renderVars(sys, vars), renderVars(usr, vars), tpl.getSceneType(), "DB");
+        return new RawTpl(sys, usr, tpl.getSceneType(), "DB");
     }
 
     /* ----------------------------- 内部实现 ----------------------------- */
@@ -263,6 +290,36 @@ public class PromptTemplateService
         CacheEntry(Resolved resolved, long expireAt)
         {
             this.resolved = resolved;
+            this.expireAt = expireAt;
+        }
+    }
+
+    /** renderByCode 的原始模板（未做变量替换），可整体缓存 */
+    private static class RawTpl
+    {
+        String sys;
+        String usr;
+        String sceneType;
+        String source;
+
+        RawTpl(String sys, String usr, String sceneType, String source)
+        {
+            this.sys = sys;
+            this.usr = usr;
+            this.sceneType = sceneType;
+            this.source = source;
+        }
+    }
+
+    /** renderByCode 的缓存条目 */
+    private static class CodeCacheEntry
+    {
+        final RawTpl raw;
+        final long expireAt;
+
+        CodeCacheEntry(RawTpl raw, long expireAt)
+        {
+            this.raw = raw;
             this.expireAt = expireAt;
         }
     }
