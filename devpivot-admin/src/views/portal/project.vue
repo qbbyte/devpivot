@@ -10,6 +10,10 @@
         <span class="header-title">{{ project.projectName || '项目详情' }}</span>
       </div>
       <div class="header-right">
+        <el-button class="save-btn" @click="goKnowledge" v-hasRole="['admin']">
+          <el-icon><Collection /></el-icon>
+          <span>知识库</span>
+        </el-button>
         <el-button class="save-btn" @click="handleSave">
           <el-icon><DocumentChecked /></el-icon>
           <span>保存草稿</span>
@@ -217,6 +221,10 @@ const baseline = reactive({
 
 function goBack() {
   router.push('/portal')
+}
+
+function goKnowledge() {
+  router.push('/portal/project/' + projectId.value + '/kb')
 }
 
 function getProjectInfo() {
