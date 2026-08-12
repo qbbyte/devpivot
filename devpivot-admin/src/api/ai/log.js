@@ -3,7 +3,7 @@ import request from '@/utils/request'
 // 查询AI模型调用日志列表
 export function listLog(query) {
   return request({
-    url: '/system/log/list',
+    url: '/system/ailog/list',
     method: 'get',
     params: query
   })
@@ -12,7 +12,7 @@ export function listLog(query) {
 // 查询AI模型调用日志详细
 export function getLog(logId) {
   return request({
-    url: '/system/log/' + logId,
+    url: '/system/ailog/' + logId,
     method: 'get'
   })
 }
@@ -20,7 +20,7 @@ export function getLog(logId) {
 // 新增AI模型调用日志
 export function addLog(data) {
   return request({
-    url: '/system/log',
+    url: '/system/ailog',
     method: 'post',
     data: data
   })
@@ -29,7 +29,7 @@ export function addLog(data) {
 // 修改AI模型调用日志
 export function updateLog(data) {
   return request({
-    url: '/system/log',
+    url: '/system/ailog',
     method: 'put',
     data: data
   })
@@ -38,7 +38,7 @@ export function updateLog(data) {
 // 删除AI模型调用日志
 export function delLog(logId) {
   return request({
-    url: '/system/log/' + logId,
+    url: '/system/ailog/' + logId,
     method: 'delete'
   })
 }

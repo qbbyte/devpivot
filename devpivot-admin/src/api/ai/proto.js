@@ -638,7 +638,7 @@ export function saveVersion(projectId, pages, versionName = '', remark = '') {
   return request({ url: `/ai/proto/version/${projectId}`, method: 'post', data: { pages, versionName, remark, sourceModel: '人工' } })
 }
 export function listVersions(projectId) {
-  return request({ url: `/ai/proto/versions/${projectId}`, method: 'get' }).then(res => res.data || [])
+  return request({ url: `/ai/proto/version/${projectId}`, method: 'get' }).then(res => res.data || [])
 }
 export function getVersion(versionId) {
   return request({ url: `/ai/proto/version/${versionId}`, method: 'get' }).then(res => res.data || {})

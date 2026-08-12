@@ -26,6 +26,23 @@ export function addBaseline(data) {
   })
 }
 
+// 门户：按项目ID获取需求基线（无需后台权限，仅登录态）
+export function getBaselineByProject(projectId) {
+  return request({
+    url: '/system/baseline/byProject/' + projectId,
+    method: 'get'
+  })
+}
+
+// 门户：保存（新增或更新）需求基线，按 projectId upsert（无需后台权限，仅登录态）
+export function saveBaseline(data) {
+  return request({
+    url: '/system/baseline/save',
+    method: 'post',
+    data: data
+  })
+}
+
 // 修改需求基线
 export function updateBaseline(data) {
   return request({

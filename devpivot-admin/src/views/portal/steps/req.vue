@@ -130,6 +130,7 @@
 import { ref, reactive, computed, onMounted, getCurrentInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject, updateProject } from '@/api/ai/project'
+import { getBaselineByProject, saveBaseline } from '@/api/ai/baseline'
 import { listUser } from '@/api/system/user'
 
 const { proxy } = getCurrentInstance()
@@ -183,8 +184,40 @@ function getProjectInfo() {
   })
 }
 
+function loadBaseline() {
+  getBaselineByProject(projectId.value).then(res => {
+    const data = res.data
+    if (data && data.content) {
+      try {
+        const c = JSON.parse(data.content)
+        baseline.businessContext = c.businessContext || ''
+        baseline.coreFeatures = c.coreFeatures || ''
+        baseline.userStories = c.userStories || ''
+        baseline.nonFunctional = c.nonFunctional || ''
+      } catch (e) {
+        // 历史数据非 JSON 时忽略，避免页面崩溃
+      }
+    }
+  }).catch(() => {})
+}
+
+function buildBaselinePayload(status) {
+  return {
+    projectId: projectId.value,
+    status: status,
+    content: JSON.stringify({
+      businessContext: baseline.businessContext,
+      coreFeatures: baseline.coreFeatures,
+      userStories: baseline.userStories,
+      nonFunctional: baseline.nonFunctional
+    })
+  }
+}
+
 function handleSave() {
-  proxy.$modal.msgSuccess('草稿已保存')
+  saveBaseline(buildBaselinePayload('0')).then(() => {
+    proxy.$modal.msgSuccess('草稿已保存')
+  }).catch(() => {})
 }
 
 function handleSubmit() {
@@ -197,12 +230,15 @@ function handleSubmit() {
 
 function confirmSubmit() {
   submitting.value = true
-  const nextStep = stepOrder[stepIndex.value + 1]?.value || 'DONE'
-  const updateData = { projectId: projectId.value, step: nextStep }
-  if (nextAssignee.value) {
-    updateData.assigneeId = nextAssignee.value
-  }
-  updateProject(updateData).then(() => {
+  // 先落库需求基线（状态置为已确认），再推进项目阶段
+  saveBaseline(buildBaselinePayload('1')).then(() => {
+    const nextStep = stepOrder[stepIndex.value + 1]?.value || 'DONE'
+    const updateData = { projectId: projectId.value, step: nextStep }
+    if (nextAssignee.value) {
+      updateData.assigneeId = nextAssignee.value
+    }
+    return updateProject(updateData)
+  }).then(() => {
     proxy.$modal.msgSuccess('需求已提交')
     assignDialogVisible.value = false
     router.push('/portal')
@@ -219,6 +255,7 @@ function getUserList() {
 
 onMounted(() => {
   getProjectInfo()
+  loadBaseline()
   getUserList()
 })
 </script>
