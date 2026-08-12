@@ -70,6 +70,40 @@ public class AiReqBaselineController extends BaseController
     }
 
     /**
+     * 按项目ID获取需求基线
+     * 门户需求采集页(/portal 的 REQ 步骤)依赖此接口，故放开后台权限，仅要求登录态即可访问
+     */
+    @GetMapping(value = "/byProject/{projectId}")
+    public AjaxResult getByProject(@PathVariable("projectId") Long projectId)
+    {
+        return success(aiReqBaselineService.selectAiReqBaselineByProjectId(projectId));
+    }
+
+    /**
+     * 保存（新增或更新）需求基线
+     * 门户需求采集页保存草稿/提交需求时使用，按 projectId 做 upsert，放开后台权限、仅要求登录态
+     */
+    @PostMapping("/save")
+    public AjaxResult save(@RequestBody AiReqBaseline aiReqBaseline)
+    {
+        if (aiReqBaseline.getProjectId() == null)
+        {
+            return error("projectId 不能为空");
+        }
+        AiReqBaseline existing = aiReqBaselineService.selectAiReqBaselineByProjectId(aiReqBaseline.getProjectId());
+        if (existing != null)
+        {
+            aiReqBaseline.setBaselineId(existing.getBaselineId());
+            aiReqBaselineService.updateAiReqBaseline(aiReqBaseline);
+        }
+        else
+        {
+            aiReqBaselineService.insertAiReqBaseline(aiReqBaseline);
+        }
+        return success();
+    }
+
+    /**
      * 新增需求基线
      */
     @PreAuthorize("@ss.hasPermi('system:baseline:add')")

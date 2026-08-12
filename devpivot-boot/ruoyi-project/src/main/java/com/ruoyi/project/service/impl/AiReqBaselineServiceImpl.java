@@ -45,6 +45,22 @@ public class AiReqBaselineServiceImpl implements IAiReqBaselineService
     }
 
     /**
+     * 按项目ID查询需求基线：复用列表查询（已支持 projectId 过滤）取第一条
+     */
+    @Override
+    public AiReqBaseline selectAiReqBaselineByProjectId(Long projectId)
+    {
+        if (projectId == null)
+        {
+            return null;
+        }
+        AiReqBaseline query = new AiReqBaseline();
+        query.setProjectId(projectId);
+        List<AiReqBaseline> list = aiReqBaselineMapper.selectAiReqBaselineList(query);
+        return list != null && !list.isEmpty() ? list.get(0) : null;
+    }
+
+    /**
      * 新增需求基线
      * 
      * @param aiReqBaseline 需求基线

@@ -20,6 +20,14 @@ public interface IAiReqBaselineService
     public AiReqBaseline selectAiReqBaselineByBaselineId(Long baselineId);
 
     /**
+     * 按项目ID查询需求基线（门户需求采集页使用，一个项目仅一条基线）
+     *
+     * @param projectId 项目ID
+     * @return 需求基线，不存在时返回 null
+     */
+    public AiReqBaseline selectAiReqBaselineByProjectId(Long projectId);
+
+    /**
      * 查询需求基线列表
      * 
      * @param aiReqBaseline 需求基线
