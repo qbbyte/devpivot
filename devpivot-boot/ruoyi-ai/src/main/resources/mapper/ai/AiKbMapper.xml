@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.ai.mapper.AiKbMapper">
+
+    <resultMap type="AiKbDoc" id="AiKbDocResult">
+        <result property="docId"       column="doc_id" />
+        <result property="projectId"   column="project_id" />
+        <result property="stage"       column="stage" />
+        <result property="title"       column="title" />
+        <result property="sourceType"  column="source_type" />
+        <result property="originalText" column="original_text" />
+        <result property="chunkCount"  column="chunk_count" />
+        <result property="status"      column="status" />
+        <result property="createBy"    column="create_by" />
+        <result property="createTime"  column="create_time" />
+        <result property="updateBy"    column="update_by" />
+        <result property="updateTime"  column="update_time" />
+        <result property="remark"      column="remark" />
+    </resultMap>
+
+    <resultMap type="AiKbChunk" id="AiKbChunkResult">
+        <result property="chunkId"    column="chunk_id" />
+        <result property="docId"      column="doc_id" />
+        <result property="projectId"  column="project_id" />
+        <result property="stage"      column="stage" />
+        <result property="seq"        column="seq" />
+        <result property="content"    column="content" />
+        <result property="tags"       column="tags" />
+        <result property="tokens"     column="tokens" />
+        <result property="status"     column="status" />
+        <result property="createTime" column="create_time" />
+    </resultMap>
+
+    <resultMap type="AiKbRetrievalLog" id="AiKbRetrievalLogResult">
+        <result property="logId"     column="log_id" />
+        <result property="projectId" column="project_id" />
+        <result property="stage"     column="stage" />
+        <result property="queryText" column="query_text" />
+        <result property="chunkIds"  column="chunk_ids" />
+        <result property="modelId"   column="model_id" />
+        <result property="createTime" column="create_time" />
+    </resultMap>
+
+    <insert id="insertAiKbDoc" parameterType="AiKbDoc" useGeneratedKeys="true" keyProperty="docId">
+        insert into ai_kb_doc (project_id, stage, title, source_type, original_text, chunk_count, status, create_by)
+        values (#{projectId}, #{stage}, #{title}, #{sourceType}, #{originalText}, #{chunkCount}, #{status}, #{createBy})
+    </insert>
+
+    <update id="updateAiKbDocChunkCount" parameterType="AiKbDoc">
+        update ai_kb_doc set chunk_count = #{chunkCount} where doc_id = #{docId}
+    </update>
+
+    <select id="selectAiKbDocByDocId" parameterType="Long" resultMap="AiKbDocResult">
+        select * from ai_kb_doc where doc_id = #{docId}
+    </select>
+
+    <delete id="deleteAiKbDocByDocId" parameterType="Long">
+        delete from ai_kb_doc where doc_id = #{docId}
+    </delete>
+
+    <delete id="deleteAiKbChunkByDocId" parameterType="Long">
+        delete from ai_kb_chunk where doc_id = #{docId}
+    </delete>
+
+    <select id="selectAiKbDocList" resultMap="AiKbDocResult">
+        select * from ai_kb_doc
+        where project_id = #{projectId}
+        <if test="stage != null and stage != ''">
+            and stage = #{stage}
+        </if>
+        order by create_time desc
+    </select>
+
+    <select id="selectAiKbDocAll" resultMap="AiKbDocResult">
+        select * from ai_kb_doc
+        <if test="stage != null and stage != ''">
+            where stage = #{stage}
+        </if>
+        order by project_id, create_time desc
+    </select>
+
+    <delete id="deletePipelineDoc">
+        delete from ai_kb_doc where project_id = #{projectId} and stage = #{stage} and source_type = 'pipeline'
+    </delete>
+
+    <delete id="deleteAiKbChunkByProjectStage">
+        delete from ai_kb_chunk where project_id = #{projectId} and stage = #{stage}
+    </delete>
+
+    <insert id="insertAiKbChunk" parameterType="AiKbChunk" useGeneratedKeys="true" keyProperty="chunkId">
+        insert into ai_kb_chunk (doc_id, project_id, stage, seq, content, tags, tokens, status)
+        values (#{docId}, #{projectId}, #{stage}, #{seq}, #{content}, #{tags}, #{tokens}, #{status})
+    </insert>
+
+    <select id="selectChunksForRetrieve" resultMap="AiKbChunkResult">
+        select * from ai_kb_chunk
+        where (project_id = #{projectId} or project_id = -1)
+          and (stage = #{stage} or stage is null)
+          and match(content, tags) against (#{query} in boolean mode)
+        order by match(content, tags) against (#{query}) desc
+        limit #{topK}
+    </select>
+
+    <insert id="insertAiKbRetrievalLog" parameterType="AiKbRetrievalLog" useGeneratedKeys="true" keyProperty="logId">
+        insert into ai_kb_retrieval_log (project_id, stage, query_text, chunk_ids, model_id)
+        values (#{projectId}, #{stage}, #{queryText}, #{chunkIds}, #{modelId})
+    </insert>
+
+</mapper>
