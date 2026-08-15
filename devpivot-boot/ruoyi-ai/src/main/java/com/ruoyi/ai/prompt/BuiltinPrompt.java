@@ -44,7 +44,7 @@ public final class BuiltinPrompt
             + "目标用户：{{targetUser}}\n\n"
             + "【需求澄清结论（来自上一阶段 AI 澄清，仅作为上下文，请勿原样写入文档）】\n"
             + "{{clarifyContext}}\n\n"
-            + "请直接输出 PRD 文档正文（Markdown）。";
+            + "请直接输出 PRD 文档正文（Markdown）。\n\n【知识库参考】\n{{kbContext}}";
 
     /* --------------------------- CLARIFY（一期） --------------------------- */
 
@@ -53,7 +53,7 @@ public final class BuiltinPrompt
             + "针对用户给出的回答，给出专业、结构化、可落地的分析与建议。"
             + "使用中文，重点突出，可适当分点，避免空洞套话。";
 
-    private static final String CLARIFY_USER = "{{message}}";
+    private static final String CLARIFY_USER = "{{message}}\n\n【知识库参考】\n{{kbContext}}";
 
     /* ----------------------------- TECH（二期） ----------------------------- */
 
@@ -74,7 +74,7 @@ public final class BuiltinPrompt
             + "【上游资料（来自上一阶段，仅作为上下文，请勿原样写入文档）】\n"
             + "{{upstream}}\n\n"
             + "{{extraBlock}}"
-            + "请直接输出技术方案文档正文（Markdown）。";
+            + "请直接输出技术方案文档正文（Markdown）。\n\n【知识库参考】\n{{kbContext}}";
 
     /* ------------------------------- DB（二期） ------------------------------- */
 
@@ -98,7 +98,7 @@ public final class BuiltinPrompt
             + "【上游资料（来自上一阶段，仅作为上下文，请勿原样写入文档）】\n"
             + "{{upstream}}\n\n"
             + "{{extraBlock}}"
-            + "请直接输出数据库设计文档正文（Markdown），并在合适位置给出可执行的 DDL。";
+            + "请直接输出数据库设计文档正文（Markdown），并在合适位置给出可执行的 DDL。\n\n【知识库参考】\n{{kbContext}}";
 
     /* ----------------------------- POLISH（二期） ----------------------------- */
 
@@ -145,7 +145,7 @@ public final class BuiltinPrompt
 
     private static final String PROTO_GEN_USER =
             "项目名：{{projectName}}；设备类型：{{deviceType}}。{{prdBlock}}"
-            + "请生成一套合理、可点击走查的原型页面（网页端 3 页：列表/详情/新增；移动端 4 页：首页/列表/详情/我的）。";
+            + "请生成一套合理、可点击走查的原型页面（网页端 3 页：列表/详情/新增；移动端 4 页：首页/列表/详情/我的）。\n\n【知识库参考】\n{{kbContext}}";
 
     /* ----------------------------- PROTO·局部改稿（templateCode） ----------------------------- */
 

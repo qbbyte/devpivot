@@ -23,6 +23,7 @@ import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.prompt.PromptTemplateService;
 import com.ruoyi.ai.prompt.RenderedPrompt;
 import com.ruoyi.ai.service.IAiModelConfigService;
+import com.ruoyi.ai.service.IKnowledgeRetrievalService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.project.domain.AiDbDoc;
@@ -56,6 +57,9 @@ public class AiDbController extends BaseController
 {
     @Autowired
     private AiModelClient aiModelClient;
+
+    @Autowired
+    private IKnowledgeRetrievalService knowledgeRetrievalService;
 
     @Autowired
     private PromptTemplateService promptTemplateService;
@@ -260,6 +264,8 @@ public class AiDbController extends BaseController
         dbVars.put("dbType", dbType);
         dbVars.put("upstream", upstream);
         dbVars.put("extraBlock", extraBlock);
+        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "DB", upstream);
+        dbVars.put("kbContext", kbContext);
         RenderedPrompt dbPrompt = promptTemplateService.render("DB", usedModel, dbVars);
         String systemPrompt = dbPrompt.getSystemPrompt();
         String userPrompt = dbPrompt.getUserPrompt();

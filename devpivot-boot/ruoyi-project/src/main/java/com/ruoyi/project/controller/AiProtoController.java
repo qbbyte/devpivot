@@ -42,6 +42,7 @@ import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.prompt.PromptTemplateService;
 import com.ruoyi.ai.prompt.RenderedPrompt;
+import com.ruoyi.ai.service.IKnowledgeRetrievalService;
 import com.ruoyi.ai.service.IAiModelConfigService;
 
 /**
@@ -74,6 +75,9 @@ public class AiProtoController extends BaseController
 
     @Autowired
     private PromptTemplateService promptTemplateService;
+
+    @Autowired
+    private IKnowledgeRetrievalService knowledgeRetrievalService;
 
     @Autowired
     private IAiModelConfigService modelConfigService;
@@ -328,7 +332,7 @@ public class AiProtoController extends BaseController
         STREAM_POOL.submit(() -> {
             try
             {
-                String text = tryGenerateAiText(projectName, deviceType, prdText, model, delta -> {
+                String text = tryGenerateAiText(projectId, projectName, deviceType, prdText, model, delta -> {
                     try
                     {
                         emitter.send(SseEmitter.event().name("token")
@@ -673,7 +677,7 @@ public class AiProtoController extends BaseController
     private List<Map<String, Object>> tryGenerateByAi(Long projectId, String projectName, String deviceType,
                                                       String prdText, String model)
     {
-        String text = tryGenerateAiText(projectName, deviceType, prdText, model, null);
+        String text = tryGenerateAiText(projectId, projectName, deviceType, prdText, model, null);
         return parsePagesFromText(text);
     }
 
@@ -681,7 +685,7 @@ public class AiProtoController extends BaseController
      * 调用模型生成页面结构文本（流式：每个 token 通过 onToken 回调，可为 null）。
      * 返回模型累积的原始文本；无可用模型或调用失败返回 null。
      */
-    private String tryGenerateAiText(String projectName, String deviceType, String prdText, String model,
+    private String tryGenerateAiText(Long projectId, String projectName, String deviceType, String prdText, String model,
                                      Consumer<String> onToken)
     {
         String modelId = resolveModel(model);
@@ -693,6 +697,8 @@ public class AiProtoController extends BaseController
         genVars.put("projectName", projectName == null ? "未命名产品" : projectName);
         genVars.put("deviceType", deviceType);
         genVars.put("prdBlock", prdBlock);
+        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "PROTO", prdBlock);
+        genVars.put("kbContext", kbContext);
         RenderedPrompt genPrompt = promptTemplateService.renderByCode("PROTO_GEN", modelId, genVars);
         String schemaHint = genPrompt.getSystemPrompt();
         String userMsg = genPrompt.getUserPrompt();

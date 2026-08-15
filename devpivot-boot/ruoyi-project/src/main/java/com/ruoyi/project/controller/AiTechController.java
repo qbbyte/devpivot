@@ -22,6 +22,7 @@ import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.prompt.PromptTemplateService;
 import com.ruoyi.ai.prompt.RenderedPrompt;
+import com.ruoyi.ai.service.IKnowledgeRetrievalService;
 import com.ruoyi.ai.service.IAiModelConfigService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -54,6 +55,9 @@ public class AiTechController extends BaseController
 {
     @Autowired
     private AiModelClient aiModelClient;
+
+    @Autowired
+    private IKnowledgeRetrievalService knowledgeRetrievalService;
 
     @Autowired
     private PromptTemplateService promptTemplateService;
@@ -255,6 +259,8 @@ public class AiTechController extends BaseController
         techVars.put("techStack", techStack);
         techVars.put("upstream", upstream);
         techVars.put("extraBlock", extraBlock);
+        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "TECH", upstream);
+        techVars.put("kbContext", kbContext);
         RenderedPrompt techPrompt = promptTemplateService.render("TECH", usedModel, techVars);
         String systemPrompt = techPrompt.getSystemPrompt();
         String userPrompt = techPrompt.getUserPrompt();

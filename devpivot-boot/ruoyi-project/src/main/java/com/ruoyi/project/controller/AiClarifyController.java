@@ -33,6 +33,7 @@ import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.prompt.PromptTemplateService;
 import com.ruoyi.ai.prompt.RenderedPrompt;
+import com.ruoyi.ai.service.IKnowledgeRetrievalService;
 import com.ruoyi.project.service.IAiClarifySessionService;
 import com.ruoyi.project.service.IAiVersionRecordService;
 import com.ruoyi.ai.service.IAiModelConfigService;
@@ -57,6 +58,9 @@ public class AiClarifyController extends BaseController
 
     @Autowired
     private AiModelClient aiModelClient;
+
+    @Autowired
+    private IKnowledgeRetrievalService knowledgeRetrievalService;
 
     @Autowired
     private PromptTemplateService promptTemplateService;
@@ -244,6 +248,8 @@ public class AiClarifyController extends BaseController
         // 提示词工程化：从 ai_prompt_template 读取澄清默认模板并渲染变量（DB 缺失时回退内置常量，零回归）
         Map<String, Object> clarifyVars = new HashMap<>(2);
         clarifyVars.put("message", message);
+        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "CLARIFY", message);
+        clarifyVars.put("kbContext", kbContext);
         RenderedPrompt clarifyRendered = promptTemplateService.render("CLARIFY", modelIds.get(0), clarifyVars);
         String systemPrompt = clarifyRendered.getSystemPrompt();
 

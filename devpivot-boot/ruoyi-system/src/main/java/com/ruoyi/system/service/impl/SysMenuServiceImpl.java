@@ -196,7 +196,7 @@ public class SysMenuServiceImpl implements ISysMenuService
                 RouterVo children = new RouterVo();
                 children.setPath(menu.getPath());
                 children.setComponent(menu.getComponent());
-                children.setName(getRouteName(menu.getRouteName(), menu.getPath()));
+                children.setName(getRouteName(menu));
                 children.setMeta(new MetaVo(menu.getMenuName(), menu.getIcon(), StringUtils.equals("1", menu.getIsCache()), menu.getPath()));
                 children.setQuery(menu.getQuery());
                 childrenList.add(children);
@@ -211,7 +211,7 @@ public class SysMenuServiceImpl implements ISysMenuService
                 String routerPath = innerLinkReplaceEach(menu.getPath());
                 children.setPath(routerPath);
                 children.setComponent(UserConstants.INNER_LINK);
-                children.setName(getRouteName(menu.getRouteName(), routerPath));
+                children.setName(getRouteName(menu));
                 children.setMeta(new MetaVo(menu.getMenuName(), menu.getIcon(), menu.getPath()));
                 childrenList.add(children);
                 router.setChildren(childrenList);
@@ -434,20 +434,14 @@ public class SysMenuServiceImpl implements ISysMenuService
         {
             return StringUtils.EMPTY;
         }
-        return getRouteName(menu.getRouteName(), menu.getPath());
-    }
-
-    /**
-     * 获取路由名称，如没有配置路由名称则取路由地址
-     * 
-     * @param name 路由名称
-     * @param path 路由地址
-     * @return 路由名称（驼峰格式）
-     */
-    public String getRouteName(String name, String path)
-    {
-        String routerName = StringUtils.isNotEmpty(name) ? name : path;
-        return StringUtils.capitalize(routerName);
+        // 显式配置 route_name 时优先使用（保留管理后台按需命名的灵活性）；
+        // 否则以 menuId 生成全局唯一名称，避免与前端常量路由的 name（如 Index/Profile/Data）
+        // 冲突 —— 否则 vue-router 会以「同名后者覆盖前者」的方式静默顶掉首页等常量路由，导致 404。
+        if (StringUtils.isNotEmpty(menu.getRouteName()))
+        {
+            return menu.getRouteName();
+        }
+        return "M" + menu.getMenuId();
     }
 
     /**
