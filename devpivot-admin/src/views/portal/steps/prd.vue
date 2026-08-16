@@ -10,10 +10,14 @@
         <span class="header-title">{{ project.projectName || 'PRD 文档' }}</span>
       </div>
       <div class="header-right">
-        <el-button class="save-btn" @click="handleSave">
+        <el-button v-if="!readOnly" class="save-btn" @click="handleSave">
           <el-icon><DocumentChecked /></el-icon>
           <span>保存草稿</span>
         </el-button>
+        <el-tag v-else type="info" effect="plain" size="small" class="ro-tag">
+          <el-icon><Lock /></el-icon>
+          <span>只读</span>
+        </el-tag>
       </div>
     </header>
 
@@ -33,7 +37,13 @@
                   <el-tag v-if="isEditing" size="small" type="warning" effect="light" class="edit-tag">编辑中</el-tag>
                 </h3>
                 <div class="doc-actions">
-                  <template v-if="!isEditing">
+                  <template v-if="readOnly">
+                    <el-tag type="info" effect="plain" size="small" class="ro-tag">
+                      <el-icon><Lock /></el-icon>
+                      <span>只读 · 该阶段已完成</span>
+                    </el-tag>
+                  </template>
+                  <template v-else-if="!isEditing">
                     <el-button text class="doc-action-btn" @click="enterEdit">
                       <el-icon><EditPen /></el-icon><span>编辑</span>
                     </el-button>
@@ -49,7 +59,7 @@
                       <el-icon><Select /></el-icon><span>保存</span>
                     </el-button>
                   </template>
-                  <el-button type="primary" size="default" class="submit-btn-inline" :loading="submitting" @click="handleSubmit">
+                  <el-button v-if="!readOnly" type="primary" size="default" class="submit-btn-inline" :loading="submitting" @click="handleSubmit">
                     <span>确认 PRD，进入下一阶段</span>
                     <el-icon class="el-icon--right"><ArrowRight /></el-icon>
                   </el-button>
@@ -181,6 +191,10 @@
             </div>
 
             <div class="chat-input" @mousedown="onChatInputMouseDown">
+              <div v-if="readOnly" class="chat-locked-note">
+                <el-icon><Lock /></el-icon>
+                <span>该阶段已锁定，仅可查看历史对话</span>
+              </div>
               <div v-if="chatQuotes.length" class="quote-zone">
               <div class="quote-zone-header">
                 <span class="quote-count"><el-icon><Document /></el-icon> 已引用 {{ chatQuotes.length }} 段内容</span>
@@ -203,7 +217,7 @@
                   type="textarea"
                   :rows="2"
                   resize="none"
-                  :disabled="chatGenerating"
+                  :disabled="chatGenerating || readOnly"
                   placeholder="针对 PRD 提问、补充需求或修改建议…"
                   @keydown.enter.exact.prevent="sendChat"
                 />
@@ -225,7 +239,7 @@
                 <el-button
                   type="primary"
                   class="chat-send"
-                  :disabled="chatGenerating || !chatInput.trim()"
+                  :disabled="chatGenerating || readOnly || !chatInput.trim()"
                   @click="sendChat"
                 >
                   <el-icon><Promotion /></el-icon>
@@ -271,7 +285,8 @@ import {
   Promotion,
   ArrowDown,
   UserFilled,
-  MagicStick
+  MagicStick,
+  Lock
 } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 import { getProject } from '@/api/ai/project'
@@ -300,6 +315,13 @@ const project = ref({})
 const currentStep = ref('PRD')
 
 const stepIndex = computed(() => stepOrder.findIndex(s => s.value === currentStep.value))
+
+// 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
+const readOnly = computed(() => {
+  const cur = stepOrder.findIndex(s => s.value === currentStep.value)
+  const mine = stepOrder.findIndex(s => s.value === 'PRD')
+  return cur > mine
+})
 
 // ---- PRD 生成（调用真实接口 @/api/ai/doc 的 generatePrd）----
 const templateType = ref('STANDARD')
@@ -1061,6 +1083,71 @@ onMounted(async () => {
 .edit-tag {
   margin-left: 8px;
   transform: translateY(-1px);
+}
+
+/* 只读锁定标记 */
+.ro-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3370ff;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: linear-gradient(180deg, #f5f9ff 0%, #eef4ff 100%);
+  border: 1px solid #c5d9ff;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(51, 112, 255, 0.06);
+}
+.ro-tag .el-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  background: #3370ff;
+  color: #fff;
+  flex-shrink: 0;
+}
+.ro-tag .el-icon svg {
+  width: 12px;
+  height: 12px;
+}
+.chat-locked-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3370ff;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: linear-gradient(180deg, #f5f9ff 0%, #eef4ff 100%);
+  border: 1px solid #c5d9ff;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(51, 112, 255, 0.06);
+}
+.chat-locked-note .el-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  background: #3370ff;
+  color: #fff;
+  flex-shrink: 0;
+}
+.chat-locked-note .el-icon svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* 内联编辑模式 */

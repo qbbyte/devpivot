@@ -4,7 +4,7 @@
       <div class="portal-header-inner">
         <div class="portal-brand">
           <div class="brand-logo">
-            <el-icon :size="20"><Opportunity /></el-icon>
+            <img :src="logoPng" alt="devPivot" />
           </div>
           <span class="brand-name">AI 智能需求设计</span>
         </div>
@@ -61,162 +61,112 @@
         </div>
       </section>
 
-      <section class="portal-body">
+      <section v-if="continueProjects.length" class="portal-continue">
         <div class="section-header">
-          <h2 class="section-title">项目列表</h2>
-          <span class="section-count">共 {{ filteredProjects.length }} 个项目</span>
+          <h2 class="section-title">继续你的项目</h2>
+          <span class="section-count">{{ continueProjects.length }} 个进行中</span>
         </div>
-        <div class="filter-bar">
-          <el-input
-            v-model="searchKeyword"
-            class="filter-search"
-            placeholder="搜索项目名称 / 简介"
-            clearable
-            :prefix-icon="Search"
+        <div class="continue-grid">
+          <ContinueCard
+            v-for="item in continueProjects"
+            :key="item.projectId"
+            :project="item"
+            @open="onOpenProject"
+            @continue="onContinueProject"
           />
-          <el-select v-model="filterStatus" class="filter-select" placeholder="项目状态" clearable>
-            <el-option v-for="s in ai_project_status" :key="s.value" :label="s.label" :value="s.value" />
-          </el-select>
-          <el-select v-model="filterStep" class="filter-select" placeholder="当前阶段" clearable>
-            <el-option v-for="s in ai_project_step" :key="s.value" :label="s.label" :value="s.value" />
-          </el-select>
-          <div class="filter-bar-spacer"></div>
-          <el-button v-if="hasFilter" class="filter-reset" @click="resetFilter">
-            <el-icon><RefreshRight /></el-icon>重置
-          </el-button>
         </div>
+      </section>
 
-        <template v-if="!loading && filteredProjects.length > 0">
-          <div class="project-list">
-            <div class="project-card" v-for="item in pagedProjects" :key="item.projectId" @click="goProject(item)">
-              <div class="project-card-left">
-                <div class="project-card-top">
-                  <div class="project-name">
-                    <el-tag effect="dark" size="small" type="danger" v-if="item.isTop === 'Y'">置顶</el-tag>
-                    <span class="name-text">{{ item.projectName }}</span>
-                  </div>
-                  <dict-tag :options="ai_project_status" :value="item.status" />
-                </div>
-                <p class="project-intro">{{ item.projectIntro || '暂无项目简介' }}</p>
-                <div class="project-meta">
-                  <span v-if="item.assigneeName"><el-icon><User /></el-icon>{{ item.assigneeName }}</span>
-                  <span v-if="item.updateTime"><el-icon><Clock /></el-icon>{{ formatTime(item.updateTime) }}</span>
-                </div>
-              </div>
-              <div class="project-card-right">
-                <div class="step-percent" :style="{ color: stepColor(item.step) }">{{ stepPercent(item.step) }}%</div>
-                <el-progress :percentage="stepPercent(item.step)" :color="stepColor(item.step)" :stroke-width="6" :show-text="false" />
-                <dict-tag :options="ai_project_step" :value="item.step" />
-              </div>
-            </div>
+      <section class="portal-body">
+        <!-- 全新用户：引导式空态（无任何项目），隐藏筛选栏 -->
+        <EmptyState
+          v-if="!loading && allProjectList.length === 0"
+          variant="onboarding"
+          @create="goCreate"
+        />
+
+        <template v-else>
+          <div class="section-header">
+            <h2 class="section-title">项目列表</h2>
+            <span class="section-count">共 {{ filteredProjects.length }} 个项目</span>
           </div>
-          <div class="pagination-wrap" v-if="filteredProjects.length > pageSize">
-            <el-pagination
-              v-model:current-page="currentPage"
-              :page-size="pageSize"
-              :total="filteredProjects.length"
-              layout="prev, pager, next"
-              background
+          <div class="filter-bar">
+            <el-input
+              v-model="searchKeyword"
+              class="filter-search"
+              placeholder="搜索项目名称 / 简介"
+              clearable
+              :prefix-icon="Search"
             />
+            <el-select v-model="filterStatus" class="filter-select" placeholder="项目状态" clearable>
+              <el-option v-for="s in ai_project_status" :key="s.value" :label="s.label" :value="s.value" />
+            </el-select>
+            <el-select v-model="filterStep" class="filter-select" placeholder="当前阶段" clearable>
+              <el-option v-for="s in ai_project_step" :key="s.value" :label="s.label" :value="s.value" />
+            </el-select>
+            <div class="filter-bar-spacer"></div>
+            <el-button v-if="hasFilter" class="filter-reset" @click="resetFilter">
+              <el-icon><RefreshRight /></el-icon>重置
+            </el-button>
           </div>
-        </template>
 
-        <el-empty v-else-if="!loading && allProjectList.length === 0" description="暂无项目数据" />
-        <el-empty v-else-if="!loading" description="未找到符合条件的项目" />
-        <div v-loading="loading" class="loading-mask"></div>
+          <template v-if="!loading && filteredProjects.length > 0">
+            <div class="project-list">
+              <ProjectRow
+                v-for="item in pagedProjects"
+                :key="item.projectId"
+                :project="item"
+                @open="onOpenProject"
+                @continue="onContinueProject"
+              />
+            </div>
+            <div class="pagination-wrap" v-if="filteredProjects.length > pageSize">
+              <el-pagination
+                v-model:current-page="currentPage"
+                :page-size="pageSize"
+                :total="filteredProjects.length"
+                layout="prev, pager, next"
+                background
+              />
+            </div>
+          </template>
+
+          <!-- 有项目但筛选无结果 -->
+          <EmptyState
+            v-else-if="!loading"
+            variant="noResult"
+            :keyword="searchKeyword"
+            @reset="resetFilter"
+          />
+          <div v-loading="loading" class="loading-mask"></div>
+        </template>
       </section>
     </main>
 
     <footer class="portal-footer">
       <span>AI 智能需求设计与数据库生成系统</span>
     </footer>
-
-    <!-- 项目阶段概览弹窗 -->
-    <el-dialog
-      v-model="stageDialogVisible"
-      :title="null"
-      width="600px"
-      class="stage-dialog"
-      :close-on-click-modal="true"
-      @closed="activeProject = null"
-    >
-      <div v-if="activeProject" class="stage-dialog-body">
-        <div class="sd-header">
-          <div class="sd-title-wrap">
-            <div class="sd-name">{{ activeProject.projectName }}</div>
-            <div class="sd-title-tags">
-              <dict-tag :options="ai_project_status" :value="activeProject.status" />
-              <span v-if="activeProject.step === 'DONE'" class="sd-done-tag">
-                <el-icon><CircleCheck /></el-icon> 已完成
-              </span>
-            </div>
-          </div>
-          <p class="sd-intro">{{ activeProject.projectIntro || '暂无项目简介' }}</p>
-        </div>
-
-        <div class="sd-steps">
-          <div
-            v-for="(s, idx) in visibleStages"
-            :key="s.value"
-            class="sd-step"
-            :class="s.status"
-            @click="chooseStage(s)"
-          >
-            <div class="sd-dot">
-              <el-icon v-if="s.status === 'done'"><Check /></el-icon>
-              <el-icon v-else-if="s.status === 'current'"><Loading /></el-icon>
-              <span v-else>{{ idx + 1 }}</span>
-            </div>
-            <div class="sd-label">{{ s.label }}</div>
-            <div class="sd-state">
-              <span v-if="s.status === 'done'" class="sd-state-done">已完成</span>
-              <span v-else-if="s.status === 'current'" class="sd-state-current">进行中</span>
-              <span v-else class="sd-state-pending">未开始</span>
-            </div>
-            <div v-if="idx < visibleStages.length - 1" class="sd-line" :class="{ on: s.status === 'done' }"></div>
-          </div>
-        </div>
-
-        <div class="sd-footer">
-          <span class="sd-tip">{{ activeProject && activeProject.step === 'DONE' ? '所有阶段已完成，点击上方阶段可查看历史产出' : '点击任意阶段进入，或继续当前阶段' }}</span>
-          <el-button v-if="activeProject && activeProject.step !== 'DONE'" type="primary" @click="chooseStage(currentStage)">
-            进入「{{ currentStageLabel }}」
-            <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-          </el-button>
-          <span v-else class="sd-done-badge">
-            <el-icon><CircleCheck /></el-icon>
-            项目已完成
-          </span>
-        </div>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
 <script setup name="Portal">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
-import { Search, Check, Loading, ArrowRight, CircleCheck, User, SwitchButton } from '@element-plus/icons-vue'
+import { Search, Loading, CircleCheck } from '@element-plus/icons-vue'
 import { listProject } from '@/api/ai/project'
 import { useDict } from '@/utils/dict'
 import useUserStore from '@/store/modules/user'
+import ProjectRow from './components/ProjectRow.vue'
+import ContinueCard from './components/ContinueCard.vue'
+import EmptyState from './components/EmptyState.vue'
+import logoPng from '@/assets/logo/logo.png'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const { ai_project_step, ai_project_status } = useDict('ai_project_step', 'ai_project_status')
 
-const stageDefs = [
-  { value: 'REQ', label: '需求采集', route: 'req' },
-  { value: 'CLARIFY', label: 'AI 澄清', route: 'clarify' },
-  { value: 'PRD', label: 'PRD 文档', route: 'prd' },
-  { value: 'PROTO', label: '原型设计', route: 'proto' },
-  { value: 'TECH', label: '技术方案', route: 'tech' },
-  { value: 'DB', label: '数据库设计', route: 'db' },
-  { value: 'DONE', label: '完成', route: 'done' }
-]
-
+// 阶段 → 路由名（用于「继续」一步直达当前阶段）
 const stepRouteMap = {
   REQ: 'req',
   CLARIFY: 'clarify',
@@ -227,16 +177,6 @@ const stepRouteMap = {
   DONE: 'done'
 }
 
-const stepOrder = [
-  { value: 'REQ', color: '#409eff' },
-  { value: 'CLARIFY', color: '#909399' },
-  { value: 'PRD', color: '#67c23a' },
-  { value: 'PROTO', color: '#e6a23c' },
-  { value: 'TECH', color: '#909399' },
-  { value: 'DB', color: '#f56c6c' },
-  { value: 'DONE', color: '#67c23a' }
-]
-
 const loading = ref(false)
 const allProjectList = ref([])
 const searchKeyword = ref('')
@@ -245,42 +185,24 @@ const filterStep = ref('')
 const currentPage = ref(1)
 const pageSize = 10
 
-const stageDialogVisible = ref(false)
-const activeProject = ref(null)
-
-const activeStages = computed(() => {
-  if (!activeProject.value) return []
-  // 已完成项目（step=DONE）：所有阶段均视为「已完成」，避免末节点被误标为「进行中」
-  const curIdx = activeProject.value.step === 'DONE'
-    ? stageDefs.length
-    : stageDefs.findIndex(s => s.value === (activeProject.value.step || 'REQ'))
-  return stageDefs.map((s, i) => ({
-    ...s,
-    status: i < curIdx ? 'done' : (i === curIdx ? 'current' : 'pending')
-  }))
-})
-
-// 弹窗内展示的阶段列表：已完成项目不显示「完成」节点（无对应页面，纯占位）
-const visibleStages = computed(() => {
-  const stages = activeStages.value
-  if (!stages.length) return []
-  // DONE 项目：只展示前 6 个真实阶段
-  if (activeProject.value?.step === 'DONE') return stages.filter(s => s.value !== 'DONE')
-  return stages
-})
-
-const currentStage = computed(() => {
-  const hit = stageDefs.find(s => s.value === (activeProject.value?.step || 'REQ'))
-  return hit || stageDefs[0]
-})
-
-const currentStageLabel = computed(() => currentStage.value.label)
-
 const stats = computed(() => {
   const list = allProjectList.value
   const total = list.length
   const done = list.filter(item => item.step === 'DONE').length
   return { total, doing: total - done, done }
+})
+
+// 「继续你的项目」：进行中项目，置顶优先 + 最近更新，取前 3
+const continueProjects = computed(() => {
+  return allProjectList.value
+    .filter(item => item.step !== 'DONE')
+    .sort((a, b) => {
+      const ta = a.isTop === 'Y' ? 1 : 0
+      const tb = b.isTop === 'Y' ? 1 : 0
+      if (ta !== tb) return tb - ta
+      return String(b.updateTime || '').localeCompare(String(a.updateTime || ''))
+    })
+    .slice(0, 3)
 })
 
 const filteredProjects = computed(() => {
@@ -305,57 +227,26 @@ const hasFilter = computed(() =>
   !!searchKeyword.value.trim() || !!filterStatus.value || !!filterStep.value
 )
 
-function stepPercent(value) {
-  const idx = stepOrder.findIndex(s => s.value === value)
-  if (idx === -1) return 0
-  return Math.round(((idx + 1) / stepOrder.length) * 100)
-}
-
-function stepColor(value) {
-  const hit = stepOrder.find(s => s.value === value)
-  return hit ? hit.color : '#c0c4cc'
-}
-
-function formatTime(value) {
-  if (!value) return ''
-  return String(value).replace('T', ' ').slice(0, 16)
-}
-
 function resetFilter() {
   searchKeyword.value = ''
   filterStatus.value = ''
   filterStep.value = ''
 }
 
-function logout() {
-  ElMessageBox.confirm('确定注销并退出系统吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(() => {
-    userStore.logOut().then(() => {
-      location.href = '/login'
-    })
-  }).catch(() => { })
-}
-
 function goCreate() {
   router.push('/portal/create')
 }
 
-function goProject(item) {
-  activeProject.value = item
-  stageDialogVisible.value = true
+// 整行 / 卡片点击：进入项目总览页（/portal/project/:id）
+function onOpenProject(project) {
+  router.push(`/portal/project/${project.projectId}`)
 }
 
-function chooseStage(stage) {
-  if (!activeProject.value || !stage) return
-  // 「完成」是终点状态，没有对应可编辑页面，不导航
-  if (stage.value === 'DONE') return
-  const id = activeProject.value.projectId
-  const routeName = stage.route || stepRouteMap[stage.value] || 'req'
-  stageDialogVisible.value = false
-  router.push(`/portal/project/${id}/${routeName}`)
+// CTA「继续」：一步直达当前阶段（/portal/project/:id/:stage）
+function onContinueProject(project) {
+  if (!project || project.step === 'DONE') return
+  const routeName = stepRouteMap[project.step] || 'req'
+  router.push(`/portal/project/${project.projectId}/${routeName}`)
 }
 
 function getAllList() {
@@ -373,7 +264,7 @@ watch([searchKeyword, filterStatus, filterStep], () => {
 })
 
 onMounted(() => {
-  // 确保用户信息（昵称）已加载，供问候区账号入口展示
+  // 确保用户信息（昵称）已加载，供问候区展示
   if (!userStore.nickName) {
     userStore.getInfo().catch(() => {})
   }
@@ -403,7 +294,7 @@ onMounted(() => {
 .portal-header-inner {
   max-width: 1440px;
   margin: 0 auto;
-  height: 60px;
+  height: 68px;
   padding: 0 24px;
   display: flex;
   align-items: center;
@@ -417,15 +308,23 @@ onMounted(() => {
 }
 
 .brand-logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #3370ff, #6e52ff);
-  color: #fff;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(51, 112, 255, 0.3);
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.brand-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .brand-name {
@@ -511,40 +410,6 @@ onMounted(() => {
   display: inline-block;
 }
 
-.hero-account {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.ha-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  color: #4e5969;
-  text-decoration: none;
-  cursor: pointer;
-  transition: color 0.18s;
-}
-
-.ha-link .el-icon {
-  font-size: 15px;
-}
-
-.ha-link:hover {
-  color: #3370ff;
-}
-
-.ha-logout:hover {
-  color: #f56c6c;
-}
-
-.ha-sep {
-  color: #d0d5dd;
-}
-
 .create-btn {
   border-radius: 8px;
   padding: 10px 22px;
@@ -628,6 +493,17 @@ onMounted(() => {
   color: #86909c;
 }
 
+/* ----- Continue (精选区) ----- */
+.portal-continue {
+  margin-bottom: 32px;
+}
+
+.continue-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
 /* ----- Filter Bar ----- */
 .filter-bar {
   display: flex;
@@ -658,100 +534,6 @@ onMounted(() => {
   gap: 12px;
 }
 
-.project-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px 22px;
-  border: 1px solid #f0f1f3;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  display: flex;
-  gap: 24px;
-  cursor: pointer;
-}
-
-.project-card:hover {
-  border-color: #d6e4ff;
-  box-shadow: 0 8px 24px rgba(51, 112, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.03);
-}
-
-.project-card-left {
-  flex: 1;
-  min-width: 0;
-}
-
-.project-card-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.project-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.name-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1d2129;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.project-intro {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: #4e5969;
-  line-height: 1.65;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.project-meta {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  color: #86909c;
-  font-size: 12px;
-}
-
-.project-meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* ----- Card Right (Progress) ----- */
-.project-card-right {
-  width: 110px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 7px;
-  padding-left: 20px;
-  border-left: 1px solid #f2f3f5;
-}
-
-.project-card-right .step-percent {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--step-accent, #1d2129);
-  line-height: 1;
-}
-
-.project-card-right .el-tag {
-  align-self: flex-end;
-}
-
 /* ----- Loading / Empty ----- */
 .loading-mask {
   min-height: 120px;
@@ -775,180 +557,6 @@ onMounted(() => {
   margin-top: auto;
 }
 
-/* ===== Stage Dialog ===== */
-.stage-dialog .el-dialog__header { display: none; }
-.stage-dialog .el-dialog__body { padding: 0; }
-
-.stage-dialog-body {
-  padding: 24px 26px 20px;
-}
-
-.sd-header {
-  border-bottom: 1px solid #f2f3f5;
-  padding-bottom: 16px;
-  margin-bottom: 22px;
-}
-
-.sd-title-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.sd-title-tags {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.sd-done-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #00b42a;
-  background: rgba(0, 180, 42, 0.08);
-  border-radius: 10px;
-  padding: 2px 10px;
-}
-
-.sd-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1d2129;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sd-intro {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: #86909c;
-  line-height: 1.6;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.sd-steps {
-  display: flex;
-  align-items: flex-start;
-}
-
-.sd-step {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  padding: 4px 2px;
-  border-radius: 10px;
-  transition: background 0.2s;
-}
-
-.sd-step:hover { background: #f5f7ff; }
-.sd-step.done:hover { background: rgba(0, 180, 42, 0.06); }
-
-.sd-dot {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: #e5e7eb;
-  color: #86909c;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
-  transition: all 0.3s;
-  z-index: 1;
-}
-
-.sd-step.done .sd-dot {
-  background: #00b42a;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 180, 42, 0.3);
-}
-
-.sd-step.current .sd-dot {
-  background: #3370ff;
-  color: #fff;
-  transform: scale(1.12);
-  box-shadow: 0 2px 10px rgba(51, 112, 255, 0.35);
-}
-
-.sd-label {
-  font-size: 12px;
-  color: #4e5969;
-  text-align: center;
-  line-height: 1.3;
-  white-space: nowrap;
-}
-
-.sd-step.done .sd-label { color: #1d2129; font-weight: 500; }
-.sd-step.current .sd-label { color: #3370ff; font-weight: 600; }
-
-.sd-state {
-  font-size: 11px;
-}
-
-.sd-state-done { color: #00b42a; }
-.sd-state-current { color: #3370ff; }
-.sd-state-pending { color: #c0c4cc; }
-
-.sd-line {
-  position: absolute;
-  top: 19px;
-  left: 50%;
-  width: 100%;
-  height: 2px;
-  background: #e5e7eb;
-  z-index: 0;
-}
-
-.sd-line.on { background: #00b42a; }
-
-.sd-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px solid #f2f3f5;
-}
-
-.sd-tip {
-  font-size: 12px;
-  color: #a0a4ad;
-}
-
-.sd-footer .el-button {
-  border-radius: 8px;
-  padding: 9px 20px;
-  font-weight: 500;
-}
-
-.sd-done-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #00b42a;
-  background: rgba(0, 180, 42, 0.08);
-  border: 1px solid rgba(0, 180, 42, 0.18);
-}
-
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
   .portal-hero {
@@ -962,31 +570,14 @@ onMounted(() => {
     gap: 12px;
   }
 
+  .continue-grid {
+    grid-template-columns: 1fr;
+  }
+
   .filter-bar { padding: 12px 14px; gap: 10px; }
   .filter-search { width: 100%; flex: 1 1 100%; }
   .filter-select { flex: 1; min-width: 120px; }
   .filter-bar-spacer { display: none; }
-
-  .project-card {
-    flex-direction: column;
-    gap: 14px;
-    padding: 16px 18px;
-  }
-
-  .project-card-right {
-    width: 100%;
-    padding-left: 0;
-    border-left: none;
-    border-top: 1px solid #f2f3f5;
-    padding-top: 14px;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .project-card-right .step-percent {
-    font-size: 18px;
-  }
 
   .portal-header-inner {
     padding: 0 16px;

@@ -11,18 +11,24 @@
         <span class="stage-pill"><span class="stage-dot"></span>技术方案</span>
       </div>
       <div class="header-right">
-        <el-button class="header-btn" @click="openSettings">
-          <el-icon><Setting /></el-icon>
-          <span>生成设置</span>
-        </el-button>
-        <el-button class="header-btn" @click="handleSaveDraft">
-          <el-icon><DocumentChecked /></el-icon>
-          <span>保存草稿</span>
-        </el-button>
-        <el-button type="primary" class="header-btn submit-header-btn" :loading="submitting" :disabled="!canSubmit" @click="handleSubmit">
-          <span>确认技术方案，进入下一阶段</span>
-          <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-        </el-button>
+        <template v-if="!readOnly">
+          <el-button class="header-btn" @click="openSettings">
+            <el-icon><Setting /></el-icon>
+            <span>生成设置</span>
+          </el-button>
+          <el-button class="header-btn" @click="handleSaveDraft">
+            <el-icon><DocumentChecked /></el-icon>
+            <span>保存草稿</span>
+          </el-button>
+          <el-button type="primary" class="header-btn submit-header-btn" :loading="submitting" :disabled="!canSubmit" @click="handleSubmit">
+            <span>确认技术方案，进入下一阶段</span>
+            <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+          </el-button>
+        </template>
+        <el-tag v-else type="info" effect="plain" size="small" class="ro-tag">
+          <el-icon><Lock /></el-icon>
+          <span>只读 · 该阶段已完成</span>
+        </el-tag>
       </div>
     </header>
 
@@ -44,10 +50,10 @@
                     <span class="sm-label">已选模型</span>
                     <span class="sm-chip" v-for="id in selectedModels.slice(0, 3)" :key="id">{{ modelName(id) }}</span>
                     <span v-if="selectedModels.length > 3" class="sm-more">+{{ selectedModels.length - 3 }}</span>
-                    <button class="link-btn sm-change" @click="openModelDialog">切换模型</button>
+                    <button v-if="!readOnly" class="link-btn sm-change" @click="openModelDialog">切换模型</button>
                   </div>
                 </div>
-                <div class="doc-actions">
+                <div class="doc-actions" v-if="!readOnly">
                   <template v-if="!isEditing">
                     <el-button text class="doc-action-btn" @click="enterEdit">
                       <el-icon><EditPen /></el-icon><span>编辑</span>
@@ -117,7 +123,7 @@
                 </div>
                 <span class="chat-header-sub">针对技术方案提问、补充或修订</span>
               </div>
-              <el-dropdown class="chat-model" trigger="click" @command="onSelectChatModel">
+              <el-dropdown class="chat-model" trigger="click" :disabled="readOnly" @command="onSelectChatModel">
                 <span class="model-chip">
                   {{ chatModel.label }}
                   <el-icon class="model-caret"><ArrowDown /></el-icon>
@@ -163,6 +169,10 @@
             </div>
 
             <div class="chat-input">
+              <div v-if="readOnly" class="chat-locked-note">
+                <el-icon><Lock /></el-icon>
+                <span>该阶段已锁定，仅可查看历史对话</span>
+              </div>
               <div class="input-row">
                 <div class="input-wrap">
                   <el-input
@@ -170,7 +180,7 @@
                     type="textarea"
                     :rows="2"
                     resize="none"
-                    :disabled="chatGenerating"
+                    :disabled="chatGenerating || readOnly"
                     placeholder="针对技术方案提问、补充约束或修改建议…"
                     @keydown.enter.exact.prevent="sendChat"
                   />
@@ -178,7 +188,7 @@
                 <el-button
                   type="primary"
                   class="chat-send"
-                  :disabled="chatGenerating || !chatInput.trim()"
+                  :disabled="chatGenerating || !chatInput.trim() || readOnly"
                   @click="sendChat"
                 >
                   <el-icon><Promotion /></el-icon>
@@ -318,9 +328,10 @@
 </template>
 
 <script setup name="StepTech">
-import { ref, reactive, computed, onMounted, nextTick, getCurrentInstance } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch, getCurrentInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '@/api/ai/project'
+import { Lock } from '@element-plus/icons-vue'
 import { getTechModels, getTechDoc, saveTechDoc, generateTech, submitTech } from '@/api/ai/tech'
 import { sendChatMessage } from '@/api/ai/chat'
 
@@ -334,6 +345,14 @@ const project = ref({})
 const currentStep = ref('TECH')
 const submitting = ref(false)
 
+// 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
+const readOnly = computed(() => {
+  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'TECH', 'DB', 'DONE']
+  const cur = order.indexOf(currentStep.value)
+  const mine = order.indexOf('TECH')
+  return cur > mine
+})
+
 const techStack = ref('JAVA')
 const modelOptions = ref([])
 const selectedModels = ref([])
@@ -346,6 +365,9 @@ const mainModelId = ref('')
 const finalContent = ref('')
 const previewRef = ref(null)
 const isEditing = ref(false)
+
+// 只读时强制退出编辑态（隐藏可写工具栏 / 编辑器）
+watch(readOnly, (ro) => { if (ro) isEditing.value = false })
 
 const modelResults = ref([]) // { modelId, modelName, content, status, latency }
 let genStart = 0
@@ -449,6 +471,7 @@ function stackLabel(value, list, customText) {
 
 // ===== 设置弹窗 =====
 function openSettings() {
+  if (readOnly.value) return
   const parts = techStack.value.split(' + ')
   const b = backendOptions.find(o => o.label === parts[0])
   const f = frontendOptions.find(o => o.label === parts[1])
@@ -522,6 +545,7 @@ function confirmModelDialog() {
 }
 
 function startGenerate() {
+  if (readOnly.value) return
   if (isGenerating.value || !selectedModels.value.length) {
     if (!selectedModels.value.length) proxy.$modal.msgWarning('请先选择模型')
     return
@@ -612,6 +636,7 @@ function handleSelectMain(modelId) {
 }
 
 function handleSaveDraft() {
+  if (readOnly.value) return
   const payload = {
     projectId: projectId.value,
     techStack: techStack.value,
@@ -628,6 +653,7 @@ function handleSaveDraft() {
 }
 
 function handleSubmit() {
+  if (readOnly.value) return
   if (!canSubmit.value) {
     proxy.$modal.msgWarning('请先生成并完善技术方案主稿')
     return
@@ -652,7 +678,7 @@ function statusText(r) {
   return { pending: '等待中', streaming: '生成中', done: '已完成', error: '失败' }[r.status] || r.status
 }
 
-function enterEdit() { isEditing.value = true }
+function enterEdit() { if (readOnly.value) return; isEditing.value = true }
 function cancelEdit() { isEditing.value = false }
 function saveEdit() { isEditing.value = false; proxy.$modal.msgSuccess('已更新本地内容') }
 
@@ -704,7 +730,7 @@ function scrollChatToBottom() {
 
 function sendChat() {
   const q = (chatInput.value || '').trim()
-  if (!q || chatGenerating.value) return
+  if (!q || chatGenerating.value || readOnly.value) return
   chatMessages.value.push({ role: 'user', content: q })
   chatInput.value = ''
   const aiMsg = reactive({ role: 'ai', content: '' })
@@ -781,7 +807,7 @@ onMounted(() => {
   loadDoc()
   // 无技术方案记录时自动弹出设置窗，引导用户配置
   setTimeout(() => {
-    if (!hasGenerated.value) {
+    if (!readOnly.value && !hasGenerated.value) {
       settingsClosable.value = false
       showSettingsDialog.value = true
     }
@@ -1275,4 +1301,12 @@ onMounted(() => {
   .section-title-left { gap: 10px; }
   .selected-models { border-left: none; padding-left: 0; width: 100%; }
 }
+
+/* 只读锁定态（阶段已过去） */
+.ro-tag { display:inline-flex; align-items:center; gap:6px; height:auto; padding:5px 12px; font-size:13px; font-weight:500; color:#3370ff; white-space:nowrap; vertical-align:middle; background:linear-gradient(180deg,#f5f9ff 0%,#eef4ff 100%); border:1px solid #c5d9ff; border-radius:20px; box-shadow:0 1px 2px rgba(51,112,255,0.06); }
+.ro-tag .el-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; border-radius:50%; background:#3370ff; color:#fff; flex-shrink:0; }
+.ro-tag .el-icon svg { width:12px; height:12px; }
+.chat-locked-note { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; font-size:13px; font-weight:500; color:#3370ff; white-space:nowrap; vertical-align:middle; background:linear-gradient(180deg,#f5f9ff 0%,#eef4ff 100%); border:1px solid #c5d9ff; border-radius:20px; box-shadow:0 1px 2px rgba(51,112,255,0.06); }
+.chat-locked-note .el-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; border-radius:50%; background:#3370ff; color:#fff; flex-shrink:0; }
+.chat-locked-note .el-icon svg { width:12px; height:12px; }
 </style>

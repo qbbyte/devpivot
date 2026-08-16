@@ -3,110 +3,159 @@
     <header class="project-header">
       <div class="header-left">
         <button class="back-link" @click="goBack">
-          <el-icon><ArrowLeft /></el-icon>
-          <span>返回</span>
+          <el-icon>
+            <ArrowLeft />
+          </el-icon>
+          <span>返回工作台</span>
         </button>
         <span class="header-divider"></span>
         <span class="header-title">{{ project.projectName || '需求采集' }}</span>
       </div>
+      <div class="header-center">
+        <h1 class="page-title">需求采集</h1>
+        <el-tag size="small" class="stage-tag" effect="light">{{ stepLabel }}</el-tag>
+      </div>
       <div class="header-right">
-        <el-button class="save-btn" @click="handleSave">
-          <el-icon><DocumentChecked /></el-icon>
-          <span>保存草稿</span>
-        </el-button>
+        <template v-if="!readOnly">
+          <el-button class="save-btn" @click="handleSave">
+            <el-icon>
+              <DocumentChecked />
+            </el-icon>
+            <span>保存草稿</span>
+          </el-button>
+          <el-button type="primary" class="header-submit-btn" :loading="submitting" @click="handleSubmit">
+            <span>提交需求，进入下一阶段</span>
+            <el-icon class="el-icon--right">
+              <ArrowRight />
+            </el-icon>
+          </el-button>
+        </template>
+        <el-tag v-else type="info" effect="plain" size="small" class="ro-tag">
+          <el-icon>
+            <Lock />
+          </el-icon>
+          <span>只读</span>
+        </el-tag>
       </div>
     </header>
 
     <main class="project-main">
-      <div class="project-content">
-        <section class="step-section">
-          <div class="step-track">
-            <template v-for="(s, idx) in stepOrder" :key="s.value">
-              <div class="step-node" :class="{ active: stepIndex >= idx, current: stepIndex === idx }">
-                <div class="step-dot">
-                  <el-icon v-if="stepIndex > idx"><Check /></el-icon>
-                  <span v-else>{{ idx + 1 }}</span>
+      <div class="project-layout">
+        <aside class="project-sidebar">
+          <div class="sidebar-card">
+            <div class="sidebar-header">
+              <div class="sidebar-header-line"></div>
+              <span class="sidebar-title">项目信息</span>
+            </div>
+            <div class="sidebar-meta-list">
+              <div class="meta-item">
+                <div class="meta-icon">
+                  <el-icon>
+                    <OfficeBuilding />
+                  </el-icon>
                 </div>
-                <div class="step-text">{{ s.label }}</div>
+                <div class="meta-body">
+                  <span class="meta-label">行业分类</span>
+                  <span class="meta-value">{{ project.industryType || '-' }}</span>
+                </div>
               </div>
-              <div v-if="idx < stepOrder.length - 1" class="step-line" :class="{ active: stepIndex > idx }"></div>
-            </template>
+              <div class="meta-divider"></div>
+              <div class="meta-item">
+                <div class="meta-icon">
+                  <el-icon>
+                    <User />
+                  </el-icon>
+                </div>
+                <div class="meta-body">
+                  <span class="meta-label">目标用户</span>
+                  <span class="meta-value">{{ project.targetUser || '-' }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-tip">
+              <div class="tip-icon">
+                <el-icon>
+                  <InfoFilled />
+                </el-icon>
+              </div>
+              <span>填写完整的需求基线，有助于 AI 在后续阶段生成更贴合的方案。</span>
+            </div>
           </div>
-        </section>
+        </aside>
 
-        <div class="main-grid">
-          <aside class="sidebar">
-            <section class="info-section">
-              <h3 class="section-title">
-                <el-icon><Document /></el-icon>
-                <span>基本信息</span>
-              </h3>
-              <div class="info-list">
-                <div class="info-item">
-                  <span class="info-label">项目名称</span>
-                  <span class="info-value">{{ project.projectName }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">行业分类</span>
-                  <span class="info-value">{{ project.industryType || '-' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">目标用户群体</span>
-                  <span class="info-value">{{ project.targetUser || '-' }}</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">当前阶段</span>
-                  <el-tag size="small" type="primary">{{ stepLabel }}</el-tag>
-                </div>
+        <div class="project-main-area">
+          <section class="baseline-section">
+            <div class="section-header">
+              <div class="section-icon">
+                <el-icon>
+                  <EditPen />
+                </el-icon>
               </div>
-            </section>
-          </aside>
+              <div class="section-text">
+                <h3 class="section-title">需求基线</h3>
+                <p class="section-subtitle">填写项目背景、功能范围与约束，作为后续 AI 澄清与 PRD 生成的基础</p>
+              </div>
+            </div>
 
-          <div class="main-content">
-            <section class="baseline-section">
-              <h3 class="section-title">
-                <el-icon><EditPen /></el-icon>
-                <span>需求基线</span>
-              </h3>
-              <div class="baseline-form">
-                <div class="form-block">
-                  <div class="block-header">
+            <div class="baseline-form">
+              <div class="form-block">
+                <div class="block-header">
+                  <div class="block-icon"><el-icon>
+                      <Briefcase />
+                    </el-icon></div>
+                  <div class="block-title-wrap">
                     <span class="block-label">业务背景</span>
                     <span class="block-hint">描述项目要解决的业务问题和目标</span>
                   </div>
-                  <el-input v-model="baseline.businessContext" type="textarea" :rows="4" placeholder="例如：当前企业使用Excel管理客户信息，效率低下且易出错，需要一套CRM系统来提升销售团队的工作效率..." />
                 </div>
-                <div class="form-block">
-                  <div class="block-header">
+                <el-input v-model="baseline.businessContext" type="textarea" :rows="4" :disabled="readOnly"
+                  placeholder="例如：当前企业使用 Excel 管理客户信息，效率低下且易出错，需要一套 CRM 系统来提升销售团队的工作效率..." />
+              </div>
+
+              <div class="form-block">
+                <div class="block-header">
+                  <div class="block-icon"><el-icon>
+                      <List />
+                    </el-icon></div>
+                  <div class="block-title-wrap">
                     <span class="block-label">核心功能点</span>
                     <span class="block-hint">列出系统的主要功能模块</span>
                   </div>
-                  <el-input v-model="baseline.coreFeatures" type="textarea" :rows="4" placeholder="例如：&#10;1. 客户信息管理 - 支持客户的增删改查和分类管理&#10;2. 销售机会跟踪 - 记录销售线索和跟进状态&#10;3. 数据报表分析 - 可视化销售数据统计..." />
                 </div>
-                <div class="form-block">
-                  <div class="block-header">
+                <el-input v-model="baseline.coreFeatures" type="textarea" :rows="4" :disabled="readOnly"
+                  placeholder="例如：&#10;1. 客户信息管理 - 支持客户的增删改查和分类管理&#10;2. 销售机会跟踪 - 记录销售线索和跟进状态&#10;3. 数据报表分析 - 可视化销售数据统计..." />
+              </div>
+
+              <div class="form-block">
+                <div class="block-header">
+                  <div class="block-icon"><el-icon>
+                      <UserFilled />
+                    </el-icon></div>
+                  <div class="block-title-wrap">
                     <span class="block-label">用户故事</span>
                     <span class="block-hint">作为[角色]，我希望[功能]，以便[价值]</span>
                   </div>
-                  <el-input v-model="baseline.userStories" type="textarea" :rows="4" placeholder="例如：&#10;- 作为销售经理，我希望查看团队的客户跟进情况，以便及时调整销售策略&#10;- 作为销售人员，我希望快速记录客户沟通内容，以便后续跟进..." />
                 </div>
-                <div class="form-block">
-                  <div class="block-header">
+                <el-input v-model="baseline.userStories" type="textarea" :rows="4" :disabled="readOnly"
+                  placeholder="例如：&#10;- 作为销售经理，我希望查看团队的客户跟进情况，以便及时调整销售策略&#10;- 作为销售人员，我希望快速记录客户沟通内容，以便后续跟进..." />
+              </div>
+
+              <div class="form-block">
+                <div class="block-header">
+                  <div class="block-icon"><el-icon>
+                      <SetUp />
+                    </el-icon></div>
+                  <div class="block-title-wrap">
                     <span class="block-label">非功能性需求</span>
                     <span class="block-hint">性能、安全、可用性、兼容性等要求</span>
                   </div>
-                  <el-input v-model="baseline.nonFunctional" type="textarea" :rows="3" placeholder="例如：&#10;- 支持100人同时在线使用&#10;- 数据备份每日自动执行&#10;- 支持Chrome、Edge浏览器..." />
                 </div>
+                <el-input v-model="baseline.nonFunctional" type="textarea" :rows="3" :disabled="readOnly"
+                  placeholder="例如：&#10;- 支持 100 人同时在线使用&#10;- 数据备份每日自动执行&#10;- 支持 Chrome、Edge 浏览器..." />
               </div>
-            </section>
+            </div>
+          </section>
 
-            <section class="action-section">
-              <el-button type="primary" size="large" class="submit-btn" :loading="submitting" @click="handleSubmit">
-                <span>提交需求，进入下一阶段</span>
-                <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-              </el-button>
-            </section>
-          </div>
         </div>
       </div>
     </main>
@@ -129,6 +178,7 @@
 <script setup name="StepReq">
 import { ref, reactive, computed, onMounted, getCurrentInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { Lock, InfoFilled } from '@element-plus/icons-vue'
 import { getProject, updateProject } from '@/api/ai/project'
 import { getBaselineByProject, saveBaseline } from '@/api/ai/baseline'
 import { listUser } from '@/api/system/user'
@@ -160,6 +210,14 @@ const stepIndex = computed(() => stepOrder.findIndex(s => s.value === currentSte
 const stepLabel = computed(() => {
   const hit = stepOrder.find(s => s.value === currentStep.value)
   return hit ? hit.label : '未开始'
+})
+
+// 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
+const readOnly = computed(() => {
+  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'TECH', 'DB', 'DONE']
+  const cur = order.indexOf(currentStep.value)
+  const mine = order.indexOf('REQ')
+  return cur > mine
 })
 
 const baseline = reactive({
@@ -198,7 +256,7 @@ function loadBaseline() {
         // 历史数据非 JSON 时忽略，避免页面崩溃
       }
     }
-  }).catch(() => {})
+  }).catch(() => { })
 }
 
 function buildBaselinePayload(status) {
@@ -217,7 +275,7 @@ function buildBaselinePayload(status) {
 function handleSave() {
   saveBaseline(buildBaselinePayload('0')).then(() => {
     proxy.$modal.msgSuccess('草稿已保存')
-  }).catch(() => {})
+  }).catch(() => { })
 }
 
 function handleSubmit() {
@@ -261,54 +319,529 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.project-page { min-height: 100vh; background: #f7f8fa; display: flex; flex-direction: column; }
-.project-header { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; height: 52px; padding: 0 24px; background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid #ebedf0; }
-.header-left { display: flex; align-items: center; gap: 12px; }
-.back-link { display: inline-flex; align-items: center; gap: 4px; border: none; background: none; color: #646a73; font-size: 13px; cursor: pointer; padding: 4px 8px; border-radius: 6px; transition: color 0.2s, background 0.2s; }
-.back-link:hover { color: #3370ff; background: rgba(51, 112, 255, 0.06); }
-.header-divider { width: 1px; height: 16px; background: #e5e7eb; }
-.header-title { font-size: 14px; font-weight: 600; color: #1f2329; }
-.save-btn { border-radius: 8px; color: #646a73; border-color: #dee0e3; }
-.save-btn:hover { color: #3370ff; border-color: #3370ff; }
-.project-main { flex: 1; padding: 32px 24px 80px; }
-.project-content { max-width: 1280px; margin: 0 auto; }
-.step-section { margin-bottom: 24px; padding: 20px 24px; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); }
-.step-track { display: flex; align-items: flex-start; justify-content: space-between; }
-.step-node { display: flex; flex-direction: column; align-items: center; gap: 8px; flex-shrink: 0; }
-.step-dot { width: 32px; height: 32px; border-radius: 50%; background: #e5e7eb; color: #86909c; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; transition: all 0.3s; }
-.step-node.active .step-dot { background: #3370ff; color: #fff; box-shadow: 0 2px 8px rgba(51, 112, 255, 0.3); }
-.step-node.current .step-dot { transform: scale(1.1); }
-.step-text { font-size: 12px; color: #86909c; white-space: nowrap; }
-.step-node.active .step-text { color: #3370ff; font-weight: 500; }
-.step-line { flex: 1; height: 2px; background: #e5e7eb; margin: 15px -4px 0; transition: background 0.3s; }
-.step-line.active { background: #3370ff; }
-.main-grid { display: grid; grid-template-columns: 280px 1fr; gap: 24px; align-items: start; }
-.sidebar { position: sticky; top: 84px; }
-.info-section { padding: 24px; background: #fff; border-radius: 12px; }
-.section-title { display: flex; align-items: center; gap: 8px; margin: 0 0 20px; font-size: 15px; font-weight: 600; color: #1f2329; padding-bottom: 16px; border-bottom: 1px solid #f5f6f8; }
-.section-title .el-icon { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #3370ff, #5b8cff); color: #fff; padding: 6px; box-shadow: 0 2px 6px rgba(51, 112, 255, 0.25); }
-.info-list { display: flex; flex-direction: column; gap: 0; }
-.info-item { display: flex; flex-direction: column; gap: 6px; padding: 14px 0; border-bottom: 1px solid #f5f6f8; }
-.info-item:last-child { border-bottom: none; padding-bottom: 0; }
-.info-item:first-child { padding-top: 0; }
-.info-label { font-size: 12px; color: #86909c; text-transform: uppercase; letter-spacing: 0.5px; }
-.info-value { font-size: 14px; color: #1f2329; font-weight: 500; line-height: 1.5; word-break: break-all; }
-.main-content { display: flex; flex-direction: column; gap: 24px; }
-.baseline-section { padding: 24px; background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); }
-.baseline-form { display: flex; flex-direction: column; gap: 20px; }
-.form-block { display: flex; flex-direction: column; gap: 8px; }
-.block-header { display: flex; align-items: baseline; gap: 8px; }
-.block-label { font-size: 14px; font-weight: 500; color: #1f2329; }
-.block-hint { font-size: 12px; color: #a0a4ad; }
-.form-block :deep(.el-textarea__inner) { border-radius: 8px; box-shadow: 0 0 0 1px #dee0e3 inset; transition: box-shadow 0.25s ease; }
-.form-block :deep(.el-textarea__inner:hover) { box-shadow: 0 0 0 1px #c9cdd4 inset; }
-.form-block :deep(.el-textarea__inner:focus) { box-shadow: 0 0 0 1px #3370ff inset, 0 0 0 3px rgba(51, 112, 255, 0.15); }
-.action-section { display: flex; justify-content: center; }
-.submit-btn { min-width: 200px; border-radius: 8px; padding: 12px 32px; font-size: 15px; font-weight: 500; }
-.submit-btn:active { transform: scale(0.97); }
-.assign-dialog-body { padding: 8px 0; }
-.assign-tip { margin: 0 0 16px; font-size: 14px; color: #646a73; line-height: 1.6; }
-.assign-select { width: 100%; }
-@media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } .sidebar { position: static; } }
-@media (max-width: 640px) { .project-main { padding: 20px 16px 64px; } .step-section { padding: 16px; } .baseline-section { padding: 16px; } .step-text { font-size: 10px; } }
+.project-page {
+  min-height: 100vh;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid #ebedf0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  color: #646a73;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.back-link:hover {
+  color: #3370ff;
+  background: rgba(51, 112, 255, 0.06);
+}
+
+.back-link .el-icon {
+  font-size: 14px;
+}
+
+.header-divider {
+  width: 1px;
+  height: 16px;
+  background: #e5e7eb;
+}
+
+.header-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.header-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-center .page-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1f2329;
+  line-height: 1.3;
+}
+
+.header-center .stage-tag {
+  --el-tag-bg-color: #f0f6ff;
+  --el-tag-border-color: #c5d9ff;
+  --el-tag-text-color: #3370ff;
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.save-btn {
+  border-radius: 8px;
+  color: #3370ff;
+  border-color: #d6e4ff;
+  padding: 8px 16px;
+}
+
+.save-btn:hover {
+  color: #fff;
+  border-color: #3370ff;
+  background: #3370ff;
+}
+
+.header-submit-btn {
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(51, 112, 255, 0.2);
+  transition: all 0.2s;
+}
+
+.header-submit-btn:hover {
+  box-shadow: 0 4px 12px rgba(51, 112, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.header-submit-btn:active {
+  transform: scale(0.98);
+}
+
+.project-main {
+  flex: 1;
+  padding: 28px 24px 80px;
+}
+
+.project-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.project-sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  background-color: #ffffff;
+  position: sticky;
+  top: 80px;
+}
+
+.sidebar-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #f0f0f0;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-header-line {
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #3370ff, #5b8bff);
+}
+
+.sidebar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.sidebar-meta-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 4px;
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.meta-item:hover {
+  background: #f7f9fc;
+}
+
+.meta-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #3370ff, #5b8bff);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(51, 112, 255, 0.18);
+}
+
+.meta-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #f0f0f0, transparent);
+  margin: 4px 0;
+}
+
+.meta-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.meta-label {
+  font-size: 12px;
+  color: #86909c;
+}
+
+.meta-value {
+  font-size: 15px;
+  color: #1f2329;
+  font-weight: 600;
+}
+
+.sidebar-tip {
+  display: flex;
+  gap: 10px;
+  padding: 14px;
+  background: linear-gradient(135deg, #f5f9ff 0%, #eef4ff 100%);
+  border: 1px solid #c5d9ff;
+  border-radius: 12px;
+  color: #3370ff;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.tip-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #3370ff;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.project-main-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.baseline-section {
+  padding: 32px;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #f0f0f0;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #f2f3f5;
+}
+
+.section-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #3370ff, #5b8bff);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 4px 12px rgba(51, 112, 255, 0.18);
+}
+
+.section-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.section-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #86909c;
+  line-height: 1.5;
+}
+
+.baseline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.form-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.block-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.block-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #f0f6ff;
+  color: #3370ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.block-title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.block-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2329;
+}
+
+.block-hint {
+  font-size: 12px;
+  color: #a0a4ad;
+}
+
+.form-block :deep(.el-textarea__inner) {
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fafbfc;
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: all 0.25s ease;
+  font-size: 14px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.form-block :deep(.el-textarea__inner:hover) {
+  background: #f5f6f7;
+}
+
+.form-block :deep(.el-textarea__inner:focus) {
+  background: #fff;
+  border-color: #3370ff;
+  box-shadow: 0 0 0 3px rgba(51, 112, 255, 0.12);
+}
+
+.form-block :deep(.el-textarea__inner:disabled) {
+  background: #f5f6f7;
+  color: #8f959e;
+  cursor: not-allowed;
+}
+
+.form-block :deep(.el-textarea__inner::placeholder) {
+  color: #b1b6bd;
+}
+
+.assign-dialog-body {
+  padding: 8px 0;
+}
+
+.assign-tip {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: #646a73;
+  line-height: 1.6;
+}
+
+.assign-select {
+  width: 100%;
+}
+
+@media (max-width: 992px) {
+  .project-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .project-sidebar {
+    width: 100%;
+    position: static;
+  }
+
+  .sidebar-card {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .sidebar-meta-list {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .meta-item {
+    flex: 1;
+  }
+
+  .meta-divider {
+    width: 1px;
+    height: auto;
+    background: linear-gradient(180deg, transparent, #f0f0f0, transparent);
+    margin: 0 8px;
+  }
+
+  .sidebar-tip {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .project-main {
+    padding: 20px 16px 64px;
+  }
+
+  .project-sidebar {
+    flex-direction: column;
+  }
+
+  .sidebar-meta-list {
+    flex-direction: column;
+  }
+
+  .sidebar-tip {
+    min-width: 0;
+  }
+
+  .baseline-section {
+    padding: 20px;
+  }
+
+  .section-header {
+    margin-bottom: 20px;
+    padding-bottom: 18px;
+  }
+
+  .block-title-wrap {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-center {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-title {
+    display: none;
+  }
+}
+
+/* 只读锁定标记 */
+.ro-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: auto;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #3370ff;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: linear-gradient(180deg, #f5f9ff 0%, #eef4ff 100%);
+  border: 1px solid #c5d9ff;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(51, 112, 255, 0.06);
+}
+
+.ro-tag .el-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  background: #3370ff;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.ro-tag .el-icon svg {
+  width: 12px;
+  height: 12px;
+}
 </style>

@@ -11,14 +11,20 @@
         <span class="stage-pill"><span class="stage-dot"></span>数据库设计</span>
       </div>
       <div class="header-right">
-        <el-button class="header-btn" @click="handleSaveDraft">
-          <el-icon><DocumentChecked /></el-icon>
-          <span>保存草稿</span>
-        </el-button>
-        <el-button type="primary" class="header-btn submit-header-btn" :loading="submitting" :disabled="!canSubmit" @click="handleSubmit">
-          <span>确认数据库设计，进入下一阶段</span>
-          <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-        </el-button>
+        <template v-if="!readOnly">
+          <el-button class="header-btn" @click="handleSaveDraft">
+            <el-icon><DocumentChecked /></el-icon>
+            <span>保存草稿</span>
+          </el-button>
+          <el-button type="primary" class="header-btn submit-header-btn" :loading="submitting" :disabled="!canSubmit" @click="handleSubmit">
+            <span>确认数据库设计，进入下一阶段</span>
+            <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+          </el-button>
+        </template>
+        <el-tag v-else type="info" effect="plain" size="small" class="ro-tag">
+          <el-icon><Lock /></el-icon>
+          <span>只读 · 该阶段已完成</span>
+        </el-tag>
       </div>
     </header>
 
@@ -40,7 +46,7 @@
                     <span class="sm-chip">{{ sourceModelName }}</span>
                   </div>
                 </div>
-                <div class="doc-actions">
+                <div class="doc-actions" v-if="!readOnly">
                   <template v-if="!isEditing">
                     <el-button text class="doc-action-btn" @click="enterEdit">
                       <el-icon><EditPen /></el-icon><span>编辑</span>
@@ -82,7 +88,7 @@
                   <el-icon :size="48" color="#c9cdd4"><Coin /></el-icon>
                   <p class="db-empty-title">数据库设计尚未生成</p>
                   <p class="db-empty-desc">AI 将基于 PRD 与技术方案生成数据库设计；生成后在「表结构 / DDL 预览」中复制 DDL 时可选择目标数据库方言（默认 MySQL）。</p>
-                  <el-button type="primary" class="db-empty-btn" @click="startGenerate">
+                  <el-button v-if="!readOnly" type="primary" class="db-empty-btn" @click="startGenerate">
                     <el-icon><MagicStick /></el-icon><span>开始生成</span>
                   </el-button>
                 </div>
@@ -115,7 +121,7 @@
                         <span class="td-engine" v-if="dbType">{{ dbType }}</span>
                       </div>
                       <div class="td-actions">
-                        <el-button text size="small" class="td-add" @click="openAddField">
+                        <el-button text size="small" class="td-add" v-if="!readOnly" @click="openAddField">
                           <el-icon><Plus /></el-icon><span>添加字段</span>
                         </el-button>
                         <el-button v-if="ddlBlocks.length" text size="small" class="td-copy" @click="copyDdl(selectedTableObj)">
@@ -217,7 +223,7 @@
                 </div>
                 <span class="chat-header-sub">针对数据库设计提问、补充约束或修改建议</span>
               </div>
-              <div class="chat-model" @click="openModelDialog">
+              <div class="chat-model" :class="{ 'is-locked': readOnly }" @click="!readOnly && openModelDialog()">
                 <div class="model-chip">
                   <span class="model-dot" :class="{ on: chatModel.value }"></span>
                   <span>{{ chatModel.label }}</span>
@@ -249,11 +255,15 @@
             </div>
 
             <div class="chat-input">
+              <div v-if="readOnly" class="chat-locked-note">
+                <el-icon><Lock /></el-icon>
+                <span>该阶段已锁定，仅可查看历史对话</span>
+              </div>
               <div class="input-row">
                 <div class="input-wrap">
-                  <el-input v-model="chatInput" type="textarea" :rows="2" resize="none" placeholder="输入你的问题…" @keydown.enter.prevent="sendChat" />
+                  <el-input v-model="chatInput" type="textarea" :rows="2" resize="none" :disabled="chatGenerating || readOnly" placeholder="输入你的问题…" @keydown.enter.prevent="sendChat" />
                 </div>
-                <el-button type="primary" class="chat-send" :disabled="!chatInput.trim() || chatGenerating" @click="sendChat">
+                <el-button type="primary" class="chat-send" :disabled="!chatInput.trim() || chatGenerating || readOnly" @click="sendChat">
                   <el-icon><Promotion /></el-icon>
                 </el-button>
               </div>
@@ -350,6 +360,7 @@
 import { ref, reactive, computed, onMounted, nextTick, watch, getCurrentInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '@/api/ai/project'
+import { Lock } from '@element-plus/icons-vue'
 import { getDbModels, getDbDoc, saveDbDoc, generateDb, submitDb } from '@/api/ai/db'
 import { sendChatMessage } from '@/api/ai/chat'
 
@@ -363,6 +374,14 @@ const project = ref({})
 const currentStep = ref('DB')
 const submitting = ref(false)
 
+// 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
+const readOnly = computed(() => {
+  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'TECH', 'DB', 'DONE']
+  const cur = order.indexOf(currentStep.value)
+  const mine = order.indexOf('DB')
+  return cur > mine
+})
+
 const dbType = ref('MySQL')
 const modelOptions = ref([])
 const selectedModels = ref([])
@@ -374,6 +393,9 @@ const finalContent = ref('')
 const previewRef = ref(null)
 const isEditing = ref(false)
 const editBackup = ref('')
+
+// 只读时强制退出编辑态（隐藏可写工具栏 / 编辑器）
+watch(readOnly, (ro) => { if (ro) isEditing.value = false })
 
 // 复制 DDL 时可选的目标方言（仅 SQL 方言，Redis/MongoDB 等无 DDL 故不列入）
 const copyDialectOptions = [
@@ -474,6 +496,7 @@ const sourceModelName = computed(() => {
 // ===== 设置弹窗 =====
 // ===== 模型弹窗 =====
 function openModelDialog() {
+  if (readOnly.value) return
   tempSelectedIds.value = [...selectedModels.value]
   showModelDialog.value = true
 }
@@ -494,6 +517,7 @@ function confirmModelDialog() {
 
 let genController = null
 function startGenerate() {
+  if (readOnly.value) return
   if (isGenerating.value || !selectedModels.value.length) {
     if (!selectedModels.value.length) proxy.$modal.msgWarning('请先选择模型')
     return
@@ -550,11 +574,13 @@ function persistDb() {
 }
 
 function handleSaveDraft() {
+  if (readOnly.value) return
   persistDb()
   proxy.$modal.msgSuccess('草稿已保存')
 }
 
 function handleSubmit() {
+  if (readOnly.value) return
   if (!canSubmit.value) {
     proxy.$modal.msgWarning('请先生成并完善数据库设计')
     return
@@ -574,7 +600,7 @@ function handleSubmit() {
   }).catch(() => { submitting.value = false })
 }
 
-function enterEdit() { isEditing.value = true; editBackup.value = finalContent.value }
+function enterEdit() { if (readOnly.value) return; isEditing.value = true; editBackup.value = finalContent.value }
 function cancelEdit() { isEditing.value = false; finalContent.value = editBackup.value }
 function saveEdit() { isEditing.value = false; persistDb(); proxy.$modal.msgSuccess('已更新') }
 
@@ -621,7 +647,7 @@ function scrollChatToBottom() {
 
 function sendChat() {
   const q = (chatInput.value || '').trim()
-  if (!q || chatGenerating.value) return
+  if (!q || chatGenerating.value || readOnly.value) return
   chatMessages.value.push({ role: 'user', content: q })
   chatInput.value = ''
   const aiMsg = reactive({ role: 'ai', content: '' })
@@ -992,6 +1018,7 @@ function insertColumnIntoDdl(md, tableName, colLine) {
 }
 
 function openAddField() {
+  if (readOnly.value) return
   if (!selectedTableObj.value) return
   addTargetTable.value = selectedTableObj.value.name
   Object.assign(fieldForm, { name: '', type: 'VARCHAR(64)', nullable: true, default: '', comment: '', isPk: false, isUnique: false })
@@ -1833,4 +1860,13 @@ onMounted(() => {
   .tables-view { flex-direction: column; }
   .table-list { width: 100%; flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid #f2f3f5; }
 }
+
+/* 只读锁定态（阶段已过去） */
+.ro-tag { display:inline-flex; align-items:center; gap:6px; height:auto; padding:5px 12px; font-size:13px; font-weight:500; color:#3370ff; white-space:nowrap; vertical-align:middle; background:linear-gradient(180deg,#f5f9ff 0%,#eef4ff 100%); border:1px solid #c5d9ff; border-radius:20px; box-shadow:0 1px 2px rgba(51,112,255,0.06); }
+.ro-tag .el-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; border-radius:50%; background:#3370ff; color:#fff; flex-shrink:0; }
+.ro-tag .el-icon svg { width:12px; height:12px; }
+.chat-locked-note { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; font-size:13px; font-weight:500; color:#3370ff; white-space:nowrap; vertical-align:middle; background:linear-gradient(180deg,#f5f9ff 0%,#eef4ff 100%); border:1px solid #c5d9ff; border-radius:20px; box-shadow:0 1px 2px rgba(51,112,255,0.06); }
+.chat-locked-note .el-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; border-radius:50%; background:#3370ff; color:#fff; flex-shrink:0; }
+.chat-locked-note .el-icon svg { width:12px; height:12px; }
+.chat-model.is-locked { opacity: 0.5; cursor: not-allowed; }
 </style>

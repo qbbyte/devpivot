@@ -227,13 +227,17 @@
           </div>
 
           <div class="chat-input">
+            <div v-if="readOnly" class="chat-locked-note">
+              <el-icon><Lock /></el-icon>
+              <span>该阶段已锁定，仅可查看历史对话</span>
+            </div>
             <div class="input-box" :class="{ active: inputFocused }">
               <el-input v-model="inputMessage" type="textarea" :autosize="{ minRows: 1, maxRows: 5 }" resize="none"
-                placeholder="输入消息，AI 将为你解答..." :disabled="isTyping" @keyup.enter="handleKeyEnter"
+                placeholder="输入消息，AI 将为你解答..." :disabled="isTyping || readOnly" @keyup.enter="handleKeyEnter"
                 @focus="inputFocused = true" @blur="inputFocused = false" />
               <div class="input-actions">
                 <span class="input-tip">Enter 发送 · Shift+Enter 换行</span>
-                <el-button class="send-btn" :type="canSend ? 'primary' : 'info'" circle :disabled="!canSend"
+                <el-button class="send-btn" :type="canSend ? 'primary' : 'info'" circle :disabled="!canSend || readOnly"
                   @click="sendMessage">
                   <el-icon v-if="!isTyping">
                     <Promotion />
@@ -408,7 +412,7 @@
               <span class="conclusion-supp-tag">可选</span>
             </div>
             <el-input v-model="conclusionSupplement" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }"
-              resize="none" placeholder="可在此补充需求背景、目标、约束或其他说明，将一并纳入澄清结论" />
+              resize="none" :disabled="readOnly" placeholder="可在此补充需求背景、目标、约束或其他说明，将一并纳入澄清结论" />
           </div>
         </div>
         <div class="conclusion-actions">
@@ -419,7 +423,7 @@
             请先浏览完整结论内容后再提交
           </span>
           <el-button @click="showConclusion = false">关闭</el-button>
-          <el-button type="primary" :disabled="!hasReadAll" @click="handleSubmit">确认并提交澄清结果</el-button>
+          <el-button type="primary" :disabled="!hasReadAll || readOnly" @click="handleSubmit">确认并提交澄清结果</el-button>
         </div>
       </div>
     </el-drawer>
@@ -429,6 +433,7 @@
 <script setup name="StepClarify">
 import { ref, computed, onMounted, nextTick, getCurrentInstance, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { Lock } from '@element-plus/icons-vue'
 import useUserStore from '@/store/modules/user'
 import { getProject } from '@/api/ai/project'
 import {
@@ -506,6 +511,14 @@ const stepIndex = computed(() => stepOrder.findIndex(s => s.value === currentSte
 const stepLabel = computed(() => {
   const hit = stepOrder.find(s => s.value === currentStep.value)
   return hit ? hit.label : '未开始'
+})
+
+// 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
+const readOnly = computed(() => {
+  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'TECH', 'DB', 'DONE']
+  const cur = order.indexOf(currentStep.value)
+  const mine = order.indexOf('CLARIFY')
+  return cur > mine
 })
 
 // 模型选择相关
@@ -824,6 +837,7 @@ function askNextQuestion() {
 
 // 用户主动点击「进入下一题」时调用，避免流结束后自动跳题
 function goNextQuestion() {
+  if (readOnly.value) return
   if (isTyping.value) return
   askNextQuestion()
 }
@@ -961,6 +975,7 @@ async function sendToBackend(text) {
 }
 
 function selectOption(opt, msg) {
+  if (readOnly.value) return
   if (msg) msg.selectedOption = opt.value
   const userMsg = {
     id: genId('msg'),
@@ -974,6 +989,7 @@ function selectOption(opt, msg) {
 }
 
 function sendMessage() {
+  if (readOnly.value) return
   if (!inputMessage.value.trim() || isTyping.value) return
 
   const text = inputMessage.value
@@ -990,6 +1006,7 @@ function sendMessage() {
 }
 
 function adoptResponse(resp, msg) {
+  if (readOnly.value) return
   if (msg) msg.adoptedModel = resp.modelId
   const adoptMsg = {
     id: genId('msg'),
@@ -2807,4 +2824,9 @@ onMounted(async () => {
 .file-view:hover {
   background: var(--primary-soft);
 }
+
+/* 只读锁定态（阶段已过去） */
+.chat-locked-note { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; font-size:13px; font-weight:500; color:#3370ff; white-space:nowrap; vertical-align:middle; background:linear-gradient(180deg,#f5f9ff 0%,#eef4ff 100%); border:1px solid #c5d9ff; border-radius:20px; box-shadow:0 1px 2px rgba(51,112,255,0.06); }
+.chat-locked-note .el-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; border-radius:50%; background:#3370ff; color:#fff; flex-shrink:0; }
+.chat-locked-note .el-icon svg { width:12px; height:12px; }
 </style>

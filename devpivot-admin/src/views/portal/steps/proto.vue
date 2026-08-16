@@ -10,26 +10,32 @@
         <span class="header-title">{{ project.projectName || '原型设计' }}</span>
       </div>
       <div class="header-right">
-        <el-radio-group v-model="currentDevice" size="small" class="device-select" @change="onDeviceChange">
+        <el-radio-group v-model="currentDevice" size="small" class="device-select" :disabled="readOnly" @change="onDeviceChange">
           <el-radio-button v-for="d in DEVICE_OPTIONS" :key="d.value" :value="d.value">{{ d.label }}</el-radio-button>
         </el-radio-group>
-        <el-select v-if="isMobile" v-model="currentModel" size="small" class="model-select" style="width:150px">
+        <el-select v-if="isMobile" v-model="currentModel" size="small" class="model-select" style="width:150px" :disabled="readOnly">
           <el-option v-for="m in DEVICE_MODELS" :key="m.value" :label="m.label" :value="m.value" />
           <el-option label="自定义尺寸" value="custom" />
         </el-select>
-        <el-select v-model="chatModelCode" size="small" class="model-select" @change="onSelectModel">
+        <el-select v-model="chatModelCode" size="small" class="model-select" :disabled="readOnly" @change="onSelectModel">
           <el-option v-for="m in modelOptions" :key="m.value" :label="m.label" :value="m.value" />
         </el-select>
-        <el-button class="save-btn" @click="handleSave">
-          <el-icon><DocumentChecked /></el-icon><span>保存草稿</span>
-        </el-button>
-        <el-button class="gen-btn" type="primary" plain :loading="generating" @click="onGenerate">
-          <el-icon><MagicStick /></el-icon><span>AI 生成原型</span>
-        </el-button>
-        <el-button type="primary" class="submit-btn" :loading="submitting" @click="handleSubmit">
-          <span>确认原型</span>
-          <el-icon class="el-icon--right"><ArrowRight /></el-icon>
-        </el-button>
+        <template v-if="!readOnly">
+          <el-button class="save-btn" @click="handleSave">
+            <el-icon><DocumentChecked /></el-icon><span>保存草稿</span>
+          </el-button>
+          <el-button class="gen-btn" type="primary" plain :loading="generating" @click="onGenerate">
+            <el-icon><MagicStick /></el-icon><span>AI 生成原型</span>
+          </el-button>
+          <el-button type="primary" class="submit-btn" :loading="submitting" @click="handleSubmit">
+            <span>确认原型</span>
+            <el-icon class="el-icon--right"><ArrowRight /></el-icon>
+          </el-button>
+        </template>
+        <el-tag v-else type="info" effect="plain" size="small" class="ro-tag">
+          <el-icon><Lock /></el-icon>
+          <span>只读 · 该阶段已完成</span>
+        </el-tag>
       </div>
     </header>
 
@@ -145,7 +151,7 @@
                 <span class="comp-count">{{ currentPage ? currentPage.components.length : 0 }} 个组件</span>
               </div>
               <div class="ct-right">
-                <el-select v-if="isMobile" v-model="currentModel" size="small" class="toolbar-model" style="width:128px" title="切换机型">
+                <el-select v-if="isMobile" v-model="currentModel" size="small" class="toolbar-model" style="width:128px" title="切换机型" :disabled="readOnly">
                   <el-option v-for="m in DEVICE_MODELS" :key="m.value" :label="m.label" :value="m.value" />
                   <el-option label="自定义尺寸" value="custom" />
                 </el-select>
@@ -161,7 +167,7 @@
                   <button class="zc-btn" :class="{ active: showGrid }" title="网格" @click="toggleGrid">#</button>
                   <button class="zc-btn" title="适应屏幕" @click="zoomFit">适应</button>
                 </div>
-                <el-radio-group v-model="mode" size="small">
+                <el-radio-group v-model="mode" size="small" :disabled="readOnly">
                   <el-radio-button value="edit"><el-icon><Edit /></el-icon> 编辑</el-radio-button>
                   <el-radio-button value="preview"><el-icon><View /></el-icon> 预览走查</el-radio-button>
                 </el-radio-group>
@@ -272,10 +278,11 @@
                         type="textarea"
                         :rows="1"
                         resize="none"
+                        :disabled="readOnly"
                         placeholder="告诉 AI 如何修改这个组件"
                         @keydown.enter.exact.prevent="sendCompAi"
                       />
-                      <el-button type="primary" class="insp-ai-send" :loading="chatGenerating" :disabled="!compAiInput.trim() || chatGenerating" @click="sendCompAi">
+                      <el-button type="primary" class="insp-ai-send" :loading="chatGenerating" :disabled="!compAiInput.trim() || chatGenerating || readOnly" @click="sendCompAi">
                         <el-icon><Top /></el-icon>
                       </el-button>
                     </div>
@@ -528,16 +535,21 @@
                     </div>
                   </div>
                   <div class="chat-input">
+                    <div v-if="readOnly" class="chat-locked-note">
+                      <el-icon><Lock /></el-icon>
+                      <span>该阶段已锁定，仅可查看历史对话</span>
+                    </div>
                     <div class="chat-input-card">
                       <el-input
                         v-model="chatInput"
                         type="textarea"
                         :rows="2"
                         resize="none"
+                        :disabled="chatGenerating || readOnly"
                         placeholder="输入需求，回车发送"
                         @keydown.enter.exact.prevent="sendChat"
                       />
-                      <el-button type="primary" class="chat-send-btn" :loading="chatGenerating" :disabled="!chatInput.trim() || chatGenerating" @click="sendChat">
+                      <el-button type="primary" class="chat-send-btn" :loading="chatGenerating" :disabled="!chatInput.trim() || chatGenerating || readOnly" @click="sendChat">
                         <el-icon><Top /></el-icon>
                       </el-button>
                     </div>
@@ -586,6 +598,7 @@
 import { ref, computed, onMounted, getCurrentInstance, nextTick, reactive, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '@/api/ai/project'
+import { Lock } from '@element-plus/icons-vue'
 import {
   PALETTE, uid, buildComponent, generateProto, DEVICE_OPTIONS, DEVICE_MODELS, defaultStyle, ICON_LIST,
   sendProtoChat, getProtoPages, saveProto, confirmProto, getProtoModels,
@@ -617,6 +630,14 @@ const stepIndex = computed(() => stepOrder.findIndex(s => s.value === currentSte
 const stepLabel = computed(() => {
   const hit = stepOrder.find(s => s.value === currentStep.value)
   return hit ? hit.label : '未开始'
+})
+
+// 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
+const readOnly = computed(() => {
+  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'TECH', 'DB', 'DONE']
+  const cur = order.indexOf(currentStep.value)
+  const mine = order.indexOf('PROTO')
+  return cur > mine
 })
 
 /* ---------------- 模型选择（复用澄清接口） ---------------- */
@@ -763,10 +784,14 @@ async function loadPages() {
 
 // 机型 / 设备类型 / 自定义尺寸变化自动持久化进草稿
 watch([currentModel, currentDevice, customSize], () => {
+  if (readOnly.value) return
   if (pages.value && pages.value.length) {
     saveProto(projectId.value, pages.value, '人工')
   }
 })
+
+// 只读时强制预览模式：隐藏编辑栏 / 拖拽柄 / 选中框等可写交互
+watch(readOnly, (ro) => { if (ro) mode.value = 'preview' })
 
 const generating = ref(false)
 const genProgress = ref('')
@@ -871,6 +896,11 @@ function onCanvasDrop(e) {
 function findPaletteItem(type) {
   for (const g of PALETTE) { const hit = g.items.find(it => it.type === type); if (hit) return hit }
   return null
+}
+
+// 兼容别名：部分历史调用点使用了 findPalette，统一指向 findPaletteItem
+function findPalette(type) {
+  return findPaletteItem(type)
 }
 
 /* ---------------- 拖拽：画布内重排 ---------------- */
@@ -1087,7 +1117,7 @@ function sendChat() {
 
 function sendCompAi() {
   const comp = selectedComp.value
-  if (!comp) return
+  if (!comp || readOnly.value) return
   const raw = compAiInput.value.trim()
   if (!raw || chatGenerating.value) return
   const instruction = `请修改当前页面中名为「${comp.compName}」的 ${comp.compType} 组件（类型：${comp.type || '未知'}）：${raw}`
@@ -1401,4 +1431,12 @@ onMounted(() => {
 .submit-btn { border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 500; }
 
 @media (max-width: 1200px) { .main-grid { flex-wrap: wrap; height: auto; } .sidebar, .right-panel { position: static; height: auto; max-height: none; width: 100% !important; } .resize-divider { display: none; } .canvas-section { width: 100%; order: -1; } }
+
+/* 只读锁定态（阶段已过去） */
+.ro-tag { display:inline-flex; align-items:center; gap:6px; height:auto; padding:5px 12px; font-size:13px; font-weight:500; color:#3370ff; white-space:nowrap; vertical-align:middle; background:linear-gradient(180deg,#f5f9ff 0%,#eef4ff 100%); border:1px solid #c5d9ff; border-radius:20px; box-shadow:0 1px 2px rgba(51,112,255,0.06); }
+.ro-tag .el-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; border-radius:50%; background:#3370ff; color:#fff; flex-shrink:0; }
+.ro-tag .el-icon svg { width:12px; height:12px; }
+.chat-locked-note { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; font-size:13px; font-weight:500; color:#3370ff; white-space:nowrap; vertical-align:middle; background:linear-gradient(180deg,#f5f9ff 0%,#eef4ff 100%); border:1px solid #c5d9ff; border-radius:20px; box-shadow:0 1px 2px rgba(51,112,255,0.06); }
+.chat-locked-note .el-icon { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; border-radius:50%; background:#3370ff; color:#fff; flex-shrink:0; }
+.chat-locked-note .el-icon svg { width:12px; height:12px; }
 </style>
