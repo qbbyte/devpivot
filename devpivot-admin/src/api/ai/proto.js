@@ -1,5 +1,20 @@
 import request from '@/utils/request'
 import { getToken } from '@/utils/auth'
+import { toRaw, isRef, isReactive } from 'vue'
+
+/* 把 Vue 的 ref / computed / reactive 包装递归还原为纯 JSON 可序列化数据。
+   否则 JSON.stringify 在响应式对象上遍历时会撞上 ComputedRefImpl -> Dep -> .computed 的环，
+   抛出 "Converting circular structure to JSON"。
+   注：computed 本质也是 ref，isRef() 对其返回 true，因此无需 isComputed（Vue 未公开导出）。 */
+function toPlain(val) {
+  if (val == null || typeof val !== 'object') return val
+  if (isRef(val)) return toPlain(val.value)
+  if (isReactive(val)) val = toRaw(val)
+  if (Array.isArray(val)) return val.map(toPlain)
+  const out = {}
+  for (const k of Object.keys(val)) out[k] = toPlain(val[k])
+  return out
+}
 
 /* =========================================================================
  * 原型设计 · 门户接口层（全部数据来自真实后端 /api/ai/proto/*，无 mock 兜底）
@@ -494,7 +509,7 @@ export function getProtoPages(projectId) {
 }
 // upsert 页面 + 组件（草稿保存：前端 page/comp 对象直接透传，后端按 map 取字段）
 export function saveProto(projectId, pages, sourceModel = '人工') {
-  return request({ url: `/ai/proto/save/${projectId}`, method: 'post', data: { pages, sourceModel } })
+  return request({ url: `/ai/proto/save/${projectId}`, method: 'post', data: { pages: toPlain(pages), sourceModel } })
 }
 // 确认原型，推进项目阶段到 TECH
 export function confirmProto(projectId) {
@@ -585,7 +600,7 @@ export function applyProtoPatch(params, handlers = {}) {
     projectId: params.projectId,
     instruction: params.instruction || '',
     model: params.model || '',
-    pages: params.pages || []
+    pages: toPlain(params.pages || [])
   }
   const base = import.meta.env.VITE_APP_BASE_API || ''
   const ctrl = new AbortController()
@@ -635,7 +650,7 @@ export function applyProtoPatch(params, handlers = {}) {
 
 /* ============================ 历史版本 ============================ */
 export function saveVersion(projectId, pages, versionName = '', remark = '') {
-  return request({ url: `/ai/proto/version/${projectId}`, method: 'post', data: { pages, versionName, remark, sourceModel: '人工' } })
+  return request({ url: `/ai/proto/version/${projectId}`, method: 'post', data: { pages: toPlain(pages), versionName, remark, sourceModel: '人工' } })
 }
 export function listVersions(projectId) {
   return request({ url: `/ai/proto/version/${projectId}`, method: 'get' }).then(res => res.data || [])
@@ -660,7 +675,7 @@ export function sendProtoChat(params, handlers = {}) {
     projectId: params.projectId,
     message: params.message || '',
     model: params.model || '',
-    pages: params.pages || []
+    pages: toPlain(params.pages || [])
   }
   const ctrl = new AbortController()
   fetch(base + '/ai/proto/chat', {
