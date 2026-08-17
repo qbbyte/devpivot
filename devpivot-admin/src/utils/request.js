@@ -83,7 +83,13 @@ service.interceptors.response.use(res => {
       return res.data
     }
     if (code === 401) {
-      if (!isRelogin.show) {
+      // 免登录接口（如验证码/注册开关/登录本身）返回体里的 401 通常意味着：
+      // 1) 接口路径与后端 handler 不一致、落入 Security 默认拦截（历史教训：/register/enabled → /enabled）
+      // 2) 后端权限配置问题
+      // 此时弹「重新登录」毫无意义，且点「重新登录」会清 token 跳转回来再次触发 → 死循环。
+      // 仅对携带 token 的业务请求弹重新登录确认框。
+      const isAnonymousReq = res.config && res.config.headers && res.config.headers.isToken === false
+      if (!isAnonymousReq && !isRelogin.show) {
         isRelogin.show = true
         ElMessageBox.confirm('登录状态已过期，您可以继续留在该页面，或者重新登录', '系统提示', { confirmButtonText: '重新登录', cancelButtonText: '取消', type: 'warning' }).then(() => {
           isRelogin.show = false

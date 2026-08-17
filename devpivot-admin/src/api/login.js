@@ -67,3 +67,14 @@ export function getCodeImg() {
     timeout: 20000
   })
 }
+
+// 查询后台是否开放注册（sys.account.registerUser），供登录页显隐注册入口
+export function getRegisterEnabled() {
+  return request({
+    url: '/register/enabled',
+    headers: {
+      isToken: false
+    },
+    method: 'get'
+  })
+}
