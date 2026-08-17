@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="license" />
+  <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="license" />
   <img src="https://img.shields.io/badge/Vue-3.5-42b883?logo=vue.js&logoColor=white" alt="Vue" />
   <img src="https://img.shields.io/badge/Spring%20Boot-4.0.6-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot" />
   <img src="https://img.shields.io/badge/JDK-17-ED8B00?logo=openjdk&logoColor=white" alt="JDK" />
@@ -26,7 +26,7 @@
 - **Backend**: Spring Boot (multi-module) + MyBatis
 - **Middleware**: MySQL 8.0 (ngram fulltext) + Redis 7
 
-> License: MIT — commercial use allowed.
+> License: Apache-2.0 — commercial use allowed.
 
 </details>
 
@@ -57,55 +57,63 @@ devPivot 是一套面向产品 / 研发团队的 **AI 智能需求设计与数�
 
 ## 界面预览
 
+> 点击任意图片可在新标签页打开大图预览。
+
+### 登录页
+
+**支持账号密码登录、注册入口**
+
+<a href="docs/login.png"><img src="docs/login.png" width="900" alt="登录页" /></a>
+
 ### 门户与项目
 
 **门户首页（含「继续你的项目」精选区与项目列表）**
 
-<img src="docs/portal-home.png" width="900" alt="门户首页" />
+<a href="docs/portal-home.png"><img src="docs/portal-home.png" width="900" alt="门户首页" /></a>
 
 **创建项目**
 
-<img src="docs/project-create.png" width="900" alt="创建项目" />
+<a href="docs/project-create.png"><img src="docs/project-create.png" width="900" alt="创建项目" /></a>
 
 **项目总览页（阶段进度与快捷入口）**
 
-<img src="docs/project-overview.png" width="900" alt="项目总览页" />
+<a href="docs/project-overview.png"><img src="docs/project-overview.png" width="900" alt="项目总览页" /></a>
 
 ### 6 阶段 AI 工作台
 
 <table>
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src="docs/req.png" width="440" alt="需求采集" /><br/>
+      <a href="docs/req.png"><img src="docs/req.png" width="440" alt="需求采集" /></a><br/>
       <strong>需求采集 REQ</strong><br/>
       <div align="left">填写业务背景、核心功能点、用户故事与非功能性需求，沉淀为结构化需求基线，作为后续各阶段的统一输入。</div>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src="docs/clarify.png" width="440" alt="AI 澄清" /><br/>
+      <a href="docs/clarify.png"><img src="docs/clarify.png" width="440" alt="AI 澄清" /></a><br/>
       <strong>AI 澄清 CLARIFY</strong><br/>
       <div align="left">同一澄清问题可并行调用多个大模型作答，围绕需求基线追问模糊点、补全业务约束，多模型答案横向对比后形成可回源确认的澄清结论。</div>
     </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src="docs/prd.png" width="440" alt="PRD" /><br/>
+      <a href="docs/prd.png"><img src="docs/prd.png" width="440" alt="PRD" /></a><br/>
       <strong>产品需求文档 PRD</strong><br/>
       <div align="left">依据需求与澄清结论自动生成完整 PRD（角色 / 功能 / 流程 / 验收标准），支持流式对话式精修。</div>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src="docs/proto.png" width="440" alt="原型设计" /><br/>
+      <a href="docs/proto.png"><img src="docs/proto.png" width="440" alt="原型设计" /></a><br/>
       <strong>原型设计 PROTO</strong><br/>
       <div align="left">产出可拖拽的高保真原型页面与组件，支持 AI 辅助生成与多端预览，快速验证交互。</div>
     </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src="docs/tech.png" width="440" alt="技术方案" /><br/>
+      <a href="docs/tech.png"><img src="docs/tech.png" width="440" alt="技术方案" /></a><br/>
       <strong>技术方案 TECH</strong><br/>
       <div align="left">自动生成技术方案（架构 / 模块 / 接口 / 技术选型），回源 PRD 保证方案与需求对齐。</div>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src="docs/db.png" width="440" alt="数据库设计" /><br/>
+      <a href="docs/db.png"><img src="docs/db.png" width="440" alt="数据库设计" /></a><br/>
       <strong>数据库设计 DB</strong><br/>
       <div align="left">依据技术方案生成库表结构与 SQL（含字段注释与索引建议），一键导出可落地的 DDL。</div>
     </td>
@@ -288,11 +296,13 @@ npm run dev      # 开发模式，默认端口 80，自动打开浏览器
 
 ## 许可证
 
-本项目采用 **MIT 许可**，允许自由使用、修改、分发（**包括商用**）。
+本项目采用 **Apache License 2.0（Apache-2.0）** 许可，允许自由使用、修改、分发（**包括商用**），并额外提供明确的专利授权。
 
 - 你可以将本项目用于商业产品、对外提供服务、或基于此进行二次开发。
-- 唯一约束：分发时须保留原始版权声明与许可文件（LICENSE）。
-- 本项目按"现状"提供，不作任何明示或暗示担保，作者不对使用后果负责。
+- 分发时须保留原始版权声明与本许可文件（LICENSE）；若修改了源文件，须在文件中显著标注修改说明。
+- 若项目随附 `NOTICE` 文件，分发时须一并保留其中的署名声明（用于满足上游 RuoYi 等组件的署名要求）。
+- 本许可**明确授予专利使用权**；但一旦你针对本项目发起专利侵权诉讼，该专利授权将自动终止。
+- 本许可不授予商标使用权；软件按"现状"提供，不作任何明示或暗示担保，作者不对使用后果负责。
 
 
 ## 交流与反馈
