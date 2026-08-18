@@ -306,6 +306,11 @@ function snippet(text) {
 
 function formatTime(t) {
   if (!t) return '-'
+  if (typeof t === 'number') {
+    const d = new Date(t)
+    const p = n => (n < 10 ? '0' + n : '' + n)
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds())
+  }
   return String(t).replace('T', ' ').slice(0, 19)
 }
 

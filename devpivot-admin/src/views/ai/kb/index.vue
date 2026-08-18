@@ -216,7 +216,8 @@ function getList() {
   listKbDocs(buildParams()).then(res => {
     const rows = res.data || []
     total.value = rows.length
-    docList.value = rows
+    const start = (queryParams.value.pageNum - 1) * queryParams.value.pageSize
+    docList.value = rows.slice(start, start + queryParams.value.pageSize)
     loading.value = false
   }).catch(() => {
     loading.value = false
