@@ -106,12 +106,14 @@
 
         <div class="oauth-divider"><span>其他方式</span></div>
         <div class="oauth-row">
-          <button class="oauth-btn" type="button" @click="notSupported">
-            <span class="oauth-icon wx">微</span>
-            <span>微信登录</span>
+          <button class="oauth-btn" type="button" title="微信登录" @click="notSupported">
+            <img :src="wechatIcon" class="oauth-icon-img" alt="微信" />
           </button>
-          <button class="oauth-btn" type="button" @click="notSupported">
-            <span class="oauth-icon gh">G</span>
+          <button class="oauth-btn" type="button" title="GitHub 登录" @click="notSupported">
+            <img :src="githubIcon" class="oauth-icon-img" alt="GitHub" />
+          </button>
+          <button class="oauth-btn" type="button" title="掘金登录" @click="notSupported">
+            <img :src="juejinIcon" class="oauth-icon-img" alt="掘金" />
           </button>
         </div>
       </div>
@@ -131,6 +133,9 @@ import { ElMessageBox, ElMessage } from "element-plus"
 import { getCodeImg, register } from "@/api/login"
 import defaultSettings from '@/settings'
 import logo from '@/assets/logo/logo.png'
+import wechatIcon from '@/assets/icon/wechat.png'
+import githubIcon from '@/assets/icon/github.png'
+import juejinIcon from '@/assets/icon/juejin.png'
 import { usePasswordRule } from "@/utils/passwordRule"
 
 const title = import.meta.env.VITE_APP_TITLE
@@ -600,40 +605,33 @@ function animate() {
 }
 .oauth-row {
   display: flex;
-  gap: 12px;
+  justify-content: space-between;
+  padding: 0 12px;
 }
 .oauth-btn {
-  flex: 1;
+  width: 42px;
+  height: 42px;
+  border: 1px solid #e2e8f0;
+  border-radius: 50%;
+  background: #f8fafc;
+  color: #64748b;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  height: 42px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
-  color: #374151;
-  font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
 }
 .oauth-btn:hover {
   background: #f1f5f9;
   border-color: #cbd5e1;
+  color: #475569;
+  transform: translateY(-2px);
 }
-.oauth-icon {
+.oauth-icon-img {
   width: 22px;
   height: 22px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
+  object-fit: contain;
 }
-.oauth-icon.wx { background: #22c55e; }
-.oauth-icon.gh { background: #3b82f6; }
 
 /* 底部 */
 .el-login-footer {
