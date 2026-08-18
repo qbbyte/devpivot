@@ -1,10 +1,17 @@
 package com.ruoyi.ai.service.impl;
 
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.ruoyi.ai.domain.AiKbChunk;
 import com.ruoyi.ai.domain.AiKbDoc;
 import com.ruoyi.ai.domain.AiKbRetrievalLog;
@@ -23,6 +30,14 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
 {
     @Autowired
     private AiKbMapper aiKbMapper;
+
+    /** 检索日志开关：关闭后不再写 ai_kb_retrieval_log（避免表无限膨胀）。默认开启。 */
+    @Value("${kb.retrieval-log.enabled:true}")
+    private boolean retrievalLogEnabled;
+
+    /** 检索日志保留天数：cleanupRetrievalLog() 清理该天数之前的记录。默认 30 天。 */
+    @Value("${kb.retrieval-log.keep-days:30}")
+    private int retrievalLogKeepDays;
 
     private static final int TOP_K = 8;
     private static final int MAX_CONTEXT_CHARS = 4000; // 约 2000 token 预算
@@ -45,6 +60,16 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
     @Override
     public String retrieveAsContext(Long projectId, String stage, String query)
     {
+        return retrieveAsContext(projectId, stage, query, null);
+    }
+
+    /**
+     * 检索并格式化为可注入提示词的字符串。带 modelId 的重载，便于检索日志回溯使用的模型。
+     * 日志写入受 {@code kb.retrieval-log.enabled} 开关控制，关闭则不写表（避免无限膨胀）。
+     */
+    @Override
+    public String retrieveAsContext(Long projectId, String stage, String query, String modelId)
+    {
         List<AiKbChunk> chunks = retrieve(projectId, stage, query, TOP_K);
         if (chunks == null || chunks.isEmpty())
         {
@@ -65,33 +90,54 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
             sb.append("【参考资料-").append(c.getStage() == null ? "全局" : c.getStage()).append("】\n")
               .append(content).append("\n---\n");
         }
-        try
+        if (retrievalLogEnabled)
         {
-            AiKbRetrievalLog log = new AiKbRetrievalLog();
-            log.setProjectId(projectId);
-            log.setStage(stage);
-            log.setQueryText(query.length() > 1000 ? query.substring(0, 1000) : query);
-            log.setChunkIds(hitIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
-            aiKbMapper.insertAiKbRetrievalLog(log);
-        }
-        catch (Exception ignored)
-        {
-            // 检索日志失败不影响主流程
+            try
+            {
+                AiKbRetrievalLog log = new AiKbRetrievalLog();
+                log.setProjectId(projectId);
+                log.setStage(stage);
+                log.setQueryText(query.length() > 1000 ? query.substring(0, 1000) : query);
+                log.setChunkIds(hitIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+                log.setModelId(modelId);
+                aiKbMapper.insertAiKbRetrievalLog(log);
+            }
+            catch (Exception ignored)
+            {
+                // 检索日志失败不影响主流程
+            }
         }
         return sb.toString().trim();
     }
 
+    /**
+     * 清理超过保留天数的检索日志（管理员手动触发；项目未启用 @EnableScheduling，故不自动跑定时任务）。
+     * 返回被删除的行数。开关关闭时直接返回 0。
+     */
     @Override
+    public int cleanupRetrievalLog()
+    {
+        if (!retrievalLogEnabled)
+        {
+            return 0;
+        }
+        Date before = new Date(System.currentTimeMillis() - (long) retrievalLogKeepDays * 86400000L);
+        return aiKbMapper.deleteRetrievalLogBefore(before);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void indexDocument(Long projectId, String stage, String title, String content, String sourceType)
     {
         if (projectId == null || content == null || content.isBlank())
         {
             return;
         }
+        String docTitle = title == null || title.isBlank() ? "未命名文档" : title;
         AiKbDoc doc = new AiKbDoc();
         doc.setProjectId(projectId);
         doc.setStage(stage);
-        doc.setTitle(title == null || title.isBlank() ? "未命名文档" : title);
+        doc.setTitle(docTitle);
         doc.setSourceType(sourceType == null ? "upload" : sourceType);
         doc.setOriginalText(content);
         doc.setChunkCount(0);
@@ -99,7 +145,9 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
         doc.setCreateBy(SecurityUtils.getUsername());
         aiKbMapper.insertAiKbDoc(doc);
 
+        String docTags = buildTags(docTitle, stage);
         List<String> parts = splitContent(content, 500);
+        List<AiKbChunk> chunks = new ArrayList<>(parts.size());
         int seq = 0;
         int total = 0;
         for (String p : parts)
@@ -114,16 +162,22 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
             ch.setStage(stage);
             ch.setSeq(seq++);
             ch.setContent(p.trim());
+            ch.setTags(docTags);
             ch.setTokens(estimateTokens(p));
             ch.setStatus("0");
-            aiKbMapper.insertAiKbChunk(ch);
+            chunks.add(ch);
             total++;
+        }
+        if (!chunks.isEmpty())
+        {
+            aiKbMapper.insertAiKbChunkBatch(chunks);
         }
         doc.setChunkCount(total);
         aiKbMapper.updateAiKbDocChunkCount(doc);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void autoIndexPipelineProduct(Long projectId, String stage, String content)
     {
         if (projectId == null || content == null || content.isBlank())
@@ -161,6 +215,37 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
         aiKbMapper.deleteAiKbChunkByDocId(docId);
         return aiKbMapper.deleteAiKbDocByDocId(docId);
     }
+
+    /**
+     * 由标题 + 阶段抽取检索标签（逗号分隔），写入切片 tags 让 FULLTEXT(tags) 真正生效。
+     * 规则：提取长度≥2 的中英连续词，去重，上限 200 字符；附带阶段值（如 PRD）。
+     */
+    private String buildTags(String title, String stage)
+    {
+        if (title == null)
+        {
+            title = "";
+        }
+        List<String> tokens = new ArrayList<>();
+        if (stage != null && !stage.isBlank())
+        {
+            tokens.add(stage);
+        }
+        Matcher m = TAG_TOKEN_PATTERN.matcher(title);
+        Set<String> seen = new HashSet<>();
+        while (m.find())
+        {
+            String t = m.group().toLowerCase();
+            if (seen.add(t))
+            {
+                tokens.add(t);
+            }
+        }
+        String joined = String.join(",", tokens);
+        return joined.length() > 200 ? joined.substring(0, 200) : joined;
+    }
+
+    private static final Pattern TAG_TOKEN_PATTERN = Pattern.compile("[\\p{L}\\p{N}]{2,}");
 
     /** 清洗检索 query：去除 FULLTEXT BOOLEAN 模式特殊字符，保留中英文数字空白 */
     private String cleanQuery(String q)

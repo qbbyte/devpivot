@@ -259,7 +259,7 @@ public class AiTechController extends BaseController
         techVars.put("techStack", techStack);
         techVars.put("upstream", upstream);
         techVars.put("extraBlock", extraBlock);
-        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "TECH", upstream);
+        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "TECH", upstream, usedModel);
         techVars.put("kbContext", kbContext);
         RenderedPrompt techPrompt = promptTemplateService.render("TECH", usedModel, techVars);
         String systemPrompt = techPrompt.getSystemPrompt();

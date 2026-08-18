@@ -248,7 +248,7 @@ public class AiClarifyController extends BaseController
         // 提示词工程化：从 ai_prompt_template 读取澄清默认模板并渲染变量（DB 缺失时回退内置常量，零回归）
         Map<String, Object> clarifyVars = new HashMap<>(2);
         clarifyVars.put("message", message);
-        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "CLARIFY", message);
+        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "CLARIFY", message, modelIds.get(0));
         clarifyVars.put("kbContext", kbContext);
         RenderedPrompt clarifyRendered = promptTemplateService.render("CLARIFY", modelIds.get(0), clarifyVars);
         String systemPrompt = clarifyRendered.getSystemPrompt();

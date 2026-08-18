@@ -697,7 +697,7 @@ public class AiProtoController extends BaseController
         genVars.put("projectName", projectName == null ? "未命名产品" : projectName);
         genVars.put("deviceType", deviceType);
         genVars.put("prdBlock", prdBlock);
-        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "PROTO", prdBlock);
+        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "PROTO", prdBlock, modelId);
         genVars.put("kbContext", kbContext);
         RenderedPrompt genPrompt = promptTemplateService.renderByCode("PROTO_GEN", modelId, genVars);
         String schemaHint = genPrompt.getSystemPrompt();

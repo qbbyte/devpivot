@@ -28,6 +28,11 @@ public interface IKnowledgeRetrievalService
      */
     String retrieveAsContext(Long projectId, String stage, String query);
 
+    /**
+     * 带 modelId 的重载：生成的模型标识会随检索日志持久化，便于效果回溯。
+     */
+    String retrieveAsContext(Long projectId, String stage, String query, String modelId);
+
     /** 索引一篇文档：切片（约 500 字/段，seq 保序）+ 落库 */
     void indexDocument(Long projectId, String stage, String title, String content, String sourceType);
 
@@ -44,4 +49,7 @@ public interface IKnowledgeRetrievalService
 
     /** 删除文档（级联删除其切片） */
     int deleteDoc(Long docId);
+
+    /** 清理超过保留天数的检索日志，返回删除行数 */
+    int cleanupRetrievalLog();
 }

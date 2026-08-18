@@ -205,7 +205,7 @@ public class AiPrdGenController extends BaseController
         prdVars.put("industryType", industryType);
         prdVars.put("targetUser", targetUser);
         prdVars.put("clarifyContext", clarifyContext);
-        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "PRD", clarifyContext);
+        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "PRD", clarifyContext, model);
         prdVars.put("kbContext", kbContext);
         RenderedPrompt prdRendered = promptTemplateService.render("PRD", model, prdVars);
         String systemPrompt = prdRendered.getSystemPrompt();

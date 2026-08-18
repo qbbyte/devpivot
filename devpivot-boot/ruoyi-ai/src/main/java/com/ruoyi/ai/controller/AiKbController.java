@@ -99,6 +99,14 @@ public class AiKbController extends BaseController
         return success(m);
     }
 
+    /** 清理检索日志（管理员；保留天数由 kb.retrieval-log.keep-days 控制）。仅登录态不足以调用，需管理员。 */
+    @PreAuthorize("@ss.hasRole('admin')")
+    @DeleteMapping("/logs")
+    public AjaxResult clearLogs()
+    {
+        return toAjax(knowledgeRetrievalService.cleanupRetrievalLog());
+    }
+
     private Long toLong(Object o)
     {
         if (o == null)

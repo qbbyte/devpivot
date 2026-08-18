@@ -1,5 +1,6 @@
 package com.ruoyi.ai.mapper;
 
+import java.util.Date;
 import java.util.List;
 import com.ruoyi.ai.domain.AiKbChunk;
 import com.ruoyi.ai.domain.AiKbDoc;
@@ -33,7 +34,11 @@ public interface AiKbMapper
 
     int insertAiKbChunk(AiKbChunk chunk);
 
+    int insertAiKbChunkBatch(List<AiKbChunk> chunks);
+
     List<AiKbChunk> selectChunksForRetrieve(Long projectId, String stage, String query, int topK);
 
     int insertAiKbRetrievalLog(AiKbRetrievalLog log);
+
+    int deleteRetrievalLogBefore(Date before);
 }

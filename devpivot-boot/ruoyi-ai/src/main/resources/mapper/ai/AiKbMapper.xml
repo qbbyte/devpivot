@@ -74,7 +74,8 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </select>
 
     <select id="selectAiKbDocAll" resultMap="AiKbDocResult">
-        select * from ai_kb_doc
+        select doc_id, project_id, stage, title, source_type, chunk_count, status, create_by, create_time
+        from ai_kb_doc
         <if test="stage != null and stage != ''">
             where stage = #{stage}
         </if>
@@ -94,6 +95,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         values (#{docId}, #{projectId}, #{stage}, #{seq}, #{content}, #{tags}, #{tokens}, #{status})
     </insert>
 
+    <insert id="insertAiKbChunkBatch" parameterType="java.util.List" useGeneratedKeys="true" keyProperty="chunkId">
+        insert into ai_kb_chunk (doc_id, project_id, stage, seq, content, tags, tokens, status)
+        values
+        <foreach collection="list" item="item" separator=",">
+            (#{item.docId}, #{item.projectId}, #{item.stage}, #{item.seq}, #{item.content}, #{item.tags}, #{item.tokens}, #{item.status})
+        </foreach>
+    </insert>
+
     <select id="selectChunksForRetrieve" resultMap="AiKbChunkResult">
         select * from ai_kb_chunk
         where (project_id = #{projectId} or project_id = -1)
@@ -107,5 +116,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         insert into ai_kb_retrieval_log (project_id, stage, query_text, chunk_ids, model_id)
         values (#{projectId}, #{stage}, #{queryText}, #{chunkIds}, #{modelId})
     </insert>
+
+    <delete id="deleteRetrievalLogBefore" parameterType="java.util.Date">
+        delete from ai_kb_retrieval_log where create_time &lt; #{before}
+    </delete>
 
 </mapper>

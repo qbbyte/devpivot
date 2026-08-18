@@ -264,7 +264,7 @@ public class AiDbController extends BaseController
         dbVars.put("dbType", dbType);
         dbVars.put("upstream", upstream);
         dbVars.put("extraBlock", extraBlock);
-        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "DB", upstream);
+        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "DB", upstream, usedModel);
         dbVars.put("kbContext", kbContext);
         RenderedPrompt dbPrompt = promptTemplateService.render("DB", usedModel, dbVars);
         String systemPrompt = dbPrompt.getSystemPrompt();
