@@ -8,7 +8,12 @@
       <span class="glow g4"></span>
       <span class="glow g5"></span>
       <span class="glow g6"></span>
+      <!-- 粒子点阵层（Canvas 交互：鼠标排斥场） -->
+      <canvas ref="particleCanvas" class="particle-grid"></canvas>
     </div>
+
+    <!-- 鼠标光晕层（最顶层，跟随鼠标，不阻挡点击） -->
+    <div class="cursor-glow" ref="cursorGlow" aria-hidden="true"></div>
 
     <!-- 顶部 logo -->
     <div class="login-header">
@@ -225,6 +230,224 @@ getCookie()
 getRegisterEnabled()
   .then(res => { registerVisible.value = res.data === true })
   .catch(() => { registerVisible.value = false })
+
+/* ────────────────── Canvas 粒子交互系统（鼠标排斥场）───────────────── */
+const particleCanvas = ref(null)
+const cursorGlow = ref(null)   // 顶层鼠标光晕元素
+
+onMounted(() => initParticleCanvas())
+onUnmounted(() => cleanupParticleCanvas())
+
+let particles = []
+let mouse = { x: -9999, y: -9999 }
+let rafId = null
+let canvasEl = null
+let ctx = null
+let dotSprite = null   // 预渲染的柔和灰点精灵（磨砂玻璃质感）
+
+// 配置参数
+const CFG = {
+  gap: 26,           // 点阵间距 (px)
+  dotR: 0.8,         // 主点半径（缩小）
+  subR: 0.55,        // 副点半径（错位层，缩小）
+  repulseR: 130,     // 鼠标排斥半径
+  repulseF: 55,      // 排斥力度
+  friction: 0.82,    // 摩擦/阻尼
+  springK: 0.08,     // 回弹弹性系数
+  spriteScale: 5,    // 柔光点绘制尺寸 = 粒子半径 × 该系数（收窄光晕）
+}
+
+function initParticleCanvas() {
+  canvasEl = particleCanvas.value
+  if (!canvasEl) return
+  ctx = canvasEl.getContext('2d')
+  if (!dotSprite) dotSprite = makeDotSprite()   // 预渲染一次，绘制时直接 drawImage，性能友好
+  resizeCanvas()
+  buildParticles()
+  bindEvents()
+  animate()
+}
+
+// 预渲染一个柔和径向渐变的小圆点（浅灰、边缘羽化），模拟 iOS 磨砂玻璃的柔光质感
+function makeDotSprite() {
+  const s = 14
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')
+  const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
+  grad.addColorStop(0, 'rgba(108,116,138,0.85)')   // 浅灰核心（再加深一档）
+  grad.addColorStop(0.5, 'rgba(108,116,138,0.40)')
+  grad.addColorStop(1, 'rgba(170,175,190,0)')       // 边缘完全透明，羽化
+  g.fillStyle = grad
+  g.fillRect(0, 0, s, s)
+  return c
+}
+
+function cleanupParticleCanvas() {
+  if (rafId) cancelAnimationFrame(rafId)
+  window.removeEventListener('resize', onResize)
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseout', onWindowMouseOut)
+  window.removeEventListener('touchmove', onTouchMove)
+  window.removeEventListener('touchend', onMouseLeave)
+}
+
+function resizeCanvas() {
+  const rect = canvasEl.parentElement.getBoundingClientRect()
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  canvasEl.width = rect.width * dpr
+  canvasEl.height = rect.height * dpr
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  canvasEl.style.width = rect.width + 'px'
+  canvasEl.style.height = rect.height + 'px'
+}
+
+function onResize() {
+  resizeCanvas()
+  buildParticles()
+}
+
+function buildParticles() {
+  particles = []
+  const w = canvasEl.clientWidth
+  const h = canvasEl.clientHeight
+  const g = CFG.gap
+
+  // 从左上到右下的渐隐遮罩权重函数
+  function maskAlpha(x, y) {
+    const nx = x / w, ny = y / h
+    const d = (nx + ny) / 2
+    if (d < 0.35) return 0.45
+    if (d < 0.6) return 0.28
+    if (d < 0.8) return 0.12
+    return 0.03
+  }
+
+  // 主网格
+  for (let y = g / 2; y < h; y += g) {
+    for (let x = g / 2; x < w; x += g) {
+      const a = maskAlpha(x, y)
+      if (a < 0.04) continue
+      particles.push({
+        ox: x, oy: y,
+        x, y,
+        vx: 0, vy: 0,
+        r: CFG.dotR,
+        alpha: a,
+      })
+    }
+  }
+  // 错位副网格（增加随机感）
+  const sg = g * 1.5
+  for (let y = sg / 2 + g * 0.25; y < h; y += sg) {
+    for (let x = sg / 2 + g * 0.5; x < w; x += sg) {
+      const a = maskAlpha(x, y) * 0.65
+      if (a < 0.03) continue
+      particles.push({
+        ox: x, oy: y,
+        x, y,
+        vx: 0, vy: 0,
+        r: CFG.subR,
+        alpha: a,
+      })
+    }
+  }
+}
+
+function bindEvents() {
+  // 鼠标/触摸事件挂在 window 上，而非 canvas 本身：
+  // canvas 位于 .login-bg(z-index:0) 内，被上层 .login-brand/.login-main 覆盖，
+  // 事件永远到不了 canvas；挂在 window 则页面任意位置移动都能驱动粒子。
+  window.addEventListener('resize', onResize)
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseout', onWindowMouseOut)
+  // 触摸支持
+  window.addEventListener('touchmove', onTouchMove, { passive: true })
+  window.addEventListener('touchend', onMouseLeave)
+}
+
+function onMouseMove(e) {
+  const r = canvasEl.getBoundingClientRect()
+  mouse.x = e.clientX - r.left
+  mouse.y = e.clientY - r.top
+  // 顶层光晕跟随鼠标（fixed 定位相对视口；translate(-50%,-50%) 使圆心对准鼠标）
+  if (cursorGlow.value) {
+    cursorGlow.value.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -50%)`
+    // 仅背景可见：光标移到卡片区（.login-main，含内部白卡）时隐藏光晕
+    const overCard = e.target && e.target.closest && e.target.closest('.login-main')
+    cursorGlow.value.style.opacity = overCard ? '0' : '1'
+  }
+}
+
+function onTouchMove(e) {
+  if (!e.touches[0]) return
+  const r = canvasEl.getBoundingClientRect()
+  mouse.x = e.touches[0].clientX - r.left
+  mouse.y = e.touches[0].clientY - r.top
+}
+
+function onMouseLeave() {
+  mouse.x = -9999
+  mouse.y = -9999
+  if (cursorGlow.value) cursorGlow.value.style.opacity = '0'
+}
+
+// 鼠标移出整个浏览器窗口时重置，避免停在最后一点的排斥力残留
+function onWindowMouseOut(e) {
+  if (!e.relatedTarget && !e.toElement) {
+    mouse.x = -9999
+    mouse.y = -9999
+    if (cursorGlow.value) cursorGlow.value.style.opacity = '0'
+  }
+}
+
+function animate() {
+  ctx.clearRect(0, 0, canvasEl.clientWidth, canvasEl.clientHeight)
+
+  const mr = CFG.repulseR
+  const mr2 = mr * mr
+  const mf = CFG.repulseF
+  const fric = CFG.friction
+  const sk = CFG.springK
+
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i]
+
+    // 排斥力：鼠标靠近时推开
+    const dx = p.x - mouse.x
+    const dy = p.y - mouse.y
+    const dist2 = dx * dx + dy * dy
+    let near = 0   // 0(排斥圈边缘)~1(鼠标正下方)：用于"点亮"附近粒子
+    if (dist2 < mr2 && dist2 > 0.01) {
+      const dist = Math.sqrt(dist2)
+      const force = (mr - dist) / mr * mf
+      p.vx += (dx / dist) * force
+      p.vy += (dy / dist) * force
+      near = 1 - dist / mr
+    }
+
+    // 弹簧回弹：向原始位置拉回
+    p.vx += (p.ox - p.x) * sk
+    p.vy += (p.oy - p.y) * sk
+
+    // 应用阻尼
+    p.vx *= fric
+    p.vy *= fric
+
+    // 更新位置
+    p.x += p.vx
+    p.y += p.vy
+
+    // 绘制（用预渲染的柔光灰点精灵；靠近鼠标的粒子被"点亮"变大变亮）
+    const size = p.r * CFG.spriteScale * (1 + near * 0.9)
+    ctx.globalAlpha = Math.min(1, p.alpha * 0.95 * (1 + near * 0.7))
+    ctx.drawImage(dotSprite, p.x - size / 2, p.y - size / 2, size, size)
+    ctx.globalAlpha = 1
+  }
+
+  rafId = requestAnimationFrame(animate)
+}
 </script>
 
 <style lang='scss' scoped>
@@ -256,6 +479,36 @@ getRegisterEnabled()
 .g4 { width: 540px; height: 540px; background: #f472b6; right: -150px; bottom: -120px; }
 .g5 { width: 460px; height: 460px; background: #fcd34d; right: 16%; bottom: -160px; }
 .g6 { width: 500px; height: 440px; background: #fda4af; left: 20%; bottom: -90px; }
+
+/* 粒子点阵层（Canvas 交互：鼠标排斥场 + 浅灰磨砂柔光质感） */
+.particle-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;   /* 不拦截卡片输入，鼠标事件由 window 统一监听 */
+  filter: blur(0.4px);    /* 轻微模糊，强化 iOS 磨砂玻璃的柔化观感 */
+}
+
+/* 鼠标光晕层：最顶层跟随鼠标的柔光圈，不阻挡点击 */
+.cursor-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  pointer-events: none;        /* 完全不拦截卡片/输入框点击 */
+  z-index: 50;                 /* 高于卡片与文案层(z-index:1)，鼠标到哪亮到哪 */
+  opacity: 0;                  /* 默认隐藏，鼠标进入后由 JS 设为 1 */
+  transition: opacity 0.25s ease;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(226, 232, 255, 0.30) 35%,
+    rgba(226, 232, 255, 0) 70%
+  );
+  mix-blend-mode: screen;      /* 在浅色背景上以"提亮"方式发光，而非压暗 */
+}
 
 /* 顶部 logo */
 .login-header {

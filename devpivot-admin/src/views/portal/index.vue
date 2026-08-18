@@ -1,23 +1,6 @@
 <template>
   <div class="portal">
-    <header class="portal-header">
-      <div class="portal-header-inner">
-        <div class="portal-brand">
-          <div class="brand-logo">
-            <img :src="logoPng" alt="devPivot" />
-          </div>
-          <span class="brand-name">AI 智能需求设计</span>
-        </div>
-        <nav class="portal-nav">
-          <router-link to="/portal" class="pn-item" :class="{ active: route.path === '/portal' }">工作台</router-link>
-          <router-link to="/portal/team" class="pn-item" :class="{ active: route.path.startsWith('/portal/team') }">我的团队</router-link>
-          <router-link v-hasRole="['admin']" to="/index" class="pn-item pn-admin">
-            <el-icon><Setting /></el-icon>
-            <span>进入管理后台</span>
-          </router-link>
-        </nav>
-      </div>
-    </header>
+    <PortalHeader />
 
     <main class="portal-main">
       <section class="portal-hero">
@@ -151,7 +134,7 @@
 
 <script setup name="Portal">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { Search, Loading, CircleCheck } from '@element-plus/icons-vue'
 import { listProject } from '@/api/ai/project'
 import { useDict } from '@/utils/dict'
@@ -159,10 +142,9 @@ import useUserStore from '@/store/modules/user'
 import ProjectRow from './components/ProjectRow.vue'
 import ContinueCard from './components/ContinueCard.vue'
 import EmptyState from './components/EmptyState.vue'
-import logoPng from '@/assets/logo/logo.png'
+import PortalHeader from './components/PortalHeader.vue'
 
 const router = useRouter()
-const route = useRoute()
 const userStore = useUserStore()
 const { ai_project_step, ai_project_status } = useDict('ai_project_step', 'ai_project_status')
 
@@ -279,96 +261,6 @@ onMounted(() => {
   flex-direction: column;
   background: #f5f6f9;
   padding: 0;
-}
-
-/* ===== Header ===== */
-.portal-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid #eef0f3;
-}
-
-.portal-header-inner {
-  max-width: 1440px;
-  margin: 0 auto;
-  height: 68px;
-  padding: 0 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.portal-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.brand-logo {
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
-  background: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-.brand-logo img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
-.brand-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1d2129;
-  letter-spacing: 0.3px;
-}
-
-.portal-nav {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.pn-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  color: #4e5969;
-  font-size: 14px;
-  text-decoration: none;
-  transition: background 0.18s, color 0.18s;
-}
-
-.pn-item:hover {
-  background: #f2f5f9;
-  color: #1d2129;
-}
-
-.pn-item.active {
-  color: #3370ff;
-  font-weight: 600;
-}
-
-.pn-item.active:hover {
-  background: transparent;
-}
-
-.pn-admin {
-  color: #86909c;
-  margin-left: 4px;
 }
 
 /* ===== Main ===== */
@@ -578,12 +470,5 @@ onMounted(() => {
   .filter-search { width: 100%; flex: 1 1 100%; }
   .filter-select { flex: 1; min-width: 120px; }
   .filter-bar-spacer { display: none; }
-
-  .portal-header-inner {
-    padding: 0 16px;
-  }
-  .pn-item {
-    padding: 8px 10px;
-  }
 }
 </style>
