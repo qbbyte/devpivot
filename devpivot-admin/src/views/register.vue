@@ -8,12 +8,9 @@
       <span class="glow g4"></span>
       <span class="glow g5"></span>
       <span class="glow g6"></span>
-      <!-- 粒子点阵层（Canvas 交互：鼠标排斥场） -->
+      <!-- 粒子点阵层（Canvas 交互：鼠标排斥场 + 光标周围粒子染色） -->
       <canvas ref="particleCanvas" class="particle-grid"></canvas>
     </div>
-
-    <!-- 鼠标光晕层（最顶层，跟随鼠标，不阻挡点击） -->
-    <div class="cursor-glow" ref="cursorGlow" aria-hidden="true"></div>
 
     <!-- 顶部 logo -->
     <div class="login-header">
@@ -215,7 +212,6 @@ getCode()
 
 /* ────────────────── Canvas 粒子交互系统（鼠标排斥场）───────────────── */
 const particleCanvas = ref(null)
-const cursorGlow = ref(null)   // 顶层鼠标光晕元素
 
 onMounted(() => initParticleCanvas())
 onUnmounted(() => cleanupParticleCanvas())
@@ -225,13 +221,20 @@ let mouse = { x: -9999, y: -9999 }
 let rafId = null
 let canvasEl = null
 let ctx = null
-let dotSprite = null   // 预渲染的柔和灰点精灵（磨砂玻璃质感）
+let dotSprite = null    // 预渲染的柔和灰点精灵（磨砂玻璃质感，普通粒子用）
+let colorSprite = null  // 随机色相的彩色粒子精灵（光标附近粒子染色用）
+
+// 光标周围粒子染色：每隔一段时间平滑漂移到一个新的随机色相（随机变化但不过度闪烁）
+let glowHue = 210        // 当前色相
+let glowTarget = 210     // 目标色相
+let glowTimer = 0        // 帧计数器，到点后重新抽取目标色相
 
 const CFG = {
   gap: 26, dotR: 0.8, subR: 0.55,
   repulseR: 130, repulseF: 55,
   friction: 0.82, springK: 0.08,
   spriteScale: 5,
+  colorR: 170,       // 光标染色半径：此范围内的粒子会被染上随机色（呈一圈彩色粒子）
 }
 
 function initParticleCanvas() {
@@ -253,9 +256,25 @@ function makeDotSprite() {
   c.height = s
   const g = c.getContext('2d')
   const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
-  grad.addColorStop(0, 'rgba(108,116,138,0.85)')   // 浅灰核心（再加深一档）
-  grad.addColorStop(0.5, 'rgba(108,116,138,0.40)')
+  grad.addColorStop(0, 'rgba(80,88,112,0.92)')   // 深灰蓝核心（再加深一档）
+  grad.addColorStop(0.5, 'rgba(80,88,112,0.46)')
   grad.addColorStop(1, 'rgba(170,175,190,0)')       // 边缘完全透明，羽化
+  g.fillStyle = grad
+  g.fillRect(0, 0, s, s)
+  return c
+}
+
+// 预渲染一个随机色相的彩色柔光点精灵（光标附近的粒子用它染色）
+function makeColorSprite(hue) {
+  const s = 14
+  const c = document.createElement('canvas')
+  c.width = s
+  c.height = s
+  const g = c.getContext('2d')
+  const grad = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
+  grad.addColorStop(0, `hsla(${hue}, 92%, 62%, 0.95)`)
+  grad.addColorStop(0.5, `hsla(${hue}, 92%, 68%, 0.5)`)
+  grad.addColorStop(1, `hsla(${hue}, 92%, 70%, 0)`)
   g.fillStyle = grad
   g.fillRect(0, 0, s, s)
   return c
@@ -314,22 +333,22 @@ function bindEvents() {
   window.addEventListener('touchmove', onTouchMove, { passive: true })
   window.addEventListener('touchend', onMouseLeave)
 }
-function onMouseMove(e) { const r = canvasEl.getBoundingClientRect(); mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top; if (cursorGlow.value) { cursorGlow.value.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -50%)`; const overCard = e.target && e.target.closest && e.target.closest('.register-main'); cursorGlow.value.style.opacity = overCard ? '0' : '1' } }
+function onMouseMove(e) { const r = canvasEl.getBoundingClientRect(); mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top }
 function onTouchMove(e) { if (!e.touches[0]) return; const r = canvasEl.getBoundingClientRect(); mouse.x = e.touches[0].clientX - r.left; mouse.y = e.touches[0].clientY - r.top }
-function onMouseLeave() { mouse.x = -9999; mouse.y = -9999; if (cursorGlow.value) cursorGlow.value.style.opacity = '0' }
+function onMouseLeave() { mouse.x = -9999; mouse.y = -9999 }
 
 // 鼠标移出整个浏览器窗口时重置，避免停在最后一点的排斥力残留
 function onWindowMouseOut(e) {
   if (!e.relatedTarget && !e.toElement) {
     mouse.x = -9999
     mouse.y = -9999
-    if (cursorGlow.value) cursorGlow.value.style.opacity = '0'
   }
 }
 
 function animate() {
   ctx.clearRect(0, 0, canvasEl.clientWidth, canvasEl.clientHeight)
   const mr2 = CFG.repulseR ** 2, mr = CFG.repulseR, mf = CFG.repulseF, fric = CFG.friction, sk = CFG.springK
+  const colorR = CFG.colorR, colorR2 = colorR * colorR
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i]
     const dx = p.x - mouse.x, dy = p.y - mouse.y, dist2 = dx * dx + dy * dy
@@ -342,12 +361,34 @@ function animate() {
     p.vx += (p.ox - p.x) * sk; p.vy += (p.oy - p.y) * sk
     p.vx *= fric; p.vy *= fric
     p.x += p.vx; p.y += p.vy
-    // 绘制（用预渲染的柔光灰点精灵；靠近鼠标的粒子被"点亮"变大变亮）
-    const size = p.r * CFG.spriteScale * (1 + near * 0.9)
-    ctx.globalAlpha = Math.min(1, p.alpha * 0.95 * (1 + near * 0.7))
-    ctx.drawImage(dotSprite, p.x - size / 2, p.y - size / 2, size, size)
+    // 光标染色：距光标 colorR 内的粒子按"环带"轮廓着色（中心0→中圈1→外缘0），
+    // 形成一圈被染成随机色的粒子；其余粒子保持浅灰磨砂质感。
+    let cf = 0
+    if (dist2 < colorR2 && dist2 > 0.01) {
+      const t = Math.sqrt(dist2) / colorR
+      cf = Math.sin(Math.PI * t)
+    }
+    const size = p.r * CFG.spriteScale * (1 + Math.max(near, cf) * 0.9)
+    if (cf > 0.05) {
+      ctx.globalAlpha = Math.min(1, p.alpha * 0.95 * (1 + cf * 0.5))
+      ctx.drawImage(colorSprite, p.x - size / 2, p.y - size / 2, size, size)
+    } else {
+      ctx.globalAlpha = Math.min(1, p.alpha * 0.95 * (1 + near * 0.7))
+      ctx.drawImage(dotSprite, p.x - size / 2, p.y - size / 2, size, size)
+    }
     ctx.globalAlpha = 1
   }
+  // 光标染色色相：每 ~140 帧（约 2.3s）抽取新的随机目标色相，逐帧最短路径缓动靠近，
+  // 实现"随机变化又平滑过渡"的彩色粒子环。每帧用当前色相重绘彩色精灵（14x14 渐变开销极小）。
+  glowTimer++
+  if (glowTimer > 140) {
+    glowTimer = 0
+    glowTarget = Math.random() * 360
+  }
+  const diff = ((glowTarget - glowHue + 540) % 360) - 180   // 取 [-180,180] 最短路径
+  glowHue = (glowHue + diff * 0.03 + 360) % 360
+  colorSprite = makeColorSprite(glowHue.toFixed(1))
+
   rafId = requestAnimationFrame(animate)
 }
 </script>
@@ -389,27 +430,6 @@ function animate() {
   z-index: 1;
   pointer-events: none;   /* 不拦截卡片输入，鼠标事件由 window 统一监听 */
   filter: blur(0.4px);    /* 轻微模糊，强化 iOS 磨砂玻璃的柔化观感 */
-}
-
-/* 鼠标光晕层：最顶层跟随鼠标的柔光圈，不阻挡点击 */
-.cursor-glow {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 320px;
-  height: 320px;
-  border-radius: 50%;
-  pointer-events: none;        /* 完全不拦截卡片/输入框点击 */
-  z-index: 50;                 /* 高于卡片与文案层(z-index:1)，鼠标到哪亮到哪 */
-  opacity: 0;                  /* 默认隐藏，鼠标进入后由 JS 设为 1 */
-  transition: opacity 0.25s ease;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.55) 0%,
-    rgba(226, 232, 255, 0.30) 35%,
-    rgba(226, 232, 255, 0) 70%
-  );
-  mix-blend-mode: screen;      /* 在浅色背景上以"提亮"方式发光，而非压暗 */
 }
 
 /* 顶部 logo */
