@@ -39,10 +39,6 @@ public class SysRegisterController extends BaseController
     /**
      * 查询是否开放注册（免登录，供登录页据此显隐注册入口）
      * 由后台参数 sys.account.registerUser 控制，默认 false
-     *
-     * 注意：类级 @RequestMapping("/register") + 本方法 /enabled = 实际路径 /register/enabled，
-     * 与前端 api/login.js 的 getRegisterEnabled() 保持一致；
-     * 此前无类级前缀导致实际路径是 /enabled，前端请求 /register/enabled 落空，
      * 被 Spring Security 判为未认证返回 401，触发全局「重新登录」弹窗死循环。
      */
     @Anonymous
