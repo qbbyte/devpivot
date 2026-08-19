@@ -222,7 +222,10 @@
             </div>
           <!-- 聊天区底部固定栏：进入下一题按钮（sticky 固定不滚动，透明背景显示聊天区浅灰） -->
           <div class="next-question-btn-wrap" v-if="showNextQuestionButton">
-            <button class="next-question-btn" @click="goNextQuestion">进入到下一个问题</button>
+            <button class="next-question-btn" :disabled="generatingQuestion" @click="goNextQuestion">
+              <span v-if="generatingQuestion">AI 生成问题中…</span>
+              <span v-else>进入到下一个问题</span>
+            </button>
           </div>
           </div>
 
@@ -447,15 +450,14 @@ import {
   listClarifyVersions,
   getClarifyVersion,
   saveClarifyVersion,
-  restoreClarifyVersion
+  restoreClarifyVersion,
+  nextClarifyQuestion
 } from '@/api/ai/clarify'
 
 // 澄清访谈问卷（引导式结构化访谈，属产品设计，非 AI 假数据；AI 回答由后端真实返回）
-// TODO: 澄清问题当前为前端内置/兜底机制，并非 AI 动态生成：
-//   1) 此处 questionScript 仅内置 3 道示例题（并发/部署/移动端）；
-//   2) askNextQuestion() 用尽后回退到固定兜底文案（见 else 分支），反复出现同一句。
-// 后续完善方向：由后端 AI 依据历史问答动态生成针对性问题——建议新增 /ai/clarify/nextQuestion
-// 接口下发「澄清大纲 + 下一题」，前端改为消费后端返回的问题列表，不再硬编码（含本数组）。
+// questionScript 仅作首屏播种的 3 道示例题（并发/部署/移动端），避免首屏等待接口；
+// 用尽后改由后端 AI 动态生成下一题（/ai/clarify/nextQuestion，依据需求基线 + 对话历史），
+// 详见 askNextQuestion / fetchNextQuestion，不再写死固定文案。
 const questionScript = [
   {
     content: '您好！我是 AI 需求澄清助手。为了更准确地理清需求，我们先确认几个关键点。\n\n**"系统预计需要支持多少并发用户？"**',
@@ -535,6 +537,8 @@ const maxCompareCount = ref(4)
 const currentQuestionIndex = ref(0)
 // 最近一次提问内容（用于采纳时记录上下文）
 const lastQuestionContent = ref('')
+// 是否正在向后端请求 AI 动态生成下一题（防止重复点击）
+const generatingQuestion = ref(false)
 
 // 生成全局唯一 id（自增计数器 + 时间戳），杜绝 v-for :key 因 Date.now() 同毫秒碰撞
 // 或 selectedModels 含重复模型导致的 "Cannot set properties of null (setting '__vnode')" 渲染崩溃
@@ -800,24 +804,17 @@ function persistSession() {
 }
 
 // 根据问卷进度提出下一题
-// 注意：questionScript 仅作初始播种的示例/兜底（3道预设题），
-// 实际澄清流程由后端 AI 动态驱动，不应受 questionScript.length 硬限制。
-// 当 questionScript 用尽后仍可继续 askNextQuestion（由后端决定是否还有下一题）。
-function askNextQuestion() {
-  // 已超出预设脚本范围：生成一个通用的"继续澄清"提示，让后端 AI 接管后续问题
+// questionScript 仅作初始播种的 3 道示例题（并发/部署/移动端），避免首屏等待接口；
+// 用尽后改由后端 AI 依据「需求基线 + 已发生对话」动态生成针对性问题（/ai/clarify/nextQuestion），
+// 不再是写死的固定文案。网络/模型异常时回退到通用兜底问题，保证前端不报错。
+async function askNextQuestion() {
   let q
   if (currentQuestionIndex.value < questionScript.length) {
+    // 前 3 题用本地播种的示例题，首屏即时展示，无需等待接口
     q = questionScript[currentQuestionIndex.value]
   } else {
-    // TODO: 当前为固定兜底问题，文本不随对话内容变化（反复出现同一句）。
-    // 后续完善：接入后端 AI 动态生成下一题，替代此处硬编码文案（参考 questionScript 上方 TODO）。
-    q = {
-      content: '为了进一步明确需求细节，请继续描述您的想法或回答以下问题：\n\n**"关于刚才讨论的需求点，您还有什么补充或需要调整的地方吗？"**',
-      options: [
-        { label: '没有补充，进入下一步', value: 'done' },
-        { label: '我有补充说明', value: 'supplement' }
-      ]
-    }
+    // 后续题目交给后端 AI 动态生成
+    q = await fetchNextQuestion()
   }
   lastQuestionContent.value = q.content
   messages.value.push({
@@ -831,14 +828,49 @@ function askNextQuestion() {
   currentQuestionIndex.value++
   scrollToBottom()
   nextTick(refreshMultiStates)
-  // 把前端播种的问题也落库，确保刷新后对话完整（含 ai_question）
+  // 把前端播种/AI 生成的问题也落库，确保刷新后对话完整（含 ai_question）
   persistSession()
+}
+
+// 调用后端动态生成下一题；任何异常都回退到通用兜底问题
+async function fetchNextQuestion() {
+  generatingQuestion.value = true
+  try {
+    const res = await nextClarifyQuestion({ projectId: projectId.value })
+    const data = res.data || {}
+    const content = data.content
+    if (content && String(content).trim()) {
+      const options = Array.isArray(data.options) && data.options.length
+        ? data.options
+        : defaultQuestionOptions()
+      return { content: String(content), options }
+    }
+  } catch (e) {
+    // 接口异常，走兜底
+  } finally {
+    generatingQuestion.value = false
+  }
+  return { content: defaultFallbackQuestion(), options: defaultQuestionOptions() }
+}
+
+// 通用兜底问题文案（模型未配置/解析失败时使用）
+function defaultFallbackQuestion() {
+  return '为了进一步明确需求细节，请继续描述您的想法或回答以下问题：\n\n**"关于刚才讨论的需求点，您还有什么补充或需要调整的地方吗？"**'
+}
+
+// 通用兜底选项
+function defaultQuestionOptions() {
+  return [
+    { label: '没有补充，进入下一步', value: 'done' },
+    { label: '我有补充说明', value: 'supplement' }
+  ]
 }
 
 // 用户主动点击「进入下一题」时调用，避免流结束后自动跳题
 function goNextQuestion() {
   if (readOnly.value) return
   if (isTyping.value) return
+  if (generatingQuestion.value) return
   askNextQuestion()
 }
 

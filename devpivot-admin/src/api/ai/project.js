@@ -9,6 +9,15 @@ export function listProject(query) {
   })
 }
 
+// 查询「我的项目」列表（我创建的 ∪ 我参与团队关联的项目，仅登录态）
+export function listMyProject(query) {
+  return request({
+    url: '/system/project/my',
+    method: 'get',
+    params: query
+  })
+}
+
 // 查询AI项目详细
 export function getProject(projectId) {
   return request({

@@ -136,7 +136,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Loading, CircleCheck } from '@element-plus/icons-vue'
-import { listProject } from '@/api/ai/project'
+import { listMyProject } from '@/api/ai/project'
 import { useDict } from '@/utils/dict'
 import useUserStore from '@/store/modules/user'
 import ProjectRow from './components/ProjectRow.vue'
@@ -233,7 +233,7 @@ function onContinueProject(project) {
 
 function getAllList() {
   loading.value = true
-  listProject({ pageNum: 1, pageSize: 1000 }).then(response => {
+  listMyProject({ pageNum: 1, pageSize: 1000 }).then(response => {
     allProjectList.value = response.rows || []
     loading.value = false
   }).catch(() => {

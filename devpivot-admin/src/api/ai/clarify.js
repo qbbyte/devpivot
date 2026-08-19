@@ -108,6 +108,15 @@ export function getClarifyProgress(projectId) {
   })
 }
 
+// 动态生成下一题：后端 AI 依据需求基线 + 澄清对话历史生成针对性问题，返回 { content, options }
+export function nextClarifyQuestion(data) {
+  return request({
+    url: '/ai/clarify/nextQuestion',
+    method: 'post',
+    data
+  })
+}
+
 // 提交澄清结果（conclusion 为完整结论对象，将落库并推进项目阶段到 PRD）
 export function submitClarify(projectId, conclusion) {
   return request({

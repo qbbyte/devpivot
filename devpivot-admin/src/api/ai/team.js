@@ -128,6 +128,23 @@ export function leaveTeam(teamId) {
   })
 }
 
+// 凭邀请码加入团队(门户侧,仅登录态)
+export function joinTeamByCode(code) {
+  return request({
+    url: '/team/join',
+    method: 'post',
+    params: { code }
+  })
+}
+
+// 重新生成团队邀请码(仅 OWNER/ADMIN)
+export function refreshInviteCode(teamId) {
+  return request({
+    url: '/team/' + teamId + '/invite-code/refresh',
+    method: 'post'
+  })
+}
+
 // 团队成员分页列表(若依 TableDataInfo: { rows, total })
 export function listTeamMembers(teamId, params) {
   return request({

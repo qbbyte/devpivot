@@ -38,6 +38,9 @@
           v-hasRole="['admin']"
         >新增知识</el-button>
       </el-col>
+      <el-col :span="1.5">
+        <el-button type="primary" plain icon="Document" @click="handleLogs" v-hasRole="['admin']">检索日志</el-button>
+      </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
@@ -141,12 +144,49 @@
         placeholder="检索后将在此展示命中切片拼接的上下文；无命中则为空（生成时不注入知识上下文）"
       />
     </el-dialog>
+
+    <!-- 检索日志对话框（admin） -->
+    <el-dialog title="知识库检索日志" v-model="logOpen" width="860px" append-to-body>
+      <el-form :model="logQuery" :inline="true" class="log-filter-form">
+        <el-form-item label="项目ID" label-width="70px">
+          <el-input v-model="logQuery.projectId" placeholder="留空=全部" clearable style="width: 130px" @keyup.enter="loadLogs" />
+        </el-form-item>
+        <el-form-item label="阶段" label-width="50px">
+          <el-select v-model="logQuery.stage" placeholder="全部阶段" clearable style="width: 130px">
+            <el-option v-for="s in stageOptions" :key="s.value" :label="s.label" :value="s.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" icon="Search" @click="loadLogs">查询</el-button>
+          <el-button type="danger" plain icon="Delete" @click="handleClearLogs">清理旧日志</el-button>
+        </el-form-item>
+        <el-form-item style="float: right">
+          <span class="log-hint">最近 {{ logs.length }} 条：记录每次 AI 生成触发知识检索的 query 与命中，用于效果分析</span>
+        </el-form-item>
+      </el-form>
+      <el-table v-loading="logLoading" :data="logs" size="small" max-height="420">
+        <el-table-column label="时间" align="center" prop="createTime" width="150" />
+        <el-table-column label="项目" align="center" prop="projectId" width="70">
+          <template #default="scope">{{ scope.row.projectId === -1 ? '共享' : scope.row.projectId }}</template>
+        </el-table-column>
+        <el-table-column label="阶段" align="center" width="80">
+          <template #default="scope">{{ scope.row.stage || '全局' }}</template>
+        </el-table-column>
+        <el-table-column label="模型" align="center" prop="modelId" width="110" show-overflow-tooltip>
+          <template #default="scope">{{ scope.row.modelId || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="检索语句(query)" align="left" prop="queryText" show-overflow-tooltip />
+        <el-table-column label="命中切片" align="center" prop="chunkIds" width="140" show-overflow-tooltip>
+          <template #default="scope">{{ scope.row.chunkIds || '-' }}</template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="KbAdmin">
 import { ref, reactive, toRefs, getCurrentInstance } from 'vue'
-import { listKbDocs, uploadKbDoc, deleteKbDoc, previewKbRetrieve } from '@/api/ai/kb'
+import { listKbDocs, uploadKbDoc, deleteKbDoc, previewKbRetrieve, listKbLogs, clearKbLogs } from '@/api/ai/kb'
 
 const { proxy } = getCurrentInstance()
 
@@ -171,6 +211,15 @@ const total = ref(0)
 const title = ref('')
 const retrieving = ref(false)
 const retrieveResult = ref('')
+
+// 检索日志
+const logOpen = ref(false)
+const logLoading = ref(false)
+const logs = ref([])
+const logQuery = reactive({
+  projectId: undefined,
+  stage: undefined
+})
 
 const data = reactive({
   form: {},
@@ -330,6 +379,44 @@ function handleDelete(row) {
   }).then(() => {
     getList()
     proxy.$modal.msgSuccess('删除成功')
+  }).catch(() => {})
+}
+
+/** 打开检索日志对话框并加载最近日志 */
+function handleLogs() {
+  logQuery.projectId = undefined
+  logQuery.stage = undefined
+  logOpen.value = true
+  loadLogs()
+}
+
+/** 加载检索日志（最近 100 条，可按项目/阶段过滤） */
+function loadLogs() {
+  logLoading.value = true
+  const params = { limit: 100 }
+  if (logQuery.projectId) {
+    params.projectId = logQuery.projectId
+  }
+  if (logQuery.stage) {
+    params.stage = logQuery.stage
+  }
+  listKbLogs(params).then(res => {
+    logs.value = res.data || []
+  }).catch(() => {
+    logs.value = []
+  }).finally(() => {
+    logLoading.value = false
+  })
+}
+
+/** 清理检索日志（保留天数由后端 kb.retrieval-log.keep-days 控制） */
+function handleClearLogs() {
+  proxy.$modal.confirm('是否清理超出保留天数的检索日志？该操作不可恢复。').then(function () {
+    return clearKbLogs()
+  }).then(res => {
+    const n = res.data
+    proxy.$modal.msgSuccess('清理完成，删除 ' + n + ' 条')
+    loadLogs()
   }).catch(() => {})
 }
 

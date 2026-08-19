@@ -210,6 +210,7 @@
 import { ref, reactive, computed, onMounted, getCurrentInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getProject, updateProject } from '@/api/ai/project'
+import { getBaselineByProject, saveBaseline } from '@/api/ai/baseline'
 import { listUser } from '@/api/system/user'
 
 const { proxy } = getCurrentInstance()
@@ -297,16 +298,57 @@ function getProjectInfo() {
   getProject(projectId.value).then(response => {
     project.value = response.data
     currentStep.value = response.data.step || 'REQ'
-    // TODO: 从 baseline API 加载已保存的需求基线内容
     loading.value = false
+    // 处于 REQ 阶段时，加载已保存的需求基线回填表单（与 req.vue 同源，避免双入口不一致）
+    if (currentStep.value === 'REQ') {
+      loadBaseline()
+    }
   }).catch(() => {
     loading.value = false
   })
 }
 
+// 从 baseline API 加载已保存的需求基线，回填到表单（content 为 JSON 字符串，需解析）
+function loadBaseline() {
+  getBaselineByProject(projectId.value).then(res => {
+    const data = res.data
+    if (data && data.content) {
+      try {
+        const c = JSON.parse(data.content)
+        baseline.businessContext = c.businessContext || ''
+        baseline.coreFeatures = c.coreFeatures || ''
+        baseline.userStories = c.userStories || ''
+        baseline.nonFunctional = c.nonFunctional || ''
+      } catch (e) {
+        // 历史数据非 JSON 时忽略，避免页面崩溃
+      }
+    }
+  }).catch(() => { })
+}
+
+// 组装需求基线保存载荷（与 req.vue 一致：content 为四字段 JSON，status 草稿0/已确认1）
+function buildBaselinePayload(status) {
+  return {
+    projectId: projectId.value,
+    status: status,
+    content: JSON.stringify({
+      businessContext: baseline.businessContext,
+      coreFeatures: baseline.coreFeatures,
+      userStories: baseline.userStories,
+      nonFunctional: baseline.nonFunctional
+    })
+  }
+}
+
 function handleSave() {
-  // TODO: 对接 baseline API 保存草稿
-  proxy.$modal.msgSuccess('草稿已保存')
+  // 仅 REQ 阶段存在需求基线表单；其余阶段无基线可存，仅给中性反馈
+  if (currentStep.value !== 'REQ') {
+    proxy.$modal.msgSuccess('已保存')
+    return
+  }
+  saveBaseline(buildBaselinePayload('0')).then(() => {
+    proxy.$modal.msgSuccess('草稿已保存')
+  }).catch(() => { })
 }
 
 function handleSubmit() {
@@ -320,15 +362,17 @@ function handleSubmit() {
 function confirmSubmit() {
   submitting.value = true
   const nextStep = stepOrder[stepIndex.value + 1]?.value || 'DONE'
-  // TODO: 对接 baseline API 保存需求 + project API 推进阶段 + 指派负责人
-  const updateData = {
-    projectId: projectId.value,
-    step: nextStep
-  }
-  if (nextAssignee.value) {
-    updateData.assigneeId = nextAssignee.value
-  }
-  updateProject(updateData).then(() => {
+  // 先落库需求基线（状态置为已确认），再推进项目阶段 + 指派负责人（与 req.vue 一致）
+  saveBaseline(buildBaselinePayload('1')).then(() => {
+    const updateData = {
+      projectId: projectId.value,
+      step: nextStep
+    }
+    if (nextAssignee.value) {
+      updateData.assigneeId = nextAssignee.value
+    }
+    return updateProject(updateData)
+  }).then(() => {
     proxy.$modal.msgSuccess('需求已提交')
     assignDialogVisible.value = false
     router.push('/portal')

@@ -8,10 +8,21 @@
       <aside class="tp-list">
         <div class="tp-list-head">
           <span>团队（{{ teams.length }}）</span>
-          <el-button type="primary" size="small" @click="openCreate">
-            <el-icon><Plus /></el-icon>
-            <span>创建团队</span>
-          </el-button>
+          <el-dropdown trigger="click" @command="onHeadAction">
+            <el-button circle size="small" type="primary" aria-label="团队操作">
+              <el-icon><Plus /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="create">
+                  <el-icon style="margin-right: 8px"><Plus /></el-icon>创建团队
+                </el-dropdown-item>
+                <el-dropdown-item command="join">
+                  <el-icon style="margin-right: 8px"><Right /></el-icon>加入团队
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
         <div
           v-for="t in teams"
@@ -47,8 +58,36 @@
             <el-button v-if="isOwner" type="danger" plain @click="handleDissolve">解散团队</el-button>
           </div>
         </div>
-
         <el-tabs v-model="activeTab" class="td-tabs">
+          <!-- 团队信息 -->
+          <el-tab-pane label="团队信息" name="info">
+            <div class="tab-pane-inner">
+              <el-descriptions :column="1" border class="td-info">
+                <el-descriptions-item label="团队ID">{{ activeTeam.teamId }}</el-descriptions-item>
+                <el-descriptions-item label="团队名称">{{ activeTeam.teamName }}</el-descriptions-item>
+                <el-descriptions-item label="简介">{{ activeTeam.description || '暂无简介' }}</el-descriptions-item>
+                <el-descriptions-item label="创建者ID">{{ activeTeam.ownerId }}</el-descriptions-item>
+                <el-descriptions-item label="状态">
+                  <el-tag size="small" :type="activeTeam.status === '0' ? 'success' : 'info'">
+                    {{ activeTeam.status === '0' ? '正常' : '已解散' }}
+                  </el-tag>
+                </el-descriptions-item>
+                <el-descriptions-item label="创建时间">{{ activeTeam.createTime || '—' }}</el-descriptions-item>
+              </el-descriptions>
+
+              <div class="td-invite-card">
+                <div class="td-invite-card-head">
+                  <span class="td-invite-title">邀请码</span>
+                  <span class="td-invite-tip">把邀请码发给同事，对方在左侧「加入团队」处输入即可加入</span>
+                </div>
+                <div class="td-invite-row">
+                  <code class="td-invite-code">{{ activeTeam.inviteCode || '—' }}</code>
+                  <el-button size="small" @click="copyInviteCode">复制</el-button>
+                  <el-button v-if="canManage" size="small" type="primary" plain @click="handleRefreshCode">重新生成</el-button>
+                </div>
+              </div>
+            </div>
+          </el-tab-pane>
           <!-- 项目 -->
           <el-tab-pane label="项目" name="projects">
             <div class="tab-pane-inner">
@@ -170,6 +209,10 @@
             <div class="chat-pane">
               <div class="td-toolbar">
                 <span class="td-tab-count">{{ activeTeam.messages.length }} 条消息</span>
+                <el-button class="td-bell" link type="primary" size="small" @click="enableDesktopNotify">
+                  <el-icon><Bell /></el-icon>
+                  <span>开启桌面通知</span>
+                </el-button>
               </div>
               <div ref="chatListRef" class="chat-list">
                 <div
@@ -258,6 +301,24 @@
         </div>
         <el-empty v-if="!filteredDirectory.length" description="无匹配用户" :image-size="60" />
       </div>
+    </el-dialog>
+
+    <!-- 加入团队(凭邀请码) -->
+    <el-dialog v-model="joinDialogVisible" title="加入团队" width="460px">
+      <p class="join-tip">输入团队邀请码（在团队「团队信息」页签中可复制），即可加入该团队。</p>
+      <el-input
+        v-model="joinCode"
+        placeholder="请输入邀请码，如 A1B2C3D4"
+        maxlength="20"
+        clearable
+        @keyup.enter="handleJoin"
+      >
+        <template #prefix><el-icon><Right /></el-icon></template>
+      </el-input>
+      <template #footer>
+        <el-button @click="joinDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="joining" @click="handleJoin">加入</el-button>
+      </template>
     </el-dialog>
 
     <!-- 关联项目 -->
@@ -418,7 +479,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { Plus, Search, User, SwitchButton, Check, Right, Download } from '@element-plus/icons-vue'
 import useUserStore from '@/store/modules/user'
 import defAva from '@/assets/images/profile.jpg'
@@ -427,11 +488,12 @@ import {
   listMyTeams, getTeamDetail, createTeam, updateTeam, dissolveTeam as dissolveTeamApi,
   addTeamMember, removeTeamMember, changeTeamMemberRole,
   bindTeamProject, unbindTeamProject, sendTeamMessage, markTeamRead, searchTeamUsers,
-  listProjectOptions, leaveTeam,   listTeamMembers, listTeamProjects, getProjectPhases, getProjectArtifacts
+  listProjectOptions, leaveTeam,   listTeamMembers, listTeamProjects, getProjectPhases, getProjectArtifacts,
+  joinTeamByCode, refreshInviteCode
 } from '@/api/ai/team'
 import { getProtoPages } from '@/api/ai/proto'
 import { protoToHtml } from '@/utils/protoHtml'
-import { subscribeTeam, unsubscribeTeam, disconnectWs } from '@/api/ai/teamWs'
+import { subscribeTeam, unsubscribeTeam, disconnectWs, setOnReconnect } from '@/api/ai/teamWs'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -441,6 +503,56 @@ const currentUserId = computed(() => userStore.id || userStore.userId)
 const teams = ref([])          // 我的团队列表(摘要)
 const activeTeam = ref(null)   // 当前选中团队详情(含 members/projects/messages)
 const activeTab = ref('projects')
+
+/* ===== 加入团队(凭邀请码) ===== */
+const joinDialogVisible = ref(false)
+const joinCode = ref('')
+const joining = ref(false)
+
+function openJoin() {
+  joinCode.value = ''
+  joinDialogVisible.value = true
+}
+function onHeadAction(command) {
+  if (command === 'create') openCreate()
+  else if (command === 'join') openJoin()
+}
+async function handleJoin() {
+  const code = (joinCode.value || '').trim().toUpperCase()
+  if (!code) {
+    ElMessage.warning('请输入邀请码')
+    return
+  }
+  joining.value = true
+  try {
+    await joinTeamByCode(code)
+    ElMessage.success('已加入团队')
+    joinDialogVisible.value = false
+    await loadTeams()
+  } catch (e) {
+    // 错误已由响应拦截器统一提示
+  } finally {
+    joining.value = false
+  }
+}
+async function copyInviteCode() {
+  const code = activeTeam.value && activeTeam.value.inviteCode
+  if (!code) return
+  try {
+    await navigator.clipboard.writeText(code)
+    ElMessage.success('邀请码已复制')
+  } catch (e) {
+    ElMessage.warning('复制失败，请手动复制：' + code)
+  }
+}
+async function handleRefreshCode() {
+  if (!activeTeam.value) return
+  try {
+    await refreshInviteCode(activeTeam.value.teamId)
+    ElMessage.success('已重新生成邀请码')
+    await refreshDetail()
+  } catch (e) {}
+}
 
 /* ===== 成员/项目分页状态(后端若依分页) ===== */
 const memberQuery = reactive({ pageNum: 1, pageSize: 10 })
@@ -649,6 +761,7 @@ async function loadTeams() {
     await selectTeam(teams.value[0])
   } else {
     activeTeam.value = null
+    stopMsgPoll()
   }
 }
 
@@ -666,6 +779,7 @@ async function selectTeam(t) {
   reinitSeen()
   await subscribeTeam(t.teamId, onWsMessage, onWsRead)
   scrollChatToBottom()
+  startMsgPoll() // 全局轮询兜底：团队激活即运行，不依赖 WS 是否连通
 }
 
 async function refreshDetail() {
@@ -869,30 +983,37 @@ async function submitBind() {
   await loadProjects()
 }
 
-/* 讨论区实时刷新(WebSocket 推送) */
+/* 讨论区实时刷新(WebSocket 推送 + 全局轮询) */
 const seenMsgIds = ref(new Set())
+// 已弹过提示的消息 id 集合：WS 推送与全局轮询共用，避免同一条消息重复弹 Toast/通知/提示音
+const notifiedMsgIds = ref(new Set())
 
-/** 以当前激活团队已加载的消息重置去重集合，避免重订阅/刷新后重复追加 */
+/** 以当前激活团队已加载的消息重置去重集合，避免重订阅/刷新后重复追加或重复提示 */
 function reinitSeen() {
-  seenMsgIds.value = new Set((activeTeam.value?.messages || []).map(m => m.msgId))
+  const ids = (activeTeam.value?.messages || []).map(m => m.msgId)
+  seenMsgIds.value = new Set(ids)
+  notifiedMsgIds.value = new Set(ids)
 }
 
 /** 收到新消息：仅处理/归属当前激活团队，按 msgId 去重增量追加 */
 function onWsMessage(msg) {
   if (!msg || !msg.msgId) return
-  if (!activeTeam.value || activeTeam.value.teamId !== msg.teamId) {
-    bumpUnread(msg.teamId)
+  // 同团队
+  if (activeTeam.value && activeTeam.value.teamId === msg.teamId) {
+    if (seenMsgIds.value.has(msg.msgId)) return
+    seenMsgIds.value.add(msg.msgId)
+    activeTeam.value.messages.push(msg)
+    if (activeTab.value === 'chat') {
+      scrollChatToBottom()
+      markTeamRead(msg.teamId, []).then(() => clearUnread(msg.teamId)).catch(() => {})
+    } else {
+      // 同团队但不在讨论 tab：红点 + 提示(统一入口，WS 与轮询共用去重)
+      notifyIfNeeded(msg)
+    }
     return
   }
-  if (seenMsgIds.value.has(msg.msgId)) return
-  seenMsgIds.value.add(msg.msgId)
-  activeTeam.value.messages.push(msg)
-  if (activeTab.value === 'chat') {
-    scrollChatToBottom()
-    markTeamRead(msg.teamId, []).then(() => clearUnread(msg.teamId)).catch(() => {})
-  } else {
-    bumpUnread(msg.teamId)
-  }
+  // 非激活团队：红点 + 提示
+  notifyIfNeeded(msg)
 }
 
 /** 收到已读事件：更新本地面板中对应消息的"已读 N 人" */
@@ -915,9 +1036,164 @@ function bumpUnread(teamId) {
   if (t) t.unreadCount = (t.unreadCount || 0) + 1
 }
 
-// 切换到讨论标签页时，标记已读并清除本地红点
+/**
+ * 从 DB 重新同步当前激活团队的消息列表（覆盖式）。
+ * 用途：补偿 WebSocket 断连期间被内存 broker 丢弃的推送，使接收方无需手动刷新整页即可看到新内容。
+ * 以服务端为权威源，按 msgId 去重，避免与已落地的 WS 推送重复。
+ */
+async function refreshActiveTeamMessages() {
+  if (!activeTeam.value) return
+  try {
+    const res = await getTeamDetail(activeTeam.value.teamId)
+    const incoming = (res.data && res.data.messages) || []
+    const map = new Map((activeTeam.value.messages || []).map(m => [m.msgId, m]))
+    const addedMsgs = []
+    for (const m of incoming) {
+      if (!map.has(m.msgId)) { map.set(m.msgId, m); addedMsgs.push(m) }
+    }
+    const merged = Array.from(map.values()).sort((a, b) => (a.msgId || 0) - (b.msgId || 0))
+    activeTeam.value.messages = merged
+    // 先对新增消息弹提示（在 reinitSeen 重置 notifiedMsgIds 之前，避免被误判为已通知）
+    for (const m of addedMsgs) notifyIfNeeded(m)
+    reinitSeen()
+    // 非 chat tab：按 DB 真实已读状态刷新当前团队未读红点（不依赖 WS 推送）
+    if (activeTab.value !== 'chat') {
+      const unread = merged.filter(m => !m.readUsers || !m.readUsers.some(r => r.userId === currentUserId.value)).length
+      const t = teams.value.find(x => x.teamId === activeTeam.value.teamId)
+      if (t) t.unreadCount = unread
+    } else if (addedMsgs.length > 0) {
+      // 仅在 chat tab 且有新增消息时滚到底部，避免轮询打断正在阅读的人
+      scrollChatToBottom()
+    }
+  } catch (e) {
+    // 拉取失败静默忽略，下一轮轮询/重连会重试
+  }
+}
+
+// 全局轻量轮询兜底：只要当前团队处于激活状态就持续运行（不绑定 chat tab）。
+// 即使 WebSocket 彻底不通，也能在数秒内通过 DB 拉取看到新消息，无需手动刷新整页。
+// 轮询同时负责刷新「未读红点」，使红点不再依赖 WS 推送。
+let msgPollTimer = null
+function startMsgPoll() {
+  stopMsgPoll()
+  msgPollTimer = setInterval(() => refreshActiveTeamMessages(), 5000)
+}
+function stopMsgPoll() {
+  if (msgPollTimer) {
+    clearInterval(msgPollTimer)
+    msgPollTimer = null
+  }
+}
+
+
+/** 收到「未正在查看」的消息时，给出多重提示：右上角 Toast(自动隐藏) + 浏览器桌面通知 + 提示音 */
+function notifyNewMessage(msg) {
+  if (!msg || msg.userId === currentUserId.value) return // 自己的消息不打扰
+  const team = teams.value.find(t => t.teamId === msg.teamId)
+  const teamName = team ? team.teamName : '团队'
+  const sender = msg.nickName || msg.senderName || '成员'
+  const raw = msg.content || ''
+  const preview = raw.length > 30 ? raw.slice(0, 30) + '…' : raw
+  const title = `${sender} 在「${teamName}」`
+  const body = preview || '发来了新消息'
+
+  // 1) 右上角 Toast，duration 后自动隐藏，点击直达讨论区
+  ElNotification({
+    title,
+    message: body,
+    type: 'info',
+    duration: 5000,
+    position: 'top-right',
+    onClick: () => jumpToTeamChat(msg.teamId)
+  })
+
+  // 2) 浏览器桌面通知
+  pushDesktopNotify(title, body, msg.teamId)
+
+  // 3) 提示音
+  playNotifySound()
+}
+
+/**
+ * 统一的新消息提示入口：WS 推送与全局轮询共用。
+ * - 去重：已弹过的消息(notifyIfNeeded 或 onWsMessage 标记)不再重复弹。
+ * - 排除自己发的消息。
+ * - 排除「正在该团队讨论 tab 查看」的情况(消息已可见，无需打扰)。
+ * - 非讨论 tab 时同步累加未读红点。
+ * 这样即使 WebSocket 完全不通，靠全局轮询也能在数秒内弹出右上角 Toast + 桌面通知 + 提示音。
+ */
+function notifyIfNeeded(msg) {
+  if (!msg || !msg.msgId) return
+  if (msg.userId === currentUserId.value) return
+  if (notifiedMsgIds.value.has(msg.msgId)) return
+  const viewing = activeTab.value === 'chat' && activeTeam.value && activeTeam.value.teamId === msg.teamId
+  if (viewing) return
+  notifiedMsgIds.value.add(msg.msgId)
+  notifyNewMessage(msg)
+  bumpUnread(msg.teamId)
+}
+
+/** 点击 Toast/桌面通知时，定位到对应团队并打开讨论 tab */
+function jumpToTeamChat(teamId) {
+  const t = teams.value.find(x => x.teamId === teamId)
+  if (!t) return
+  selectTeam(t)
+  activeTab.value = 'chat'
+}
+
+/** 浏览器桌面通知（已授权时直接弹；未决定时 lazy 请求权限） */
+function pushDesktopNotify(title, body, teamId) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
+  if (Notification.permission === 'granted') {
+    try {
+      const n = new Notification(title, { body, tag: 'team-msg-' + teamId })
+      n.onclick = () => { window.focus(); jumpToTeamChat(teamId); n.close() }
+    } catch (e) { /* 部分浏览器构造失败，忽略 */ }
+  } else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().catch(() => {})
+  }
+}
+
+/** 用户手动开启桌面通知（写在按钮点击里，满足浏览器「用户手势」要求） */
+function enableDesktopNotify() {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    ElMessage.info('当前浏览器不支持桌面通知')
+    return
+  }
+  if (Notification.permission === 'granted') {
+    ElMessage.success('桌面通知已开启')
+    return
+  }
+  Notification.requestPermission().then(p => {
+    if (p === 'granted') ElMessage.success('桌面通知已开启')
+    else ElMessage.warning('已拒绝桌面通知，可在浏览器地址栏重新允许')
+  })
+}
+
+/** 提示音：用 Web Audio 现场合成一声轻「叮」，无需音频资源文件 */
+let _audioCtx = null
+function playNotifySound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    if (!Ctx) return
+    _audioCtx = _audioCtx || new Ctx()
+    if (_audioCtx.state === 'suspended') _audioCtx.resume()
+    const o = _audioCtx.createOscillator()
+    const g = _audioCtx.createGain()
+    o.type = 'sine'
+    o.frequency.value = 880
+    g.gain.value = 0.04
+    o.connect(g); g.connect(_audioCtx.destination)
+    o.start()
+    g.gain.exponentialRampToValueAtTime(0.0001, _audioCtx.currentTime + 0.18)
+    o.stop(_audioCtx.currentTime + 0.2)
+  } catch (e) { /* 自动播放策略限制时忽略 */ }
+}
+
+// 切换到讨论标签页时，立即拉取一次并标记已读、清除红点（全局轮询不在此启停，始终运行）
 watch(activeTab, (val) => {
   if (val === 'chat' && activeTeam.value) {
+    refreshActiveTeamMessages()
     markTeamRead(activeTeam.value.teamId, []).then(() => clearUnread(activeTeam.value.teamId)).catch(() => {})
   } else if (val === 'members') {
     // 切到成员 tab 时刷新当前分页数据
@@ -926,9 +1202,14 @@ watch(activeTab, (val) => {
     loadProjects()
   }
 })
-onUnmounted(() => disconnectWs())
+onUnmounted(() => {
+  stopMsgPoll()
+  disconnectWs()
+})
 
 onMounted(async () => {
+  // 注册 WS 重连回调：连接恢复后从 DB 重新同步当前团队消息，补偿断连期间丢失的推送
+  setOnReconnect(() => refreshActiveTeamMessages())
   if (!userStore.nickName) {
     try { await userStore.getInfo() } catch (e) { }
   }
@@ -1201,6 +1482,60 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   padding-top: 10px;
+}
+
+/* ===== 团队信息 tab ===== */
+.td-info {
+  margin-bottom: 18px;
+}
+.td-info :deep(.el-descriptions__label) {
+  width: 110px;
+  color: #6b7280;
+  font-weight: 500;
+  background: #fafbfc;
+}
+.td-info :deep(.el-descriptions__content) {
+  color: #1f2d3d;
+}
+.td-invite-card {
+  border: 1px solid #eef0f3;
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: #fafbfc;
+}
+.td-invite-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.td-invite-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2d3d;
+}
+.td-invite-tip {
+  font-size: 12px;
+  color: #8a96a3;
+}
+.td-invite-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.td-invite-code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: #1f2d3d;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 5px 12px;
+  min-width: 160px;
+  text-align: center;
 }
 
 /* ===== 项目阶段概览弹窗 ===== */

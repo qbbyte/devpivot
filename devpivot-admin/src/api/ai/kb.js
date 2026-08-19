@@ -34,3 +34,20 @@ export function previewKbRetrieve(params) {
     params
   })
 }
+
+// 检索日志查询（admin；按时间倒序，可选 projectId/stage 过滤）
+export function listKbLogs(params) {
+  return request({
+    url: '/system/kb/logs',
+    method: 'get',
+    params
+  })
+}
+
+// 清理检索日志（admin；保留天数由 kb.retrieval-log.keep-days 控制）
+export function clearKbLogs() {
+  return request({
+    url: '/system/kb/logs',
+    method: 'delete'
+  })
+}

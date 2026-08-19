@@ -19,6 +19,9 @@ const subs = new Map()
 let disposed = false
 // 标记是否处于断线→重连过渡期(后端重启/网络抖动触发)，过渡期内的 ERROR 帧属良性噪声
 let transitional = false
+// 重连成功后的业务回调（由 team.vue 注册）：用于从 DB 重新同步当前团队消息，
+// 补偿"连接断开期间推送被内存 broker 丢弃"导致的丢失，避免必须手动刷新整页。
+let onReconnectCb = null
 
 // HMR：模块热替换时先干净断开旧连接，避免孤儿 WebSocket 连接与重连竞态
 if (import.meta.hot) {
@@ -44,7 +47,7 @@ function buildClient() {
   transitional = false
   client = new Client({
     brokerURL: buildWsUrl(),
-    reconnectDelay: 5000,
+    reconnectDelay: 3000,
     heartbeatIncoming: 10000,
     heartbeatOutgoing: 10000,
     onConnect: () => {
@@ -55,18 +58,26 @@ function buildClient() {
       connectPromise = null
       if (r) r()
       resubscribeAll()
+      // 重连/首连成功后，通知业务层从 DB 重新同步当前团队消息，
+      // 补偿断连窗口内被内存 broker 丢弃的推送，无需手动刷新整页。
+      if (onReconnectCb && !disposed) {
+        try { onReconnectCb() } catch (e) { /* 业务回调异常不影响 WS 心跳 */ }
+      }
     },
     onStompError: (frame) => {
       const msg = frame.headers?.message || frame.body || ''
       // 良性噪声：连接销毁/重连过渡期，或服务端在重启窗口内拒绝入站帧(ExecutorSubscribableChannel/clientInboundChannel)。
-      // stomp.js 会自动重连并由 onConnect 重建订阅，消息收发不受影响，故降级为 info 不刷屏；
-      // 真正的鉴权/越权错误(WebSocket 鉴权失败 / 无权订阅)仍按 error 输出以便排查。
+      // stomp.js 会自动重连并由 onConnect 重建订阅，消息收发不受影响；HMR 销毁/重连过渡期一律静音，不刷屏。
+      // 真正的鉴权/越权错误(WebSocket 鉴权失败 / 无权订阅)不在良性范围，仍按 error 输出以便排查。
       const benign = disposed || transitional || /ExecutorSubscribableChannel|clientInboundChannel|Failed to send message/.test(msg)
-      if (benign) {
-        console.info('[teamWs] WebSocket 重连中（服务端临时拒绝，已自动恢复）:', msg)
-        return
-      }
+      if (benign) return
       console.error('[teamWs] STOMP 错误:', msg)
+    },
+    onWebSocketError: (event) => {
+      // 底层 WebSocket 连接错误（握手失败 / 后端未起 / 代理 WS 升级失败）。
+      // 销毁/重连过渡期静音，避免 HMR 或重连抖动刷屏；其余情况打印便于定位。
+      if (disposed || transitional) return
+      console.warn('[teamWs] WebSocket 底层连接错误:', event?.message || event)
     },
     onWebSocketClose: () => {
       // 连接断开进入过渡期：订阅引用失效，待重连 onConnect 时重建；过渡期内 ERROR 帧视为良性噪声
@@ -107,6 +118,15 @@ function activate() {
  * @param {(msg:object)=>void} onMessage 新消息回调
  * @param {(ev:object)=>void} onRead 已读事件回调
  */
+/**
+ * 注册"重连成功后"的业务回调（如从 DB 重新同步当前团队消息）。
+ * 用于补偿 WebSocket 断连期间被内存 broker 丢弃的推送，避免必须手动刷新整页。
+ * @param {()=>void} cb
+ */
+export function setOnReconnect(cb) {
+  onReconnectCb = typeof cb === 'function' ? cb : null
+}
+
 export async function subscribeTeam(teamId, onMessage, onRead) {
   await activate()
   if (disposed) return
