@@ -3,6 +3,7 @@ package com.ruoyi.ai.service;
 import java.util.List;
 import com.ruoyi.ai.domain.AiKbChunk;
 import com.ruoyi.ai.domain.AiKbDoc;
+import com.ruoyi.ai.domain.AiKbRetrievalLog;
 
 /**
  * 知识库检索服务（AI 引擎层，纯引擎能力，不依赖业务模块）。
@@ -52,4 +53,10 @@ public interface IKnowledgeRetrievalService
 
     /** 清理超过保留天数的检索日志，返回删除行数 */
     int cleanupRetrievalLog();
+
+    /**
+     * 查询检索日志（按时间倒序，最近 limit 条；projectId/stage 可选过滤）。
+     * 供管理员查看"哪些检索命中差/哪些项目在用"，与 cleanupRetrievalLog 配套。
+     */
+    List<AiKbRetrievalLog> listRetrievalLogs(Long projectId, String stage, int limit);
 }

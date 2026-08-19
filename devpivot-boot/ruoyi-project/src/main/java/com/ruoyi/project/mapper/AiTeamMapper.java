@@ -23,6 +23,9 @@ public interface AiTeamMapper
     /** 团队详情基础(带 myRole 与 memberCount) */
     AiTeam selectTeamDetail(@Param("teamId") Long teamId, @Param("userId") Long userId);
 
+    /** 按邀请码查团队(用于邀请链接加入) */
+    AiTeam selectByInviteCode(@Param("inviteCode") String inviteCode);
+
     /** 团队成员列表(关联 sys_user 取昵称/账号/邮箱) */
     List<AiTeamMember> selectMembersByTeamId(Long teamId);
 
@@ -48,6 +51,10 @@ public interface AiTeamMapper
     int insertReadIgnore(@Param("list") List<AiTeamMessageRead> list);
 
     int updateTeam(AiTeam team);
+
+    /** 仅更新邀请码(重新生成用) */
+    int updateInviteCode(@Param("teamId") Long teamId, @Param("inviteCode") String inviteCode,
+                         @Param("updateBy") String updateBy, @Param("updateTime") java.util.Date updateTime);
     int updateMemberRole(@Param("teamId") Long teamId, @Param("userId") Long userId,
                          @Param("role") String role, @Param("updateBy") String updateBy,
                          @Param("updateTime") java.util.Date updateTime);

@@ -27,6 +27,9 @@ public class AiTeam extends BaseEntity
     /** 创建者用户ID */
     private Long ownerId;
 
+    /** 团队邀请码(唯一,用于邀请链接加入) */
+    private String inviteCode;
+
     /** 状态(0正常 1解散) */
     private String status;
 
@@ -63,6 +66,9 @@ public class AiTeam extends BaseEntity
     public void setOwnerId(Long ownerId) { this.ownerId = ownerId; }
     public Long getOwnerId() { return ownerId; }
 
+    public void setInviteCode(String inviteCode) { this.inviteCode = inviteCode; }
+    public String getInviteCode() { return inviteCode; }
+
     public void setStatus(String status) { this.status = status; }
     public String getStatus() { return status; }
 
@@ -94,6 +100,7 @@ public class AiTeam extends BaseEntity
             .append("teamName", getTeamName())
             .append("description", getDescription())
             .append("ownerId", getOwnerId())
+            .append("inviteCode", getInviteCode())
             .append("status", getStatus())
             .append("delFlag", getDelFlag())
             .append("myRole", getMyRole())

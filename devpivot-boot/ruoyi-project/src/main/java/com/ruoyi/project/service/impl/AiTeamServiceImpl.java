@@ -6,6 +6,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.text.SimpleDateFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -116,6 +117,7 @@ public class AiTeamServiceImpl implements IAiTeamService
         team.setOwnerId(userId);
         team.setStatus("0");
         team.setDelFlag("0");
+        team.setInviteCode(genUniqueInviteCode());
         team.setCreateBy(username);
         team.setCreateTime(now);
         teamMapper.insertTeam(team);
@@ -328,6 +330,62 @@ public class AiTeamServiceImpl implements IAiTeamService
             throw new ServiceException("创建者不能直接退出，请先转移所有权或解散团队");
         }
         teamMapper.deleteMember(teamId, userId);
+    }
+
+    @Override
+    public String joinByInviteCode(String inviteCode, Long userId, String username)
+    {
+        if (inviteCode == null || inviteCode.trim().isEmpty())
+        {
+            throw new ServiceException("邀请码不能为空");
+        }
+        AiTeam team = teamMapper.selectByInviteCode(inviteCode.trim().toUpperCase());
+        if (team == null)
+        {
+            throw new ServiceException("邀请码无效或团队已解散");
+        }
+        if ("1".equals(team.getStatus()))
+        {
+            throw new ServiceException("团队已解散，无法加入");
+        }
+        if (teamMapper.selectMember(team.getTeamId(), userId) != null)
+        {
+            throw new ServiceException("您已经是该团队成员");
+        }
+        Date now = DateUtils.getNowDate();
+        AiTeamMember member = new AiTeamMember();
+        member.setTeamId(team.getTeamId());
+        member.setUserId(userId);
+        member.setRole(ROLE_MEMBER);
+        member.setCreateBy(username);
+        member.setCreateTime(now);
+        teamMapper.insertMember(member);
+        return team.getTeamName();
+    }
+
+    @Override
+    public String refreshInviteCode(Long teamId, Long operatorId)
+    {
+        assertManager(teamId, operatorId);
+        String code = genUniqueInviteCode();
+        teamMapper.updateInviteCode(teamId, code, SecurityUtils.getUsername(), DateUtils.getNowDate());
+        return code;
+    }
+
+    /** 生成唯一邀请码(8位大写, 先查库避免唯一索引冲突) */
+    private String genUniqueInviteCode()
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            String code = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+            if (teamMapper.selectByInviteCode(code) == null)
+            {
+                return code;
+            }
+        }
+        // 极端兜底: 追加时间戳片避免碰撞
+        return UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase()
+                + (System.currentTimeMillis() % 1000);
     }
 
     @Override

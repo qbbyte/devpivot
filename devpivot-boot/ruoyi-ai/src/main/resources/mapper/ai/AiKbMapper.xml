@@ -65,7 +65,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </delete>
 
     <select id="selectAiKbDocList" resultMap="AiKbDocResult">
-        select * from ai_kb_doc
+        select doc_id, project_id, stage, title, source_type,
+               left(original_text, 120) as original_text,
+               chunk_count, status, create_by, create_time
+        from ai_kb_doc
         where project_id = #{projectId}
         <if test="stage != null and stage != ''">
             and stage = #{stage}
@@ -90,11 +93,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         delete from ai_kb_chunk where project_id = #{projectId} and stage = #{stage}
     </delete>
 
-    <insert id="insertAiKbChunk" parameterType="AiKbChunk" useGeneratedKeys="true" keyProperty="chunkId">
-        insert into ai_kb_chunk (doc_id, project_id, stage, seq, content, tags, tokens, status)
-        values (#{docId}, #{projectId}, #{stage}, #{seq}, #{content}, #{tags}, #{tokens}, #{status})
-    </insert>
-
     <insert id="insertAiKbChunkBatch" parameterType="java.util.List" useGeneratedKeys="true" keyProperty="chunkId">
         insert into ai_kb_chunk (doc_id, project_id, stage, seq, content, tags, tokens, status)
         values
@@ -117,8 +115,31 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         values (#{projectId}, #{stage}, #{queryText}, #{chunkIds}, #{modelId})
     </insert>
 
+    <select id="selectAiKbRetrievalLogList" resultMap="AiKbRetrievalLogResult">
+        select log_id, project_id, stage, query_text, chunk_ids, model_id, create_time
+        from ai_kb_retrieval_log
+        <where>
+            <if test="projectId != null">
+                and project_id = #{projectId}
+            </if>
+            <if test="stage != null and stage != ''">
+                and stage = #{stage}
+            </if>
+        </where>
+        order by create_time desc, log_id desc
+        limit #{limit}
+    </select>
+
     <delete id="deleteRetrievalLogBefore" parameterType="java.util.Date">
         delete from ai_kb_retrieval_log where create_time &lt; #{before}
     </delete>
+
+    <select id="selectAiKbDocByTitle" resultMap="AiKbDocResult">
+        select doc_id, project_id, stage, title, source_type, chunk_count, status, create_by, create_time
+        from ai_kb_doc
+        where project_id = #{projectId}
+          and stage &lt;=&gt; #{stage}
+          and title = #{title}
+    </select>
 
 </mapper>

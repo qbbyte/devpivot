@@ -188,6 +188,16 @@ public class AiProjectServiceImpl implements IAiProjectService
     }
 
     /**
+     * 查询当前用户可见的AI项目列表（我创建的 ∪ 我参与团队关联的项目）
+     * 门户首页依赖此接口，仅按登录态隔离数据，不要求后台管理权限
+     */
+    @Override
+    public List<AiProject> selectMyProjectList(AiProject aiProject, Long userId, String userName)
+    {
+        return aiProjectMapper.selectMyProjectList(aiProject, userId, userName);
+    }
+
+    /**
      * 项目产物概览：聚合各阶段产物文本（库内存储，均非落盘文件，下载由前端按需生成文件）
      */
     @Override

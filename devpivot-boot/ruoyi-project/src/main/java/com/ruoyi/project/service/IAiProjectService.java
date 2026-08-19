@@ -47,6 +47,17 @@ public interface IAiProjectService
     public List<AiProject> selectAiProjectList(AiProject aiProject);
 
     /**
+     * 查询当前用户可见的AI项目列表（我创建的 ∪ 我参与团队关联的项目）
+     * 门户首页依赖此接口，仅按登录态隔离数据，不要求后台管理权限
+     * 
+     * @param aiProject AI项目过滤条件
+     * @param userId 当前登录用户ID
+     * @param userName 当前登录用户名
+     * @return AI项目集合
+     */
+    public List<AiProject> selectMyProjectList(AiProject aiProject, Long userId, String userName);
+
+    /**
      * 新增AI项目
      * 
      * @param aiProject AI项目

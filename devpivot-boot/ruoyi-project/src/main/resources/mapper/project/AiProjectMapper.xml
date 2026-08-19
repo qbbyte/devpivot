@@ -46,6 +46,32 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="status != null  and status != ''"> and status = #{status}</if>
         </where>
     </select>
+
+    <!-- 我的项目列表：我创建的 ∪ 我参与团队关联的项目（仅登录态数据隔离，不校验后台权限） -->
+    <select id="selectMyProjectList" resultMap="AiProjectResult">
+        <include refid="selectAiProjectVo"/>
+        <where>
+            <if test="aiProject.projectName != null  and aiProject.projectName != ''"> and p.project_name like concat('%', #{aiProject.projectName}, '%')</if>
+            <if test="aiProject.industryType != null  and aiProject.industryType != ''"> and p.industry_type = #{aiProject.industryType}</if>
+            <if test="aiProject.projectIntro != null  and aiProject.projectIntro != ''"> and p.project_intro = #{aiProject.projectIntro}</if>
+            <if test="aiProject.targetUser != null  and aiProject.targetUser != ''"> and p.target_user = #{aiProject.targetUser}</if>
+            <if test="aiProject.dbType != null  and aiProject.dbType != ''"> and p.db_type = #{aiProject.dbType}</if>
+            <if test="aiProject.modelStrategy != null  and aiProject.modelStrategy != ''"> and p.model_strategy = #{aiProject.modelStrategy}</if>
+            <if test="aiProject.step != null  and aiProject.step != ''"> and p.step = #{aiProject.step}</if>
+            <if test="aiProject.isTop != null  and aiProject.isTop != ''"> and p.is_top = #{aiProject.isTop}</if>
+            <if test="aiProject.status != null  and aiProject.status != ''"> and p.status = #{aiProject.status}</if>
+            and p.del_flag = '0'
+            and (
+                p.create_by = #{userName}
+                or p.project_id in (
+                    select tp.project_id from ai_team_project tp
+                    join ai_team_member m on tp.team_id = m.team_id
+                    where m.user_id = #{userId}
+                )
+            )
+        </where>
+        order by p.create_time desc
+    </select>
     
     <select id="selectAiProjectByProjectId" parameterType="Long" resultMap="AiProjectResult">
         <include refid="selectAiProjectVo"/>

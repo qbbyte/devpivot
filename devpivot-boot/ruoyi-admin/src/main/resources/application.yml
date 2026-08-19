@@ -145,3 +145,13 @@ xss:
   excludes: /system/notice
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*
+
+# 知识库（RAG）配置
+kb:
+  retrieval-log:
+    # 是否记录知识库检索日志（每次 AI 生成触发检索时写一条到 ai_kb_retrieval_log）。
+    # true=记录；false=不记录（检索仍正常工作，只是不落库，可避免该表无限膨胀）。
+    enabled: true
+    # 检索日志保留天数。仅作用于管理员手动调用 DELETE /system/kb/logs 时，
+    # 清理该天数之前的记录（项目未启用定时任务，不会自动过期）。默认 30 天。
+    keep-days: 30

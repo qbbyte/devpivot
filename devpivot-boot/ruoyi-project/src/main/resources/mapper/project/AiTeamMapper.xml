@@ -9,6 +9,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="teamName"      column="team_name"  />
         <result property="description"   column="description"/>
         <result property="ownerId"       column="owner_id"   />
+        <result property="inviteCode"    column="invite_code"/>
         <result property="status"        column="status"     />
         <result property="delFlag"       column="del_flag"   />
         <result property="createBy"      column="create_by"  />
@@ -75,7 +76,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <!-- 团队详情基础 -->
     <select id="selectTeamDetail" resultMap="AiTeamResult">
-        select t.team_id, t.team_name, t.description, t.owner_id, t.status, t.del_flag, t.create_by, t.create_time, t.update_by, t.update_time, t.remark,
+        select t.team_id, t.team_name, t.description, t.owner_id, t.invite_code, t.status, t.del_flag, t.create_by, t.create_time, t.update_by, t.update_time, t.remark,
                m.role as my_role,
                (select count(*) from ai_team_member tm where tm.team_id = t.team_id) as member_count,
                (select count(*) from ai_team_message m2
@@ -149,9 +150,23 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <!-- 插入团队 -->
     <insert id="insertTeam" parameterType="AiTeam" useGeneratedKeys="true" keyProperty="teamId">
-        insert into ai_team (team_name, description, owner_id, status, del_flag, create_by, create_time)
-        values (#{teamName}, #{description}, #{ownerId}, #{status}, #{delFlag}, #{createBy}, #{createTime})
+        insert into ai_team (team_name, description, owner_id, invite_code, status, del_flag, create_by, create_time)
+        values (#{teamName}, #{description}, #{ownerId}, #{inviteCode}, #{status}, #{delFlag}, #{createBy}, #{createTime})
     </insert>
+
+    <!-- 按邀请码查团队(用于邀请链接加入,仅正常未删团队) -->
+    <select id="selectByInviteCode" resultMap="AiTeamResult">
+        select t.team_id, t.team_name, t.description, t.owner_id, t.invite_code, t.status, t.del_flag, t.create_by, t.create_time, t.update_by, t.update_time, t.remark
+        from ai_team t
+        where t.invite_code = #{inviteCode} and t.del_flag = '0'
+    </select>
+
+    <!-- 重新生成邀请码(仅更新该列,不动名称/简介/状态) -->
+    <update id="updateInviteCode">
+        update ai_team
+        set invite_code = #{inviteCode}, update_by = #{updateBy}, update_time = #{updateTime}
+        where team_id = #{teamId}
+    </update>
 
     <!-- 插入成员 -->
     <insert id="insertMember" parameterType="AiTeamMember" useGeneratedKeys="true" keyProperty="id">

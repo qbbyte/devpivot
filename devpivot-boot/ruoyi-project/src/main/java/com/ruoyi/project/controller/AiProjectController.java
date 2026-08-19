@@ -47,6 +47,19 @@ public class AiProjectController extends BaseController
     }
 
     /**
+     * 查询「我的项目」列表（我创建的 ∪ 我参与团队关联的项目）
+     * 门户首页依赖此接口，故放开后台权限、仅要求登录态；数据按当前用户隔离
+     */
+    @GetMapping("/my")
+    public TableDataInfo my(AiProject aiProject)
+    {
+        startPage();
+        List<AiProject> list = aiProjectService.selectMyProjectList(aiProject,
+                getUserId(), getUsername());
+        return getDataTable(list);
+    }
+
+    /**
      * 导出AI项目列表
      */
     @PreAuthorize("@ss.hasPermi('system:project:export')")

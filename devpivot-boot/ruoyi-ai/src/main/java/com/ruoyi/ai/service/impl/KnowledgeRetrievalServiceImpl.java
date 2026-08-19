@@ -126,6 +126,13 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
     }
 
     @Override
+    public List<AiKbRetrievalLog> listRetrievalLogs(Long projectId, String stage, int limit)
+    {
+        int safeLimit = (limit <= 0 || limit > 500) ? 100 : limit;
+        return aiKbMapper.selectAiKbRetrievalLogList(projectId, stage, safeLimit);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void indexDocument(Long projectId, String stage, String title, String content, String sourceType)
     {
@@ -134,6 +141,16 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
             return;
         }
         String docTitle = title == null || title.isBlank() ? "未命名文档" : title;
+        // 上传来源去重：同 (projectId, stage, title) 视为同一文档，覆盖式更新（先删旧文档+切片再插入），避免同名重复入库
+        if ("upload".equals(sourceType))
+        {
+            List<AiKbDoc> exist = aiKbMapper.selectAiKbDocByTitle(projectId, stage, docTitle);
+            for (AiKbDoc old : exist)
+            {
+                aiKbMapper.deleteAiKbChunkByDocId(old.getDocId());
+                aiKbMapper.deleteAiKbDocByDocId(old.getDocId());
+            }
+        }
         AiKbDoc doc = new AiKbDoc();
         doc.setProjectId(projectId);
         doc.setStage(stage);
@@ -206,6 +223,7 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public int deleteDoc(Long docId)
     {
         if (docId == null)

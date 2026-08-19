@@ -42,6 +42,27 @@ public class AiTeamController extends BaseController
         return success(teamService.listMyTeams(userId));
     }
 
+    /**
+     * 凭邀请码加入团队(门户侧,仅登录态,不校验后台权限)
+     * 用户主动加入: 拿到团队邀请码/邀请链接即可成为 MEMBER
+     */
+    @PostMapping("/join")
+    public AjaxResult join(@RequestParam("code") String code)
+    {
+        Long userId = SecurityUtils.getUserId();
+        String teamName = teamService.joinByInviteCode(code, userId, SecurityUtils.getUsername());
+        return success("已加入团队：" + teamName);
+    }
+
+    /** 重新生成团队邀请码(仅 OWNER/ADMIN) */
+    @PostMapping("/{teamId}/invite-code/refresh")
+    public AjaxResult refreshInviteCode(@PathVariable("teamId") Long teamId)
+    {
+        Long operatorId = SecurityUtils.getUserId();
+        String code = teamService.refreshInviteCode(teamId, operatorId);
+        return success(code);
+    }
+
     /** 团队详情 */
     @GetMapping("/{teamId}")
     public AjaxResult detail(@PathVariable("teamId") Long teamId)

@@ -2,6 +2,7 @@ package com.ruoyi.project.controller;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +30,8 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.project.domain.AiClarifySession;
 import com.ruoyi.project.domain.AiVersionRecord;
+import com.ruoyi.project.domain.AiReqBaseline;
+import com.ruoyi.project.service.IAiReqBaselineService;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.prompt.PromptTemplateService;
@@ -55,6 +58,9 @@ public class AiClarifyController extends BaseController
 {
     @Autowired
     private IAiClarifySessionService aiClarifySessionService;
+
+    @Autowired
+    private IAiReqBaselineService reqBaselineService;
 
     @Autowired
     private AiModelClient aiModelClient;
@@ -366,6 +372,196 @@ public class AiClarifyController extends BaseController
         });
 
         return emitter;
+    }
+
+    /**
+     * 动态生成下一题：依据「需求基线」+「澄清对话历史」，由 AI 生成下一道针对性澄清问题。
+     * 返回 { content, options }；若模型未配置或解析失败，回退到通用兜底问题，保证前端不报错。
+     */
+    @PostMapping("/nextQuestion")
+    public AjaxResult nextQuestion(@RequestBody Map<String, Object> body)
+    {
+        Long projectId = parseProjectId(body.get("projectId"));
+        if (projectId == null)
+        {
+            return error("项目ID不能为空");
+        }
+
+        // 1) 需求基线（作为提问的上下文）
+        String baselineText = "";
+        try
+        {
+            AiReqBaseline b = reqBaselineService.selectAiReqBaselineByProjectId(projectId);
+            if (b != null && b.getContent() != null)
+            {
+                baselineText = b.getContent();
+            }
+        }
+        catch (Exception e)
+        {
+            baselineText = "";
+        }
+
+        // 2) 澄清对话历史（只抽取与提问相关的消息类型，避免上下文过长）
+        StringBuilder hist = new StringBuilder();
+        try
+        {
+            AiClarifySession session = aiClarifySessionService.getOrCreateSession(projectId);
+            List<Object> conversation = parseConversation(session.getConversation());
+            for (Object o : conversation)
+            {
+                if (!(o instanceof Map)) continue;
+                Map<?, ?> m = (Map<?, ?>) o;
+                String type = str(m.get("type"));
+                if ("ai_question".equals(type))
+                {
+                    hist.append("【AI提问】").append(str(m.get("content"))).append("\n");
+                }
+                else if ("user_answer".equals(type) || "user_free".equals(type)
+                        || "user_text".equals(type) || "user".equals(type))
+                {
+                    hist.append("【用户回答】").append(str(m.get("content"))).append("\n");
+                }
+                else if ("ai_multi_response".equals(type))
+                {
+                    Object mrs = m.get("modelResponses");
+                    if (mrs instanceof List)
+                    {
+                        for (Object r : (List<?>) mrs)
+                        {
+                            if (r instanceof Map)
+                            {
+                                String c = str(((Map<?, ?>) r).get("content"));
+                                if (c != null && !c.isEmpty())
+                                {
+                                    hist.append("【AI多模型回答片段】")
+                                            .append(c.length() > 200 ? c.substring(0, 200) : c).append("\n");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            // 历史解析失败不影响出题，使用空历史
+        }
+
+        // 3) 选一个启用模型
+        String modelCode = "deepseek";
+        try
+        {
+            AiModelConfig query = new AiModelConfig();
+            query.setIsEnabled("0");
+            List<AiModelConfig> configs = modelConfigService.selectAiModelConfigList(query);
+            if (configs != null && !configs.isEmpty())
+            {
+                modelCode = configs.get(0).getModelCode();
+            }
+        }
+        catch (Exception e)
+        {
+            // 配置查询异常，使用默认 code；chat 内部会在未配置时返回兜底文案
+        }
+
+        // 4) 提示词：要求 AI 输出结构化 JSON（下一道澄清问题 + 选项）
+        String systemPrompt = "你是资深产品需求分析师。基于已有的「需求基线」与「澄清对话历史」，"
+                + "为当前项目生成【下一个】最值得追问的澄清问题。问题应聚焦用户尚未明确的关键点"
+                + "（如核心用户角色、关键业务流程、数据规模、性能/安全约束、系统集成、异常处理、合规要求等），"
+                + "一次只问一个问题，且不要重复已问过的问题。请用专业但易懂的中文表述，关键问题用 **加粗**。";
+
+        String userPrompt = "【需求基线】\n" + baselineText + "\n\n"
+                + "【已发生的澄清对话】\n" + (hist.length() > 0 ? hist.toString() : "（暂无）") + "\n\n"
+                + "请输出下一道澄清问题。严格仅返回一个 JSON 对象（不要包含 ``` 代码块标记、不要任何额外文字），格式如下：\n"
+                + "{\"content\":\"问题正文（关键问题用**加粗**），\"options\":[{\"label\":\"选项文字\",\"value\":\"选项值\"}]}\n"
+                + "若认为需求信息已足够清晰、无需继续追问，请返回：\n"
+                + "{\"content\":\"需求信息已较为完整，您可以点击「进入下一阶段」结束澄清。\","
+                + "\"options\":[{\"label\":\"没有补充，进入下一步\",\"value\":\"done\"},{\"label\":\"我还有补充\",\"value\":\"supplement\"}]}";
+
+        String raw = aiModelClient.chat(modelCode, systemPrompt, userPrompt);
+
+        // 5) 解析模型返回的 JSON；解析失败则回退通用兜底问题，保证前端不报错
+        Map<String, Object> question = parseQuestionJson(raw);
+        if (question == null)
+        {
+            question = fallbackQuestion();
+        }
+        return success(question);
+    }
+
+    /** 通用兜底问题：模型未配置或解析失败时保证前端仍有题可问 */
+    private Map<String, Object> fallbackQuestion()
+    {
+        Map<String, Object> q = new HashMap<>(2);
+        q.put("content", "为了进一步明确需求细节，请继续描述您的想法或回答以下问题：\n\n"
+                + "**「关于刚才讨论的需求点，您还有什么补充或需要调整的地方吗？」**");
+        q.put("options", Arrays.asList(
+                mapOf("label", "没有补充，进入下一步", "value", "done"),
+                mapOf("label", "我有补充说明", "value", "supplement")
+        ));
+        return q;
+    }
+
+    /** 从模型文本中解析出 {content, options} 结构；容错 markdown 围栏与脏字符，失败返回 null */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseQuestionJson(String raw)
+    {
+        if (raw == null || raw.trim().isEmpty())
+        {
+            return null;
+        }
+        String s = raw.trim();
+        // 去除 ```json ... ``` 围栏
+        if (s.startsWith("```"))
+        {
+            int first = s.indexOf('{');
+            int last = s.lastIndexOf('}');
+            if (first >= 0 && last > first)
+            {
+                s = s.substring(first, last + 1);
+            }
+        }
+        try
+        {
+            Object o = JSON.parse(s);
+            if (!(o instanceof Map))
+            {
+                return null;
+            }
+            Map<String, Object> m = (Map<String, Object>) o;
+            Object content = m.get("content");
+            if (content == null || String.valueOf(content).trim().isEmpty())
+            {
+                return null;
+            }
+            List<Map<String, Object>> opts = new ArrayList<>();
+            Object options = m.get("options");
+            if (options instanceof List)
+            {
+                for (Object op : (List<?>) options)
+                {
+                    if (op instanceof Map)
+                    {
+                        Map<?, ?> om = (Map<?, ?>) op;
+                        String label = str(om.get("label"));
+                        String value = str(om.get("value"));
+                        if (label != null && value != null)
+                        {
+                            opts.add(mapOf("label", label, "value", value));
+                        }
+                    }
+                }
+            }
+            Map<String, Object> result = new HashMap<>(2);
+            result.put("content", String.valueOf(content));
+            result.put("options", opts);
+            return result;
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
     }
 
     private void writeError(SseEmitter emitter, String msg)

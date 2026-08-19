@@ -107,6 +107,17 @@ public class AiKbController extends BaseController
         return toAjax(knowledgeRetrievalService.cleanupRetrievalLog());
     }
 
+    /** 检索日志查询（管理员；按时间倒序返回最近 limit 条，可选 projectId/stage 过滤）。
+     *  与清理接口配套，用于查看"哪些检索命中差/哪些项目在用"。 */
+    @PreAuthorize("@ss.hasRole('admin')")
+    @GetMapping("/logs")
+    public AjaxResult listLogs(@RequestParam(required = false) Long projectId,
+                               @RequestParam(required = false) String stage,
+                               @RequestParam(required = false, defaultValue = "100") int limit)
+    {
+        return success(knowledgeRetrievalService.listRetrievalLogs(projectId, stage, limit));
+    }
+
     private Long toLong(Object o)
     {
         if (o == null)

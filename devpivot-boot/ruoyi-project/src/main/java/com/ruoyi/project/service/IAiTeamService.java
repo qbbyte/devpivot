@@ -63,6 +63,12 @@ public interface IAiTeamService
     /** 退出团队(非创建者主动退出;创建者需先转移所有权或解散) */
     void leaveTeam(Long teamId, Long userId);
 
+    /** 凭邀请码加入团队(仅登录态,自动成为 MEMBER;返回团队名) */
+    String joinByInviteCode(String inviteCode, Long userId, String username);
+
+    /** 重新生成邀请码(仅 OWNER/ADMIN;返回新邀请码) */
+    String refreshInviteCode(Long teamId, Long operatorId);
+
     /** 项目下拉选项(供团队关联项目选择器) */
     List<Map<String, Object>> listProjectOptions();
 
