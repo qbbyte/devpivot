@@ -47,7 +47,7 @@ service.interceptors.request.use(config => {
     const requestSize = Object.keys(JSON.stringify(requestObj)).length // 请求数据大小
     const limitSize = 5 * 1024 * 1024 // 限制存放数据5M
     if (requestSize >= limitSize) {
-      console.warn(`[${config.url}]: ` + '请求数据大小超出允许的5M限制，无法进行防重复提交验证。')
+      if (import.meta.env.DEV) console.warn(`[${config.url}]: ` + '请求数据大小超出允许的5M限制，无法进行防重复提交验证。')
       return config
     }
     const sessionObj = cache.session.getJSON('sessionObj')
@@ -59,7 +59,7 @@ service.interceptors.request.use(config => {
       const s_time = sessionObj.time              // 请求时间
       if (s_data === requestObj.data && requestObj.time - s_time < interval && s_url === requestObj.url) {
         const message = '数据正在处理，请勿重复提交'
-        console.warn(`[${s_url}]: ` + message)
+        if (import.meta.env.DEV) console.warn(`[${s_url}]: ` + message)
         return Promise.reject(new Error(message))
       } else {
         cache.session.setJSON('sessionObj', requestObj)
@@ -68,7 +68,7 @@ service.interceptors.request.use(config => {
   }
   return config
 }, error => {
-    console.log(error)
+    if (import.meta.env.DEV) console.error('[request] 请求拦截器异常:', error)
     Promise.reject(error)
 })
 
@@ -115,7 +115,7 @@ service.interceptors.response.use(res => {
     }
   },
   error => {
-    console.log('err' + error)
+    if (import.meta.env.DEV) console.error('[request] 响应拦截器异常:', error)
     let { message } = error
     if (message == "Network Error") {
       message = "后端接口连接异常"
@@ -150,7 +150,7 @@ export function download(url, params, filename, config) {
     }
     downloadLoadingInstance.close()
   }).catch((r) => {
-    console.error(r)
+    if (import.meta.env.DEV) console.error(r)
     ElMessage.error('下载文件出现错误，请联系管理员！')
     downloadLoadingInstance.close()
   })

@@ -570,7 +570,7 @@ function persistDb() {
     status: '0',
     sourceModel: mainModelId.value
   }
-  saveDbDoc(payload).catch(() => {})
+  saveDbDoc(payload).catch((e) => { if (import.meta.env.DEV) console.warn('保存数据库设计失败', e) })
 }
 
 function handleSaveDraft() {

@@ -104,7 +104,7 @@
       <el-table-column label="密钥ID" align="center" prop="keyId" />
       <el-table-column label="用户ID(sys_user)" align="center" prop="userId" />
       <el-table-column label="供应商" align="center" prop="provider" />
-      <el-table-column label="API密钥(加密存储)" align="center" prop="apiKey" />
+      <el-table-column label="API密钥(脱敏)" align="center" prop="maskedApiKey" />
       <el-table-column label="是否启用(Y/N)" align="center" prop="isActive">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.isActive"/>
@@ -145,7 +145,7 @@
           </el-col>
           <el-col :span="24">
             <el-form-item label="API密钥(加密存储)" prop="apiKey">
-              <el-input v-model="form.apiKey" placeholder="请输入API密钥(加密存储)" />
+              <el-input v-model="form.apiKey" :placeholder="form.maskedApiKey ? ('当前：' + form.maskedApiKey + '，留空则保持原密钥') : '加密存储，请填写完整密钥'" />
             </el-form-item>
           </el-col>
           <el-col :span="24">

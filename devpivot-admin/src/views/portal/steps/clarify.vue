@@ -800,7 +800,7 @@ function persistSession() {
     conversation: JSON.parse(JSON.stringify(messages.value)),
     retained: JSON.parse(JSON.stringify(retainedSnippets.value))
   }
-  saveSession(projectId.value, payload).catch(() => { })
+  saveSession(projectId.value, payload).catch((e) => { if (import.meta.env.DEV) console.warn('持久化澄清会话失败', e) })
 }
 
 // 根据问卷进度提出下一题
@@ -1334,7 +1334,8 @@ async function handleSubmit() {
     try {
       // 先落一份历史版本快照（结论对象），再提交并推进 PRD；版本落库失败不影响主提交流程
       const sourceModel = (result.selectedModels || []).map(m => m.name).join('、')
-      await saveClarifyVersion(projectId.value, result, '提交版本', result.summary, sourceModel).catch(() => {})
+      await saveClarifyVersion(projectId.value, result, '提交版本', result.summary, sourceModel)
+        .catch((e) => { if (import.meta.env.DEV) console.warn('保存澄清版本快照失败（不影响主提交流程）', e) })
       await submitClarify(projectId.value, result)
       proxy.$modal.msgSuccess('澄清结果已提交，已生成需求澄清结论并推进到 PRD 阶段')
       // 提交后即退出本流程，回到门户首页（澄清负责人可能不负责后续阶段）

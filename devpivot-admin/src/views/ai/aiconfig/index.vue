@@ -100,7 +100,7 @@
       <el-table-column label="名称" align="center" prop="modelName" />
       <el-table-column label="供应商" align="center" prop="provider" />
       <el-table-column label="接口地址" align="center" prop="baseUrl" :show-overflow-tooltip="true" />
-      <el-table-column label="密钥" align="center" prop="apiKey" :show-overflow-tooltip="true" />
+      <el-table-column label="密钥" align="center" prop="maskedApiKey" :show-overflow-tooltip="true" />
       <el-table-column label="路由类型" align="center" prop="modelType">
         <template #default="scope">
           <dict-tag :options="ai_model_type" :value="scope.row.modelType"/>
@@ -175,7 +175,7 @@
           </el-col>
           <el-col :span="24">
             <el-form-item label="API密钥" prop="apiKey">
-              <el-input v-model="form.apiKey" placeholder="加密存储，请填写完整密钥" />
+              <el-input v-model="form.apiKey" :placeholder="form.maskedApiKey ? ('当前：' + form.maskedApiKey + '，留空则保持原密钥') : '加密存储，请填写完整密钥'" />
             </el-form-item>
           </el-col>
           <el-col :span="24">

@@ -451,7 +451,7 @@ function loadDoc() {
         try {
           const arr = JSON.parse(doc.multiSource)
           modelResults.value = Array.isArray(arr) ? arr : []
-        } catch (e) {}
+        } catch (e) { if (import.meta.env.DEV) console.warn('解析 multiSource 失败', e) }
       }
       activeView.value = 'final'
     }

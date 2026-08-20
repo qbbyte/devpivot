@@ -551,7 +551,7 @@ async function handleRefreshCode() {
     await refreshInviteCode(activeTeam.value.teamId)
     ElMessage.success('已重新生成邀请码')
     await refreshDetail()
-  } catch (e) {}
+  } catch (e) { if (import.meta.env.DEV) console.warn('重新生成邀请码失败', e) }
 }
 
 /* ===== 成员/项目分页状态(后端若依分页) ===== */
@@ -1211,7 +1211,7 @@ onMounted(async () => {
   // 注册 WS 重连回调：连接恢复后从 DB 重新同步当前团队消息，补偿断连期间丢失的推送
   setOnReconnect(() => refreshActiveTeamMessages())
   if (!userStore.nickName) {
-    try { await userStore.getInfo() } catch (e) { }
+    try { await userStore.getInfo() } catch (e) { if (import.meta.env.DEV) console.warn('获取用户信息失败', e) }
   }
   await loadTeams()
 })
