@@ -5,6 +5,7 @@ import java.util.Map;
 import com.ruoyi.project.domain.AiTeam;
 import com.ruoyi.project.domain.AiTeamMember;
 import com.ruoyi.project.domain.AiTeamProject;
+import com.ruoyi.project.domain.AiTeamProjectRepo;
 import com.ruoyi.project.domain.AiTeamMessage;
 import com.ruoyi.project.domain.AiTeamMessageRead;
 import org.apache.ibatis.annotations.Param;
@@ -67,6 +68,42 @@ public interface AiTeamMapper
     int countMembersByRole(@Param("teamId") Long teamId, @Param("role") String role);
     int existsProject(@Param("teamId") Long teamId, @Param("projectId") Long projectId);
 
+    /** 更新项目关联的 Git 仓库配置(平台/全名/分支/API base/加密令牌) */
+    int updateProjectRepo(AiTeamProject project);
+
+    /** 取项目关联的 Git 仓库配置(不含令牌,列表/展示用) */
+    AiTeamProject selectProjectRepo(@Param("teamId") Long teamId, @Param("projectId") Long projectId);
+
+    /** 取项目关联仓库的加密令牌(内部解密用,仅 service 调用) */
+    String selectProjectAccessToken(@Param("teamId") Long teamId, @Param("projectId") Long projectId);
+
     /** 取当前用户在某团队内尚未读的消息ID(排除自己发送 + 已读记录) */
     List<Long> selectUnreadMessageIds(@Param("teamId") Long teamId, @Param("userId") Long userId, @Param("msgIds") List<Long> msgIds);
+
+    /* ==================== 多仓库: ai_team_project_repo ==================== */
+
+    /** 新增仓库配置(返回自增 id) */
+    int insertProjectRepo(AiTeamProjectRepo repo);
+
+    /** 更新仓库配置(不含令牌,令牌单独处理) */
+    int updateProjectRepoById(AiTeamProjectRepo repo);
+
+    /** 更新仓库令牌(独立方法,避免覆盖其他字段) */
+    int updateRepoToken(@Param("repoId") Long repoId, @Param("accessToken") String accessToken,
+                        @Param("updateBy") String updateBy, @Param("updateTime") java.util.Date updateTime);
+
+    /** 删除仓库配置 */
+    int deleteProjectRepo(@Param("repoId") Long repoId);
+
+    /** 项目下的仓库列表(不含令牌) */
+    List<AiTeamProjectRepo> selectReposByProject(@Param("teamId") Long teamId, @Param("projectId") Long projectId);
+
+    /** 按 id 取仓库(不含令牌) */
+    AiTeamProjectRepo selectRepoById(@Param("repoId") Long repoId);
+
+    /** 按 id 取加密令牌(内部解密用) */
+    String selectRepoTokenById(@Param("repoId") Long repoId);
+
+    /** 仓库是否属于该团队(鉴权用) */
+    int countRepoByTeam(@Param("repoId") Long repoId, @Param("teamId") Long teamId);
 }
