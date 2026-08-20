@@ -52,7 +52,7 @@ const currentLabel = computed(() => {
 
 // 三态收敛：蓝=进行中 / 绿=已完成，避免七彩噪点
 const trackColor = computed(() =>
-  isDone.value ? 'var(--c-success, #00b42a)' : 'var(--c-primary, #3370ff)'
+  isDone.value ? 'var(--c-success, #10b981)' : 'var(--c-primary, #2563eb)'
 )
 
 const ariaLabel = computed(() => `当前阶段：${currentLabel.value}，进度 ${percent.value}%`)
@@ -110,13 +110,13 @@ const ariaLabel = computed(() => `当前阶段：${currentLabel.value}，进度 
 }
 
 .ss-state.is-doing {
-  color: var(--c-primary, #3370ff);
-  background: var(--c-primary-soft, #e6f1fb);
+  color: var(--c-primary, #2563eb);
+  background: var(--c-primary-soft, #eff4ff);
 }
 
 .ss-state.is-done {
-  color: var(--c-success, #00b42a);
-  background: rgba(0, 180, 42, 0.08);
+  color: var(--c-success, #10b981);
+  background: rgba(16, 185, 129, 0.08);
 }
 
 .ss-text {

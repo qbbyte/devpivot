@@ -1,0 +1,49 @@
+// ============================================================
+// Design Tokens · Soft UI Evolution · Azure Blue
+// 门户全站统一设计令牌(与 teamGit.vue 同源体系)
+// P0: 定义后, 组件层 var(--c-*) fallback 自动全部升级
+// 2026-08-20: Indigo 紫白 → 科技蓝 Azure（用户选定方案 1）
+// ============================================================
+:root {
+  // ---- 品牌色 ----
+  --c-primary: #2563eb;
+  --c-primary-light: #60a5fa;
+  --c-primary-lighter: #93c5fd;
+  --c-primary-bg: #eff4ff;
+  --c-accent: #059669;
+  --c-accent-bg: #ecfdf5;
+  --c-warning: #f59e0b;
+  --c-warning-bg: #fffbeb;
+  --c-danger: #ef4444;
+  --c-danger-bg: #fef2f2;
+  --c-success: #10b981;
+  --c-success-bg: #ecfdf5;
+
+  // ---- 中性色 ----
+  --c-bg: #f5f8fd;
+  --c-surface: #ffffff;
+  --c-border: #e2e8f0;
+  --c-border-light: #f1f5f9;
+  --c-text: #1e293b;
+  --c-text-muted: #64748b;
+  --c-text-subtle: #94a3b8;
+
+  // ---- 阴影 ----
+  --shadow-sm: 0 1px 3px rgba(37, 99, 235, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(37, 99, 235, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 30px rgba(37, 99, 235, 0.1), 0 4px 8px rgba(0, 0, 0, 0.04);
+
+  // ---- 圆角 ----
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  // ---- Element Plus 主题变量 → Azure 蓝(全站生效, 含管理后台) ----
+  --el-color-primary: #2563eb;
+  --el-color-primary-light-3: #6692f1;
+  --el-color-primary-light-5: #92b1f5;
+  --el-color-primary-light-7: #bed0f9;
+  --el-color-primary-light-8: #d3e0fb;
+  --el-color-primary-light-9: #e9effd;
+  --el-color-primary-dark-2: #1e4fbc;
+}

@@ -6,7 +6,7 @@
       <section class="portal-hero">
         <div class="hero-left">
           <h1>你好，{{ userStore.nickName || '访客' }} <span class="hero-wave">👋</span></h1>
-          <p>欢迎回到 AI 智能需求设计工作台，查看并推进你的项目</p>
+          <p>{{ stats.doing ? `当前有 ${stats.doing} 个项目进行中，欢迎回来继续推进` : '还没有进行中的项目，点击右上角创建你的第一个 AI 需求设计' }}</p>
         </div>
         <el-button type="primary" class="create-btn" @click="goCreate">
           <el-icon><Plus /></el-icon>
@@ -14,116 +14,126 @@
         </el-button>
       </section>
 
-      <section class="portal-stats">
-        <div class="stat-card">
-          <div class="stat-icon stat-total">
-            <el-icon :size="20"><FolderOpened /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-num">{{ stats.total }}</div>
-            <div class="stat-label">项目总数</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon stat-doing">
-            <el-icon :size="20"><Loading /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-num">{{ stats.doing }}</div>
-            <div class="stat-label">进行中</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon stat-done">
-            <el-icon :size="20"><CircleCheck /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-num">{{ stats.done }}</div>
-            <div class="stat-label">已完成</div>
-          </div>
-        </div>
-      </section>
-
-      <section v-if="continueProjects.length" class="portal-continue">
-        <div class="section-header">
-          <h2 class="section-title">继续你的项目</h2>
-          <span class="section-count">{{ continueProjects.length }} 个进行中</span>
-        </div>
-        <div class="continue-grid">
-          <ContinueCard
-            v-for="item in continueProjects"
-            :key="item.projectId"
-            :project="item"
-            @open="onOpenProject"
-            @continue="onContinueProject"
-          />
-        </div>
-      </section>
-
-      <section class="portal-body">
-        <!-- 全新用户：引导式空态（无任何项目），隐藏筛选栏 -->
-        <EmptyState
-          v-if="!loading && allProjectList.length === 0"
-          variant="onboarding"
-          @create="goCreate"
-        />
-
-        <template v-else>
-          <div class="section-header">
-            <h2 class="section-title">项目列表</h2>
-            <span class="section-count">共 {{ filteredProjects.length }} 个项目</span>
-          </div>
-          <div class="filter-bar">
-            <el-input
-              v-model="searchKeyword"
-              class="filter-search"
-              placeholder="搜索项目名称 / 简介"
-              clearable
-              :prefix-icon="Search"
-            />
-            <el-select v-model="filterStatus" class="filter-select" placeholder="项目状态" clearable>
-              <el-option v-for="s in ai_project_status" :key="s.value" :label="s.label" :value="s.value" />
-            </el-select>
-            <el-select v-model="filterStep" class="filter-select" placeholder="当前阶段" clearable>
-              <el-option v-for="s in ai_project_step" :key="s.value" :label="s.label" :value="s.value" />
-            </el-select>
-            <div class="filter-bar-spacer"></div>
-            <el-button v-if="hasFilter" class="filter-reset" @click="resetFilter">
-              <el-icon><RefreshRight /></el-icon>重置
-            </el-button>
-          </div>
-
-          <template v-if="!loading && filteredProjects.length > 0">
-            <div class="project-list">
-              <ProjectRow
-                v-for="item in pagedProjects"
-                :key="item.projectId"
-                :project="item"
-                @open="onOpenProject"
-                @continue="onContinueProject"
-              />
-            </div>
-            <div class="pagination-wrap" v-if="filteredProjects.length > pageSize">
-              <el-pagination
-                v-model:current-page="currentPage"
-                :page-size="pageSize"
-                :total="filteredProjects.length"
-                layout="prev, pager, next"
-                background
-              />
-            </div>
-          </template>
-
-          <!-- 有项目但筛选无结果 -->
+      <div class="portal-layout">
+        <!-- ===== 左主列：筛选 + 项目卡片网格 ===== -->
+        <section class="portal-main-col">
+          <!-- 全新用户：引导式空态（无任何项目），隐藏筛选栏 -->
           <EmptyState
-            v-else-if="!loading"
-            variant="noResult"
-            :keyword="searchKeyword"
-            @reset="resetFilter"
+            v-if="!loading && allProjectList.length === 0"
+            variant="onboarding"
+            @create="goCreate"
           />
-          <div v-loading="loading" class="loading-mask"></div>
-        </template>
-      </section>
+
+          <template v-else>
+            <div class="section-header">
+              <h2 class="section-title">项目列表</h2>
+              <span class="section-count">共 {{ filteredProjects.length }} 个项目</span>
+            </div>
+            <div class="filter-bar">
+              <el-input
+                v-model="searchKeyword"
+                class="filter-search"
+                placeholder="搜索项目名称 / 简介"
+                clearable
+                :prefix-icon="Search"
+              />
+              <el-select v-model="filterStatus" class="filter-select" placeholder="项目状态" clearable>
+                <el-option v-for="s in ai_project_status" :key="s.value" :label="s.label" :value="s.value" />
+              </el-select>
+              <el-select v-model="filterStep" class="filter-select" placeholder="当前阶段" clearable>
+                <el-option v-for="s in ai_project_step" :key="s.value" :label="s.label" :value="s.value" />
+              </el-select>
+              <div class="filter-bar-spacer"></div>
+              <el-button v-if="hasFilter" class="filter-reset" @click="resetFilter">
+                <el-icon><RefreshRight /></el-icon>重置
+              </el-button>
+            </div>
+
+            <template v-if="!loading && filteredProjects.length > 0">
+              <div class="project-grid">
+                <ContinueCard
+                  v-for="item in visibleProjects"
+                  :key="item.projectId"
+                  :project="item"
+                  @open="onOpenProject"
+                  @continue="onContinueProject"
+                />
+              </div>
+              <div v-if="hasMore" class="load-more-wrap">
+                <el-button class="load-more-btn" @click="loadMore">
+                  加载更多<el-icon class="load-more-icon"><ArrowDown /></el-icon>
+                </el-button>
+              </div>
+              <p v-else-if="filteredProjects.length > pageSize" class="list-end">
+                已显示全部 {{ filteredProjects.length }} 个项目
+              </p>
+            </template>
+
+            <!-- 有项目但筛选无结果 -->
+            <EmptyState
+              v-else-if="!loading"
+              variant="noResult"
+              :keyword="searchKeyword"
+              @reset="resetFilter"
+            />
+            <div v-loading="loading" class="loading-mask"></div>
+          </template>
+        </section>
+
+        <!-- ===== 右侧栏：统计 + 快捷入口 + 最近更新 ===== -->
+        <aside class="portal-aside">
+          <div class="aside-block">
+            <h3 class="aside-title">项目统计</h3>
+            <div class="stat-list">
+              <div v-for="s in statItems" :key="s.label" class="stat-item">
+                <span class="stat-item-icon" :class="s.cls">
+                  <el-icon :size="16"><component :is="s.icon" /></el-icon>
+                </span>
+                <div class="stat-item-body">
+                  <div class="stat-item-num">{{ s.value }}</div>
+                  <div class="stat-item-label">{{ s.label }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="aside-block">
+            <h3 class="aside-title">快捷入口</h3>
+            <div class="quick-list">
+              <button class="quick-item" @click="goCreate">
+                <span class="quick-icon qi-primary"><el-icon><Plus /></el-icon></span>
+                <span class="quick-text"><strong>新建项目</strong><em>开启新一轮 AI 需求设计</em></span>
+              </button>
+              <button class="quick-item" @click="router.push('/portal/team')">
+                <span class="quick-icon qi-indigo"><el-icon><User /></el-icon></span>
+                <span class="quick-text"><strong>我的团队</strong><em>成员协作与 Git 仓库统计</em></span>
+              </button>
+              <button v-hasRole="['admin']" class="quick-item" @click="router.push('/index')">
+                <span class="quick-icon qi-neutral"><el-icon><Setting /></el-icon></span>
+                <span class="quick-text"><strong>管理后台</strong><em>系统配置与全局模型设置</em></span>
+              </button>
+            </div>
+          </div>
+
+          <div v-if="recentProjects.length" class="aside-block">
+            <h3 class="aside-title">最近更新</h3>
+            <div class="recent-list">
+              <button
+                v-for="p in recentProjects"
+                :key="p.projectId"
+                class="recent-item"
+                @click="onOpenProject(p)"
+              >
+                <span class="recent-name">{{ p.projectName }}</span>
+                <span class="recent-meta">
+                  <el-tag size="small" type="primary" class="recent-tag">{{ stepLabelOf(p.step) }}</el-tag>
+                  <span class="recent-time">{{ relativeTime(p.updateTime) }}</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </aside>
+      </div>
     </main>
 
     <footer class="portal-footer">
@@ -135,11 +145,10 @@
 <script setup name="Portal">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Loading, CircleCheck } from '@element-plus/icons-vue'
+import { Search, Loading, CircleCheck, FolderOpened, Plus, User, Setting, ArrowDown } from '@element-plus/icons-vue'
 import { listMyProject } from '@/api/ai/project'
 import { useDict } from '@/utils/dict'
 import useUserStore from '@/store/modules/user'
-import ProjectRow from './components/ProjectRow.vue'
 import ContinueCard from './components/ContinueCard.vue'
 import EmptyState from './components/EmptyState.vue'
 import PortalHeader from './components/PortalHeader.vue'
@@ -164,8 +173,8 @@ const allProjectList = ref([])
 const searchKeyword = ref('')
 const filterStatus = ref('')
 const filterStep = ref('')
-const currentPage = ref(1)
 const pageSize = 10
+const visibleCount = ref(pageSize)
 
 const stats = computed(() => {
   const list = allProjectList.value
@@ -174,18 +183,12 @@ const stats = computed(() => {
   return { total, doing: total - done, done }
 })
 
-// 「继续你的项目」：进行中项目，置顶优先 + 最近更新，取前 3
-const continueProjects = computed(() => {
-  return allProjectList.value
-    .filter(item => item.step !== 'DONE')
-    .sort((a, b) => {
-      const ta = a.isTop === 'Y' ? 1 : 0
-      const tb = b.isTop === 'Y' ? 1 : 0
-      if (ta !== tb) return tb - ta
-      return String(b.updateTime || '').localeCompare(String(a.updateTime || ''))
-    })
-    .slice(0, 3)
-})
+// 侧栏统计条目（图标/配色/数值）
+const statItems = computed(() => [
+  { label: '项目总数', value: stats.value.total, icon: FolderOpened, cls: 'st-total' },
+  { label: '进行中', value: stats.value.doing, icon: Loading, cls: 'st-doing' },
+  { label: '已完成', value: stats.value.done, icon: CircleCheck, cls: 'st-done' }
+])
 
 const filteredProjects = computed(() => {
   const kw = searchKeyword.value.trim().toLowerCase()
@@ -200,14 +203,43 @@ const filteredProjects = computed(() => {
   })
 })
 
-const pagedProjects = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return filteredProjects.value.slice(start, start + pageSize)
-})
+// 主区可见项目：前 N 条，点「加载更多」递增
+const visibleProjects = computed(() => filteredProjects.value.slice(0, visibleCount.value))
+const hasMore = computed(() => visibleCount.value < filteredProjects.value.length)
+
+// 侧栏「最近更新」：按更新时间倒序取前 5
+const recentProjects = computed(() =>
+  [...allProjectList.value]
+    .sort((a, b) => String(b.updateTime || '').localeCompare(String(a.updateTime || '')))
+    .slice(0, 5)
+)
 
 const hasFilter = computed(() =>
   !!searchKeyword.value.trim() || !!filterStatus.value || !!filterStep.value
 )
+
+function stepLabelOf(step) {
+  const hit = ai_project_step.value.find(o => o.value === step)
+  return hit ? hit.label : '项目'
+}
+function relativeTime(value) {
+  if (!value) return ''
+  const t = new Date(String(value).replace(' ', 'T'))
+  if (isNaN(t.getTime())) return String(value).slice(0, 16)
+  const diff = Date.now() - t.getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return '刚刚'
+  if (m < 60) return m + ' 分钟前'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + ' 小时前'
+  const d = Math.floor(h / 24)
+  if (d < 30) return d + ' 天前'
+  return String(value).slice(0, 10)
+}
+
+function loadMore() {
+  visibleCount.value += pageSize
+}
 
 function resetFilter() {
   searchKeyword.value = ''
@@ -219,7 +251,7 @@ function goCreate() {
   router.push('/portal/create')
 }
 
-// 整行 / 卡片点击：进入项目总览页（/portal/project/:id）
+// 卡片点击：进入项目总览页（/portal/project/:id）
 function onOpenProject(project) {
   router.push(`/portal/project/${project.projectId}`)
 }
@@ -242,7 +274,7 @@ function getAllList() {
 }
 
 watch([searchKeyword, filterStatus, filterStep], () => {
-  currentPage.value = 1
+  visibleCount.value = pageSize
 })
 
 onMounted(() => {
@@ -259,7 +291,7 @@ onMounted(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f5f6f9;
+  background: var(--c-bg);
   padding: 0;
 }
 
@@ -269,23 +301,57 @@ onMounted(() => {
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  padding: 48px 24px 36px;
+  padding: 40px 24px 36px;
 }
 
 /* ----- Hero ----- */
 .portal-hero {
+  position: relative;
+  overflow: hidden;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 36px;
+  margin-bottom: 28px;
+  padding: 30px 34px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--c-border);
+  background: linear-gradient(120deg, var(--c-primary-bg) 0%, var(--c-bg) 45%, #eff6ff 100%);
+}
+
+/* 柔和装饰光斑（纯装饰，不干扰内容层级） */
+.portal-hero::before,
+.portal-hero::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.portal-hero::before {
+  right: -70px;
+  top: -90px;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.16) 0%, rgba(37, 99, 235, 0) 70%);
+}
+.portal-hero::after {
+  right: 130px;
+  bottom: -110px;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.14) 0%, rgba(96, 165, 250, 0) 70%);
+}
+
+.hero-left {
+  position: relative;
+  z-index: 1;
 }
 
 .hero-left h1 {
   margin: 0 0 8px;
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
-  color: #1d2129;
+  color: var(--c-text);
   letter-spacing: 0.5px;
   line-height: 1.3;
 }
@@ -293,7 +359,7 @@ onMounted(() => {
 .hero-left p {
   margin: 0;
   font-size: 14px;
-  color: #86909c;
+  color: var(--c-text-muted);
   line-height: 1.6;
 }
 
@@ -303,66 +369,204 @@ onMounted(() => {
 }
 
 .create-btn {
-  border-radius: 8px;
+  position: relative;
+  z-index: 1;
+  border-radius: var(--radius-sm);
   padding: 10px 22px;
   font-size: 14px;
   font-weight: 500;
-  background: linear-gradient(135deg, #3370ff, #5b8bff);
+  background: linear-gradient(135deg, var(--c-primary), var(--c-primary-light));
   border: none;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 
   &:hover {
-    background: linear-gradient(135deg, #2563eb, #4a7fff);
+    background: linear-gradient(135deg, var(--c-primary), var(--c-primary-light));
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(37, 99, 235, 0.34);
   }
 
   .el-icon { margin-right: 6px; }
 }
 
-/* ----- Stats ----- */
-.portal-stats {
+/* ----- 双栏布局 ----- */
+.portal-layout {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin-bottom: 32px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+.portal-main-col {
+  min-width: 0;
 }
 
-.stat-card {
+/* ----- 侧栏 ----- */
+.portal-aside {
+  position: sticky;
+  top: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.aside-block {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+}
+.aside-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+
+/* 统计条目（竖排） */
+.stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stat-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  background: #fff;
-  border-radius: 14px;
-  padding: 20px 22px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 4px 16px rgba(0, 0, 0, 0.03);
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--c-border-light);
+  background: var(--c-bg);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
-
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+.stat-item:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--c-primary-light);
+}
+.stat-item-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   flex-shrink: 0;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
 }
-
-.stat-total { background: linear-gradient(135deg, #3370ff, #5b8bff); }
-.stat-doing  { background: linear-gradient(135deg, #ff9500, #ffb340); }
-.stat-done  { background: linear-gradient(135deg, #00b42a, #30c46c); }
-
-.stat-num {
-  font-size: 28px;
+.st-total { background: linear-gradient(135deg, var(--c-primary), var(--c-primary-light)); }
+.st-doing  { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+.st-done  { background: linear-gradient(135deg, #10b981, #34d399); }
+.stat-item-num {
+  font-size: 20px;
   font-weight: 700;
-  color: #1d2129;
+  color: var(--c-text);
   line-height: 1.2;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.3px;
+}
+.stat-item-label {
+  font-size: 12px;
+  color: var(--c-text-muted);
+  margin-top: 1px;
 }
 
-.stat-label {
+/* 快捷入口 */
+.quick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.quick-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--c-border-light);
+  background: var(--c-surface);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.quick-item:hover {
+  border-color: var(--c-primary-light);
+  background: var(--c-primary-bg);
+}
+.quick-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.qi-primary { background: var(--c-primary-bg); color: var(--c-primary); }
+.qi-indigo { background: #e8f4ff; color: #0284c7; }
+.qi-neutral { background: #f1f5f9; color: var(--c-text-muted); }
+.quick-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.quick-text strong {
   font-size: 13px;
-  color: #86909c;
-  margin-top: 3px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.quick-text em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--c-text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 最近更新 */
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.recent-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+.recent-item:hover {
+  background: var(--c-primary-bg);
+}
+.recent-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recent-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.recent-tag {
+  flex-shrink: 0;
+}
+.recent-time {
+  font-size: 11px;
+  color: var(--c-text-subtle);
 }
 
 /* ----- Section Header ----- */
@@ -377,23 +581,44 @@ onMounted(() => {
   margin: 0;
   font-size: 17px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--c-text);
 }
 
 .section-count {
   font-size: 13px;
-  color: #86909c;
+  color: var(--c-text-muted);
 }
 
-/* ----- Continue (精选区) ----- */
-.portal-continue {
-  margin-bottom: 32px;
-}
-
-.continue-grid {
+/* ----- Project Grid ----- */
+.project-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+.load-more-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+.load-more-btn {
+  font-size: 13px;
+  padding: 8px 24px;
+  border-radius: var(--radius-sm);
+}
+.load-more-icon {
+  margin-left: 4px;
+}
+.list-end {
+  text-align: center;
+  margin: 18px 0 4px;
+  font-size: 12px;
+  color: var(--c-text-subtle);
+}
+
+/* ----- Loading / Empty ----- */
+.loading-mask {
+  min-height: 120px;
 }
 
 /* ----- Filter Bar ----- */
@@ -404,10 +629,10 @@ onMounted(() => {
   margin-bottom: 18px;
   flex-wrap: wrap;
   padding: 14px 18px;
-  background: #fff;
-  border-radius: 12px;
-  border: 1px solid #eeeef0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  background: var(--c-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--shadow-sm);
 }
 .filter-search { width: 320px; max-width: 100%; }
 .filter-select { width: 150px; flex-shrink: 0; }
@@ -415,7 +640,7 @@ onMounted(() => {
 .filter-reset {
   font-size: 13px;
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
@@ -431,18 +656,11 @@ onMounted(() => {
   min-height: 120px;
 }
 
-/* ----- Pagination ----- */
-.pagination-wrap {
-  display: flex;
-  justify-content: center;
-  margin-top: 24px;
-}
-
 /* ----- Footer ----- */
 .portal-footer {
   text-align: center;
   padding: 18px 16px;
-  color: #c0c4cc;
+  color: var(--c-text-subtle);
   font-size: 12px;
   background: transparent;
   border-top: none;
@@ -450,19 +668,33 @@ onMounted(() => {
 }
 
 /* ===== Responsive ===== */
+@media (max-width: 1200px) {
+  .portal-layout {
+    grid-template-columns: 1fr;
+  }
+  .portal-aside {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+  .project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
+  .portal-main {
+    padding: 24px 16px 28px;
+  }
   .portal-hero {
     flex-direction: column;
     align-items: flex-start;
-    margin-bottom: 28px;
+    margin-bottom: 24px;
+    padding: 24px 20px;
   }
 
-  .portal-stats {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .continue-grid {
+  .project-grid {
     grid-template-columns: 1fr;
   }
 
@@ -470,5 +702,16 @@ onMounted(() => {
   .filter-search { width: 100%; flex: 1 1 100%; }
   .filter-select { flex: 1; min-width: 120px; }
   .filter-bar-spacer { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .create-btn,
+  .stat-item {
+    transition: none;
+  }
+  .create-btn:hover,
+  .stat-item:hover {
+    transform: none;
+  }
 }
 </style>

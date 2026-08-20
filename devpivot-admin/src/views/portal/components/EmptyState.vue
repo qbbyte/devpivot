@@ -5,18 +5,18 @@
       <svg v-if="variant === 'onboarding'" viewBox="0 0 240 176" width="240" height="176" role="presentation">
         <defs>
           <linearGradient id="esGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="#3370ff" />
-            <stop offset="100%" stop-color="#6e52ff" />
+            <stop offset="0%" stop-color="#2563eb" />
+            <stop offset="100%" stop-color="#93c5fd" />
           </linearGradient>
           <linearGradient id="esGradSoft" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="#e8f0ff" />
-            <stop offset="100%" stop-color="#f1ecff" />
+            <stop offset="0%" stop-color="#eff4ff" />
+            <stop offset="100%" stop-color="#eaf2ff" />
           </linearGradient>
         </defs>
         <!-- 柔和底色圆 -->
         <circle cx="120" cy="92" r="74" fill="url(#esGradSoft)" />
-        <circle cx="58" cy="46" r="7" fill="#cfe0ff" />
-        <circle cx="196" cy="58" r="9" fill="#e2d8ff" />
+        <circle cx="58" cy="46" r="7" fill="#d6e4ff" />
+        <circle cx="196" cy="58" r="9" fill="#dfeaff" />
         <!-- 主卡片 -->
         <rect x="64" y="58" width="112" height="78" rx="14" fill="#ffffff" stroke="#e6ebf5" stroke-width="1.5" />
         <rect x="64" y="58" width="112" height="22" rx="14" fill="url(#esGrad)" />
@@ -28,12 +28,12 @@
         <circle cx="176" cy="58" r="16" fill="url(#esGrad)" />
         <path d="M176 50 v16 M168 58 h16" stroke="#fff" stroke-width="2.6" stroke-linecap="round" />
         <!-- 阶段小点（暗示流水线） -->
-        <circle cx="86" cy="154" r="5" fill="#3370ff" />
-        <circle cx="108" cy="154" r="5" fill="#7f93ff" />
-        <circle cx="130" cy="154" r="5" fill="#c9d4ff" />
-        <circle cx="152" cy="154" r="5" fill="#d9def0" />
+        <circle cx="86" cy="154" r="5" fill="#2563eb" />
+        <circle cx="108" cy="154" r="5" fill="#60a5fa" />
+        <circle cx="130" cy="154" r="5" fill="#c7cbfb" />
+        <circle cx="152" cy="154" r="5" fill="#dfe0f8" />
         <!-- 星点 -->
-        <path d="M186 110 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 z" fill="#ffb340" />
+        <path d="M186 110 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 z" fill="#fbbf24" />
       </svg>
 
       <svg v-else viewBox="0 0 200 160" width="200" height="160" role="presentation">
@@ -121,10 +121,10 @@ const desc = computed(() => {
   align-items: center;
   text-align: center;
   padding: 56px 24px 64px;
-  background: #fff;
-  border-radius: 16px;
-  border: 1px solid #eeeef0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  background: var(--c-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--shadow-sm);
 }
 
 .es-illustration {
@@ -136,7 +136,7 @@ const desc = computed(() => {
   margin: 12px 0 8px;
   font-size: 18px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--c-text);
 }
 
 .es-desc {
@@ -144,7 +144,7 @@ const desc = computed(() => {
   max-width: 440px;
   font-size: 14px;
   line-height: 1.7;
-  color: #86909c;
+  color: var(--c-text-muted);
 }
 
 /* 三步说明 */
@@ -165,9 +165,9 @@ const desc = computed(() => {
   width: 220px;
   text-align: left;
   padding: 14px 16px;
-  background: #f7f9fc;
-  border-radius: 12px;
-  border: 1px solid #eef1f6;
+  background: var(--c-primary-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border-light);
 }
 
 .es-step-no {
@@ -175,7 +175,7 @@ const desc = computed(() => {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #3370ff, #6e52ff);
+  background: linear-gradient(135deg, var(--c-primary), var(--c-primary-lighter));
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -193,33 +193,33 @@ const desc = computed(() => {
 .es-step-text strong {
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
+  color: var(--c-text);
 }
 
 .es-step-text span {
   font-size: 12.5px;
   line-height: 1.5;
-  color: #86909c;
+  color: var(--c-text-muted);
 }
 
 .es-cta {
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   padding: 11px 26px;
   font-size: 14px;
   font-weight: 500;
-  background: linear-gradient(135deg, #3370ff, #5b8bff);
+  background: linear-gradient(135deg, var(--c-primary), var(--c-primary-light));
   border: none;
-  box-shadow: 0 6px 16px rgba(51, 112, 255, 0.28);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
 .es-cta:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(51, 112, 255, 0.34);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.34);
 }
 
 .es-cta:focus-visible {
-  outline: 2px solid #3370ff;
+  outline: 2px solid var(--c-primary);
   outline-offset: 2px;
 }
 
@@ -228,16 +228,16 @@ const desc = computed(() => {
 }
 
 .es-cta--ghost {
-  background: #fff;
-  color: #4e5969;
-  border: 1px solid #d9dee6;
+  background: var(--c-surface);
+  color: var(--c-text-muted);
+  border: 1px solid var(--c-border);
   box-shadow: none;
 }
 
 .es-cta--ghost:hover {
-  color: #3370ff;
-  border-color: #3370ff;
-  background: #f5f8ff;
+  color: var(--c-primary);
+  border-color: var(--c-primary);
+  background: var(--c-primary-bg);
   transform: none;
 }
 

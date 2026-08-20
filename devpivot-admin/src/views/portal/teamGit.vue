@@ -127,12 +127,12 @@
                   <svg v-if="!gitConfig.repoBranch" class="menu-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 </li>
                 <li v-if="gitBranchLoading" class="menu-empty">加载中...</li>
-                <li v-else-if="!gitBranches.length" class="menu-empty" @click.stop="loadBranches">暂无分支，点击刷新</li>
+                <li v-else-if="!gitBranches.length" class="menu-empty" @click.stop="loadBranches(true)">暂无分支，点击刷新</li>
                 <li v-for="b in gitBranches" :key="b" :class="{ active: gitConfig.repoBranch === b }" @click="pickBranch(b)">
                   <span class="menu-name tg-mono">{{ b }}</span>
                   <svg v-if="gitConfig.repoBranch === b" class="menu-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                 </li>
-                <li class="menu-refresh" @click.stop="loadBranches">
+                <li class="menu-refresh" @click.stop="loadBranches(true)">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                   刷新分支
                 </li>
@@ -375,6 +375,7 @@ import {
   getTeamProjectContributors, getTeamProjectCommits, getTeamProjectBranches,
   getTeamProjectHeatmap
 } from '@/api/ai/teamGit'
+import { gitCacheGet, gitCacheSet, gitCacheClear } from '@/utils/gitCache'
 
 const route = useRoute()
 const router = useRouter()
@@ -429,7 +430,7 @@ const RANK_COLORS = [
   'linear-gradient(90deg, #f59e0b, #f97316)',
   'linear-gradient(90deg, #94a3b8, #64748b)',
   'linear-gradient(90deg, #d97706, #b45309)',
-  'linear-gradient(90deg, #6366f1, #818cf8)',
+  'linear-gradient(90deg, #2563eb, #60a5fa)',
 ]
 const RANK_CLASS = ['rank-gold', 'rank-silver', 'rank-bronze', 'rank-default']
 function barColor(i) { return RANK_COLORS[Math.min(i, 3)] }
@@ -552,6 +553,7 @@ async function saveRepoModal() {
     accessToken: repoDialog.accessToken
   }
   try {
+    const targetRepoId = repoDialog.mode === 'edit' ? repoDialog.editingRepoId : null
     if (repoDialog.mode === 'edit') {
       await updateTeamProjectRepo(teamId.value, repoDialog.editingRepoId, payload)
       ElMessage.success('仓库配置已更新')
@@ -560,6 +562,8 @@ async function saveRepoModal() {
       ElMessage.success('仓库已添加')
       activeRepoId.value = Number(res.data)
     }
+    // 仓库配置/令牌变更后，主动失效该仓库的前端与后端缓存
+    if (targetRepoId) clearFrontCache(targetRepoId)
     repoDialog.visible = false
     await loadRepos()
     await selectRepo(activeRepoId.value || null)
@@ -582,12 +586,19 @@ async function removeRepo(r) {
   try {
     await deleteTeamProjectRepo(teamId.value, r.id)
     ElMessage.success('仓库已删除')
+    clearFrontCache(r.id)
     await loadRepos()
     // 删除后自动切到第一个仓库并重新加载数据
     await selectRepo(activeRepoId.value || null)
   } catch (e) {
     // 响应拦截器已统一提示
   }
+}
+
+/** 仓库配置/令牌/增删后，失效该仓库的前端内存缓存（后端 Redis 由接口侧自行清理） */
+function clearFrontCache(repoId) {
+  if (repoId == null) return
+  ;['repo:', 'branches:', 'contrib:', 'commits:', 'heat:'].forEach(p => gitCacheClear(p + repoId))
 }
 
 /* ===================== URL 解析（弹窗内复用） ===================== */
@@ -688,9 +699,14 @@ async function loadRepoConfig() {
     return
   }
   gitLoading.value = true
+  const cacheKey = 'repo:' + activeRepoId.value
   try {
-    const res = await getTeamProjectRepo(teamId.value, activeRepoId.value)
-    const d = res.data || {}
+    let d = gitCacheGet(cacheKey)
+    if (!d) {
+      const res = await getTeamProjectRepo(teamId.value, activeRepoId.value)
+      d = res.data || {}
+      gitCacheSet(cacheKey, d)
+    }
     gitConfig.configured = !!d.configured
     gitConfig.platform = d.platform || activeRepo.value.platform || 'github'
     gitConfig.repoFullName = d.repoFullName || ''
@@ -703,6 +719,7 @@ async function loadRepoConfig() {
     }
   } catch (e) {
     if (import.meta.env.DEV) console.warn('加载仓库配置失败', e)
+    gitCacheClear(cacheKey)
     resetGitConfig()
   } finally {
     gitLoading.value = false
@@ -727,37 +744,61 @@ function resetGitConfig() {
 async function loadContributors() {
   if (!activeRepoId.value || !teamId.value) return
   gitContribLoading.value = true
+  const cacheKey = 'contrib:' + activeRepoId.value
   try {
-    const res = await getTeamProjectContributors(teamId.value, activeRepoId.value)
-    gitContributors.value = res.data || []
-  } catch (e) { gitContributors.value = [] } finally { gitContribLoading.value = false }
+    let list = gitCacheGet(cacheKey)
+    if (!list) {
+      const res = await getTeamProjectContributors(teamId.value, activeRepoId.value)
+      list = res.data || []
+      gitCacheSet(cacheKey, list)
+    }
+    gitContributors.value = list
+  } catch (e) {
+    gitCacheClear(cacheKey)
+    gitContributors.value = []
+  } finally {
+    gitContribLoading.value = false
+  }
 }
 async function loadHeatmap() {
   if (!activeRepoId.value || !teamId.value || !gitConfig.configured) return
   gitHeatLoading.value = true
   gitHeatError.value = ''
+  const cacheKey = 'heat:' + activeRepoId.value + ':' + (gitConfig.repoBranch || '')
   try {
-    const res = await getTeamProjectHeatmap(teamId.value, activeRepoId.value, { branch: gitConfig.repoBranch || '' })
-    gitHeatmap.value = res.data || null
+    let hm = gitCacheGet(cacheKey)
+    if (!hm) {
+      const res = await getTeamProjectHeatmap(teamId.value, activeRepoId.value, { branch: gitConfig.repoBranch || '' })
+      hm = res.data || null
+      if (hm) gitCacheSet(cacheKey, hm)
+    }
+    gitHeatmap.value = hm
   } catch (e) {
+    gitCacheClear(cacheKey)
     gitHeatmap.value = null
     gitHeatError.value = '热力图加载失败'
   } finally {
     gitHeatLoading.value = false
   }
 }
-async function loadBranches() {
+async function loadBranches(force) {
   if (!activeRepoId.value || !teamId.value) return
   gitBranchLoading.value = true
+  const cacheKey = 'branches:' + activeRepoId.value
   try {
-    const res = await getTeamProjectBranches(teamId.value, activeRepoId.value)
-    const d = res.data || {}
+    let d = force ? null : gitCacheGet(cacheKey)
+    if (!d) {
+      const res = await getTeamProjectBranches(teamId.value, activeRepoId.value)
+      d = res.data || {}
+      gitCacheSet(cacheKey, d)
+    }
     gitBranches.value = d.branches || []
     if (!gitConfig.repoBranch && d.defaultBranch) {
       gitConfig.repoBranch = d.defaultBranch
     }
   } catch (e) {
     // 响应拦截器已统一提示
+    gitCacheClear(cacheKey)
   } finally {
     gitBranchLoading.value = false
   }
@@ -798,14 +839,22 @@ function onDocClick(e) {
 async function loadCommits(page, reset) {
   if (!activeRepoId.value || !teamId.value) return
   gitCommitLoading.value = true
+  const cacheKey = 'commits:' + activeRepoId.value + ':' + (gitConfig.repoBranch || '') + ':' + page
   try {
-    const res = await getTeamProjectCommits(teamId.value, activeRepoId.value, { page, branch: gitConfig.repoBranch || '' })
-    const list = res.data || []
+    let list = gitCacheGet(cacheKey)
+    if (!list) {
+      const res = await getTeamProjectCommits(teamId.value, activeRepoId.value, { page, branch: gitConfig.repoBranch || '' })
+      list = res.data || []
+      gitCacheSet(cacheKey, list)
+    }
     if (reset) gitCommits.value = []
     gitCommits.value.push(...list)
     gitCommitPage.value = page
     gitCommitNoMore.value = list.length < 20
-  } catch (e) { if (reset) gitCommits.value = [] } finally {
+  } catch (e) {
+    gitCacheClear(cacheKey)
+    if (reset) gitCommits.value = []
+  } finally {
     gitCommitLoading.value = false
     nextTick(setupInfiniteScroll)
   }
@@ -860,21 +909,21 @@ onUnmounted(() => {
 <style scoped>
 /* ========== Design Tokens (Soft UI Evolution · Indigo) ========== */
 .tg-page {
-  --c-primary: #6366f1;
-  --c-primary-light: #818cf8;
-  --c-primary-bg: #eef2ff;
+  --c-primary: #2563eb;
+  --c-primary-light: #60a5fa;
+  --c-primary-bg: #eff4ff;
   --c-accent: #059669;
   --c-accent-bg: #ecfdf5;
-  --c-bg: #f8f7ff;
+  --c-bg: #f5f8fd;
   --c-surface: #ffffff;
-  --c-border: #e2e8f5;
+  --c-border: #e2e8f0;
   --c-border-light: #f1f5f9;
   --c-text: #1e293b;
   --c-text-muted: #64748b;
   --c-text-subtle: #94a3b8;
-  --shadow-sm: 0 1px 3px rgba(99, 102, 241, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(99, 102, 241, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 30px rgba(99, 102, 241, 0.1), 0 4px 8px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(37, 99, 235, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(37, 99, 235, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 30px rgba(37, 99, 235, 0.1), 0 4px 8px rgba(0, 0, 0, 0.04);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -1089,12 +1138,12 @@ onUnmounted(() => {
 }
 .tg-repo-item:hover {
   border-color: var(--c-primary-light);
-  background: #fafaff;
+  background: #f5f9ff;
 }
 .tg-repo-item.item-active {
   border-color: var(--c-primary);
   background: var(--c-primary-bg);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
 }
 .tg-repo-item-name {
   display: flex;
@@ -1204,7 +1253,7 @@ onUnmounted(() => {
 .tg-stat:hover {
   transform: translateY(-2px);
 }
-.tg-stat--primary { background: var(--c-primary-bg); border-color: #c7d2fe; }
+.tg-stat--primary { background: var(--c-primary-bg); border-color: #bfdbfe; }
 .tg-stat--green { background: var(--c-accent-bg); border-color: #a7f3d0; }
 .tg-stat--indigo { background: #f0f9ff; border-color: #bae6fd; }
 .tg-stat--neutral { background: #f8fafc; border-color: var(--c-border-light); }
@@ -1774,7 +1823,7 @@ onUnmounted(() => {
 }
 .tg-input:focus {
   border-color: var(--c-primary);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 .tg-input:disabled {
   background: #f8fafc;
@@ -1810,11 +1859,11 @@ onUnmounted(() => {
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 .tg-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
 }
 .tg-btn-primary:active {
   transform: translateY(0);

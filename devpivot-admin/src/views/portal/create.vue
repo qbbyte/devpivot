@@ -105,7 +105,7 @@ function submitForm() {
 <style scoped>
 .create-page {
   min-height: 100vh;
-  background: #f7f8fa;
+  background: var(--c-bg);
 }
 
 /* ---- header ---- */
@@ -117,8 +117,8 @@ function submitForm() {
   align-items: center;
   height: 52px;
   padding: 0 24px;
-  background: #fff;
-  border-bottom: 1px solid #ebedf0;
+  background: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid var(--c-border);
   backdrop-filter: blur(8px);
 }
 
@@ -128,7 +128,7 @@ function submitForm() {
   gap: 4px;
   border: none;
   background: none;
-  color: #646a73;
+  color: var(--c-text-muted);
   font-size: 13px;
   cursor: pointer;
   padding: 4px 8px;
@@ -137,15 +137,15 @@ function submitForm() {
 }
 
 .back-link:hover {
-  color: #3370ff;
-  background: rgba(51, 112, 255, 0.06);
+  color: var(--c-primary);
+  background: var(--c-primary-bg);
 }
 
 .header-title {
   margin-left: 12px;
   font-size: 14px;
   font-weight: 600;
-  color: #1f2329;
+  color: var(--c-text);
 }
 
 .header-spacer {
@@ -161,10 +161,15 @@ function submitForm() {
   width: 100%;
   max-width: 680px;
   margin: 0 auto;
+  padding: 36px 44px 40px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
 }
 
 .form-top {
-  margin-bottom: 40px;
+  margin-bottom: 36px;
   text-align: center;
 }
 
@@ -172,14 +177,14 @@ function submitForm() {
   margin: 0 0 8px;
   font-size: 24px;
   font-weight: 700;
-  color: #1d2129;
+  color: var(--c-text);
   line-height: 1.4;
 }
 
 .form-top p {
   margin: 0;
   font-size: 14px;
-  color: #86909c;
+  color: var(--c-text-muted);
   line-height: 1.6;
 }
 
@@ -191,14 +196,14 @@ function submitForm() {
 .create-form :deep(.el-form-item__label) {
   font-size: 14px;
   font-weight: 500;
-  color: #1f2329;
+  color: var(--c-text);
   padding-bottom: 6px;
 }
 
 .create-form :deep(.el-input__wrapper),
 .create-form :deep(.el-textarea__inner) {
-  border-radius: 8px;
-  box-shadow: 0 0 0 1px #dee0e3 inset;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--c-border) inset;
   transition: box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
@@ -209,7 +214,7 @@ function submitForm() {
 
 .create-form :deep(.el-input__wrapper.is-focus),
 .create-form :deep(.el-textarea__inner:focus) {
-  box-shadow: 0 0 0 1px #3370ff inset, 0 0 0 3px rgba(51, 112, 255, 0.15);
+  box-shadow: 0 0 0 1px var(--c-primary) inset, 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 @media (max-width: 640px) {
@@ -219,6 +224,7 @@ function submitForm() {
 
   .form-wrap {
     max-width: 100%;
+    padding: 28px 22px 32px;
   }
 
   .form-top {
@@ -236,12 +242,12 @@ function submitForm() {
   justify-content: center;
   margin-top: 32px;
   padding-top: 32px;
-  border-top: 1px solid #f0f1f3;
+  border-top: 1px solid var(--c-border-light);
 }
 
 .submit-btn {
   min-width: 140px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 10px 40px;
   font-size: 14px;
   font-weight: 500;

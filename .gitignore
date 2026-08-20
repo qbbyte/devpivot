@@ -1,5 +1,8 @@
 .codebuddy
 .workbuddy
 
+# AI 开发过程中的临时语法校验/模拟脚本（node 手动运行，勿提交）
+*.mjs
+
 *.sql
 *.md

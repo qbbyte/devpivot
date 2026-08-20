@@ -64,7 +64,19 @@ const stepLabel = computed(() => {
 
 function formatTime(value) {
   if (!value) return ''
-  return String(value).replace('T', ' ').slice(0, 16)
+  const t = new Date(String(value).replace(' ', 'T'))
+  if (isNaN(t.getTime())) return String(value).slice(0, 16)
+  const diff = Date.now() - t.getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return '刚刚更新'
+  if (m < 60) return m + ' 分钟前更新'
+  const h = Math.floor(m / 60)
+  if (h < 24) return h + ' 小时前更新'
+  const d = Math.floor(h / 24)
+  if (d < 30) return d + ' 天前更新'
+  const mo = Math.floor(d / 30)
+  if (mo < 12) return mo + ' 个月前更新'
+  return Math.floor(mo / 12) + ' 年前更新'
 }
 </script>
 
@@ -83,19 +95,19 @@ function formatTime(value) {
 
 .continue-card:hover,
 .continue-card:focus-visible {
-  border-color: var(--c-primary, #3370ff);
-  box-shadow: 0 10px 28px rgba(51, 112, 255, 0.1);
+  border-color: var(--c-primary, #2563eb);
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.12);
   transform: translateY(-2px);
   outline: none;
 }
 
 .continue-card:focus-visible {
-  outline: 2px solid var(--c-primary, #3370ff);
+  outline: 2px solid var(--c-primary, #2563eb);
   outline-offset: 2px;
 }
 
 .continue-card.is-top {
-  border-left: 3px solid var(--c-primary, #3370ff);
+  border-left: 3px solid var(--c-primary, #2563eb);
 }
 
 .cc-top {
@@ -172,9 +184,9 @@ function formatTime(value) {
   gap: 4px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--c-primary, #3370ff);
+  color: var(--c-primary, #2563eb);
   background: transparent;
-  border: 1px solid var(--c-primary, #3370ff);
+  border: 1px solid var(--c-primary, #2563eb);
   border-radius: 8px;
   padding: 6px 14px;
   cursor: pointer;
@@ -182,7 +194,7 @@ function formatTime(value) {
 }
 
 .cc-cta:hover {
-  background: var(--c-primary, #3370ff);
+  background: var(--c-primary, #2563eb);
   color: #fff;
 }
 
@@ -197,8 +209,8 @@ function formatTime(value) {
   gap: 4px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--c-success, #00b42a);
-  background: rgba(0, 180, 42, 0.08);
+  color: var(--c-success, #10b981);
+  background: rgba(16, 185, 129, 0.08);
   border-radius: 999px;
   padding: 4px 12px;
 }

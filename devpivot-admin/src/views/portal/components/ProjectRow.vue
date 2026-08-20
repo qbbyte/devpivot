@@ -83,20 +83,20 @@ function formatTime(value) {
 
 .project-row:hover,
 .project-row:focus-visible {
-  border-color: var(--c-primary, #3370ff);
-  box-shadow: 0 8px 24px rgba(51, 112, 255, 0.08);
+  border-color: var(--c-primary, #2563eb);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.1);
   transform: translateY(-1px);
   outline: none;
 }
 
 .project-row:focus-visible {
-  outline: 2px solid var(--c-primary, #3370ff);
+  outline: 2px solid var(--c-primary, #2563eb);
   outline-offset: 2px;
 }
 
 /* 置顶：左侧主色强调条 */
 .project-row.is-top {
-  border-left: 3px solid var(--c-primary, #3370ff);
+  border-left: 3px solid var(--c-primary, #2563eb);
 }
 
 .pr-left {
@@ -182,9 +182,9 @@ function formatTime(value) {
   gap: 4px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--c-primary, #3370ff);
+  color: var(--c-primary, #2563eb);
   background: transparent;
-  border: 1px solid var(--c-primary, #3370ff);
+  border: 1px solid var(--c-primary, #2563eb);
   border-radius: 8px;
   padding: 6px 14px;
   cursor: pointer;
@@ -192,7 +192,7 @@ function formatTime(value) {
 }
 
 .pr-cta:hover {
-  background: var(--c-primary, #3370ff);
+  background: var(--c-primary, #2563eb);
   color: #fff;
 }
 
@@ -206,8 +206,8 @@ function formatTime(value) {
   gap: 4px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--c-success, #00b42a);
-  background: rgba(0, 180, 42, 0.08);
+  color: var(--c-success, #10b981);
+  background: rgba(16, 185, 129, 0.08);
   border-radius: 999px;
   padding: 4px 12px;
 }
