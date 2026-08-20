@@ -124,6 +124,12 @@ export const constantRoutes = [
     meta: { title: '我的团队' }
   },
   {
+    path: '/portal/team/:teamId/project/:projectId/git',
+    component: () => import('@/views/portal/teamGit'),
+    hidden: true,
+    meta: { title: 'Git 提交统计' }
+  },
+  {
     path: '',
     component: Layout,
     redirect: '/portal',

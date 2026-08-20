@@ -113,6 +113,7 @@
                   <el-table-column label="操作" width="150" align="center">
                     <template #default="{ row }">
                       <el-button type="primary" link size="small" @click="openArtifacts(row)">产物</el-button>
+                      <el-button type="success" link size="small" @click="gotoGit(row)">Git</el-button>
                       <el-button type="danger" link size="small" :disabled="!canManage" @click="unbindProject(row)">解绑</el-button>
                     </template>
                   </el-table-column>
@@ -617,6 +618,14 @@ function gotoPhase(step) {
   const seg = STEP_ROUTE[step] || 'clarify'
   projectDialogVisible.value = false
   router.push({ path: '/portal/project/' + id + '/' + seg })
+}
+// 进入团队项目 Git 提交统计独立子页面
+function gotoGit(row) {
+  if (!row || !row.projectId || !activeTeam.value) return
+  router.push({
+    path: '/portal/team/' + activeTeam.value.teamId + '/project/' + row.projectId + '/git',
+    query: { projectName: row.projectName || '' }
+  })
 }
 
 /* ===================== 项目产物弹窗 ===================== */
