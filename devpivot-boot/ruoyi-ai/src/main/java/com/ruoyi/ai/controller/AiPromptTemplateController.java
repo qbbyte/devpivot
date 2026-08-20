@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -41,6 +43,8 @@ import com.ruoyi.common.core.page.TableDataInfo;
 @RequestMapping("/system/template")
 public class AiPromptTemplateController extends BaseController
 {
+    private static final Logger log = LoggerFactory.getLogger(AiPromptTemplateController.class);
+
     @Autowired
     private IAiPromptTemplateService aiPromptTemplateService;
 
@@ -218,7 +222,10 @@ public class AiPromptTemplateController extends BaseController
                 {
                     emitter.send(SseEmitter.event().data("\n（试跑失败：" + e.getMessage() + "）"));
                 }
-                catch (IOException ignored) { }
+                catch (IOException io)
+                {
+                    log.warn("[template] 试跑失败事件推送异常(客户端可能已断开) projectId 推送跳过", io);
+                }
                 emitter.complete();
             }
         });

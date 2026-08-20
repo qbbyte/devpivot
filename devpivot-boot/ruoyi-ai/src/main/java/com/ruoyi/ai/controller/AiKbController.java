@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.utils.ParamValidator;
 import com.ruoyi.ai.domain.AiKbDoc;
 import com.ruoyi.ai.service.IKnowledgeRetrievalService;
 
@@ -75,6 +76,9 @@ public class AiKbController extends BaseController
         {
             return error("文档内容不能为空");
         }
+        // 入参防护：标题/正文长度上限，避免超长文本撑爆存储或索引
+        ParamValidator.requireText(title, 200, "文档标题", true);
+        ParamValidator.requireText(content, 100000, "文档内容", false);
         knowledgeRetrievalService.indexDocument(projectId, stage, title, content, "upload");
         return success("索引成功");
     }

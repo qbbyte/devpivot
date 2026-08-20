@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import com.ruoyi.common.utils.ParamValidator;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.prompt.PromptTemplateService;
@@ -33,6 +35,7 @@ import com.ruoyi.common.core.controller.BaseController;
  * @date 2026-08-06
  */
 @RestController
+@Validated
 @RequestMapping("/ai/chat")
 public class AiPrdChatController extends BaseController
 {
@@ -79,6 +82,11 @@ public class AiPrdChatController extends BaseController
         String rawModel = body.get("model") == null ? null : String.valueOf(body.get("model")).trim();
         final String model = (rawModel == null || rawModel.isEmpty()) ? defaultModelCode() : rawModel;
         String question = body.get("question") == null ? "" : String.valueOf(body.get("question"));
+        if (question.length() > 8000)
+        {
+            writeError(emitter, "提问内容长度不能超过 8000 字符");
+            return emitter;
+        }
         String docContent = body.get("docContent") == null ? "" : String.valueOf(body.get("docContent"));
         List<Object> quotesObj = body.get("quotes") instanceof List ? (List<Object>) body.get("quotes") : null;
 

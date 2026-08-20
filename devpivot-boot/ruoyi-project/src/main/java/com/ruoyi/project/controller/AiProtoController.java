@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
@@ -30,6 +31,7 @@ import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.utils.DateUtils;
 import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.common.utils.ParamValidator;
 import com.ruoyi.project.domain.AiProtoComponent;
 import com.ruoyi.project.domain.AiProtoPage;
 import com.ruoyi.project.domain.AiProtoVersion;
@@ -56,6 +58,7 @@ import com.ruoyi.ai.service.IAiModelConfigService;
  * @date 2026-08-07
  */
 @RestController
+@Validated
 @RequestMapping("/ai/proto")
 public class AiProtoController extends BaseController
 {
@@ -124,6 +127,7 @@ public class AiProtoController extends BaseController
     @GetMapping("/pages/{projectId}")
     public AjaxResult pages(@PathVariable("projectId") Long projectId)
     {
+        ParamValidator.projectId(projectId);
         List<AiProtoPage> pages = aiProtoPageService.selectAiProtoPageByProjectId(projectId);
         List<Map<String, Object>> result = new ArrayList<>(pages.size());
         for (AiProtoPage p : pages)
@@ -143,10 +147,7 @@ public class AiProtoController extends BaseController
     @Transactional
     public AjaxResult save(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body)
     {
-        if (projectId == null)
-        {
-            return error("项目ID不能为空");
-        }
+        ParamValidator.projectId(projectId);
         Object pagesObj = body.get("pages");
         if (!(pagesObj instanceof List))
         {
@@ -172,10 +173,7 @@ public class AiProtoController extends BaseController
     @Transactional
     public AjaxResult generate(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body)
     {
-        if (projectId == null)
-        {
-            return error("项目ID不能为空");
-        }
+        ParamValidator.projectId(projectId);
         String projectName = str(body.get("projectName"));
         String deviceType = str(body.get("deviceType"));
         if (deviceType == null || deviceType.isEmpty())
@@ -184,6 +182,11 @@ public class AiProtoController extends BaseController
         }
         String prdText = str(body.get("prdText"));
         String model = str(body.get("model"));
+
+        // 入参防护：自由文本长度上限，避免超长内容撑爆存储或模型上下文
+        ParamValidator.requireText(projectName, 200, "项目名称", true);
+        ParamValidator.requireText(deviceType, 20, "设备类型", false);
+        ParamValidator.requireText(prdText, 20000, "PRD文本", true);
 
         List<Map<String, Object>> pages = null;
         try
@@ -220,10 +223,7 @@ public class AiProtoController extends BaseController
     @Transactional
     public AjaxResult confirm(@PathVariable("projectId") Long projectId)
     {
-        if (projectId == null)
-        {
-            return error("项目ID不能为空");
-        }
+        ParamValidator.projectId(projectId);
         AiProject project = aiProjectService.selectAiProjectByProjectId(projectId);
         if (project == null)
         {
@@ -247,6 +247,7 @@ public class AiProtoController extends BaseController
         response.setHeader("X-Accel-Buffering", "no");
         SseEmitter emitter = new SseEmitter(180000L);
         emitter.onError(e -> emitter.completeWithError(e));
+        emitter.onTimeout(() -> emitter.complete());
 
         String message = str(body.get("message"));
         String model = str(body.get("model"));
@@ -321,13 +322,20 @@ public class AiProtoController extends BaseController
         response.setHeader("X-Accel-Buffering", "no");
         SseEmitter emitter = new SseEmitter(180000L);
         emitter.onError(e -> emitter.completeWithError(e));
+        emitter.onTimeout(() -> emitter.complete());
 
         Long projectId = toLong(body.get("projectId"));
+        ParamValidator.projectId(projectId);
         String projectName = str(body.get("projectName"));
         String rawDevice = str(body.get("deviceType"));
         String deviceType = (rawDevice == null || rawDevice.isEmpty()) ? "WEB" : rawDevice;
         String prdText = str(body.get("prdText"));
         String model = str(body.get("model"));
+
+        // 入参防护：自由文本长度上限，避免超长内容撑爆存储或模型上下文
+        ParamValidator.requireText(projectName, 200, "项目名称", true);
+        ParamValidator.requireText(deviceType, 20, "设备类型", false);
+        ParamValidator.requireText(prdText, 20000, "PRD文本", true);
 
         STREAM_POOL.submit(() -> {
             try
@@ -380,13 +388,19 @@ public class AiProtoController extends BaseController
     public SseEmitter patch(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body,
                             HttpServletResponse response)
     {
+        ParamValidator.projectId(projectId);
         response.setHeader("Cache-Control", "no-cache, no-transform");
         response.setHeader("X-Accel-Buffering", "no");
         SseEmitter emitter = new SseEmitter(180000L);
         emitter.onError(e -> emitter.completeWithError(e));
+        emitter.onTimeout(() -> emitter.complete());
 
         String instruction = str(body.get("instruction"));
         String model = str(body.get("model"));
+
+        // 入参防护：局部改稿指令长度上限，避免超长指令撑爆模型上下文
+        ParamValidator.requireText(instruction, 8000, "改稿指令", true);
+
         Object pagesObj = body.get("pages");
 
         STREAM_POOL.submit(() -> {
@@ -475,7 +489,7 @@ public class AiProtoController extends BaseController
     @Transactional
     public AjaxResult saveVersion(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body)
     {
-        if (projectId == null) return error("项目ID不能为空");
+        ParamValidator.projectId(projectId);
         Object pagesObj = body.get("pages");
         if (!(pagesObj instanceof List)) return error("页面数据格式不正确");
         String versionName = str(body.get("versionName"));
@@ -505,7 +519,7 @@ public class AiProtoController extends BaseController
     @GetMapping("/versions/{projectId}")
     public AjaxResult listVersions(@PathVariable("projectId") Long projectId)
     {
-        if (projectId == null) return error("项目ID不能为空");
+        ParamValidator.projectId(projectId);
         List<AiProtoVersion> list = aiProtoVersionService.selectAiProtoVersionByProjectId(projectId);
         List<Map<String, Object>> result = new ArrayList<>(list.size());
         for (AiProtoVersion v : list)
@@ -914,7 +928,10 @@ public class AiProtoController extends BaseController
             Object o = JSON.parse(s);
             if (o instanceof List) return (List<Map<String, Object>>) o;
         }
-        catch (Exception e) { }
+        catch (Exception e)
+        {
+            log.warn("[proto] 快照 JSON 解析失败，已返回空列表", e);
+        }
         return new ArrayList<>();
     }
 
@@ -939,7 +956,7 @@ public class AiProtoController extends BaseController
         }
         catch (Exception e)
         {
-            // ignore
+            log.warn("[proto] JSON 解析失败，已返回空对象", e);
         }
         return new HashMap<>();
     }

@@ -11,7 +11,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 import com.ruoyi.common.core.controller.BaseController;
+import com.ruoyi.common.utils.ParamValidator;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.utils.SecurityUtils;
@@ -28,6 +30,7 @@ import com.ruoyi.project.service.IAiTeamService;
  * @date 2026-08-09
  */
 @RestController
+@Validated
 @RequestMapping("/team")
 public class AiTeamController extends BaseController
 {

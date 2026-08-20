@@ -17,7 +17,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import com.ruoyi.common.utils.ParamValidator;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.prompt.PromptTemplateService;
@@ -52,6 +54,7 @@ import com.ruoyi.project.service.IAiTechDocService;
  * @date 2026-08-08
  */
 @RestController
+@Validated
 @RequestMapping("/ai/db")
 public class AiDbController extends BaseController
 {
@@ -122,7 +125,7 @@ public class AiDbController extends BaseController
     public AjaxResult getByProject(@RequestBody Map<String, Object> body)
     {
         Long projectId = parseProjectId(body.get("projectId"));
-        if (projectId == null) return error("项目ID不能为空");
+        ParamValidator.projectId(projectId);
         AiDbDoc q = new AiDbDoc();
         q.setProjectId(projectId);
         List<AiDbDoc> list = dbDocService.selectAiDbDocList(q);
@@ -138,7 +141,7 @@ public class AiDbController extends BaseController
     public AjaxResult save(@RequestBody Map<String, Object> body)
     {
         Long projectId = parseProjectId(body.get("projectId"));
-        if (projectId == null) return error("项目ID不能为空");
+        ParamValidator.projectId(projectId);
 
         AiDbDoc q = new AiDbDoc();
         q.setProjectId(projectId);
@@ -171,7 +174,7 @@ public class AiDbController extends BaseController
     public AjaxResult submit(@PathVariable("projectId") Long projectId,
                              @RequestBody(required = false) Map<String, Object> body)
     {
-        if (projectId == null) return error("项目ID不能为空");
+        ParamValidator.projectId(projectId);
         Map<String, Object> b = body == null ? new HashMap<>(0) : body;
 
         AiDbDoc q = new AiDbDoc();
@@ -250,6 +253,18 @@ public class AiDbController extends BaseController
         String targetUser = str(body.get("targetUser"), "目标用户");
         String dbType = str(body.get("dbType"), "MySQL");
         String extraReq = str(body.get("extraReq"), "");
+
+        // 入参防护：自由文本长度上限，避免超长内容撑爆存储或模型上下文
+        if (projectName.length() > 200 || industryType.length() > 200 || targetUser.length() > 200)
+        {
+            writeError(emitter, "项目名称/行业类型/目标用户长度不能超过 200 字符");
+            return emitter;
+        }
+        if (extraReq.length() > 4000)
+        {
+            writeError(emitter, "补充要求长度不能超过 4000 字符");
+            return emitter;
+        }
 
         // 上游上下文：优先回源 PRD 与技术方案，使生成真正参考上一阶段产物
         String upstream = buildUpstream(projectId);

@@ -2,6 +2,7 @@ package com.ruoyi.ai.service.impl;
 
 import java.util.List;
 import com.ruoyi.common.utils.DateUtils;
+import com.ruoyi.common.utils.AesGcmCrypto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.ruoyi.ai.mapper.AiUserApiKeyMapper;
@@ -20,6 +21,9 @@ public class AiUserApiKeyServiceImpl implements IAiUserApiKeyService
     @Autowired
     private AiUserApiKeyMapper aiUserApiKeyMapper;
 
+    @Autowired
+    private AesGcmCrypto aesGcmCrypto;
+
     /**
      * 查询用户API Key配置
      * 
@@ -29,7 +33,9 @@ public class AiUserApiKeyServiceImpl implements IAiUserApiKeyService
     @Override
     public AiUserApiKey selectAiUserApiKeyByKeyId(Long keyId)
     {
-        return aiUserApiKeyMapper.selectAiUserApiKeyByKeyId(keyId);
+        AiUserApiKey e = aiUserApiKeyMapper.selectAiUserApiKeyByKeyId(keyId);
+        decorate(e);
+        return e;
     }
 
     /**
@@ -41,7 +47,15 @@ public class AiUserApiKeyServiceImpl implements IAiUserApiKeyService
     @Override
     public List<AiUserApiKey> selectAiUserApiKeyList(AiUserApiKey aiUserApiKey)
     {
-        return aiUserApiKeyMapper.selectAiUserApiKeyList(aiUserApiKey);
+        List<AiUserApiKey> list = aiUserApiKeyMapper.selectAiUserApiKeyList(aiUserApiKey);
+        if (list != null)
+        {
+            for (AiUserApiKey e : list)
+            {
+                decorate(e);
+            }
+        }
+        return list;
     }
 
     /**
@@ -53,6 +67,11 @@ public class AiUserApiKeyServiceImpl implements IAiUserApiKeyService
     @Override
     public int insertAiUserApiKey(AiUserApiKey aiUserApiKey)
     {
+        String incoming = aiUserApiKey.getApiKey();
+        if (incoming != null && !incoming.isEmpty() && !incoming.startsWith("ENC:"))
+        {
+            aiUserApiKey.setApiKey(aesGcmCrypto.encrypt(incoming));
+        }
         aiUserApiKey.setCreateTime(DateUtils.getNowDate());
         return aiUserApiKeyMapper.insertAiUserApiKey(aiUserApiKey);
     }
@@ -66,8 +85,31 @@ public class AiUserApiKeyServiceImpl implements IAiUserApiKeyService
     @Override
     public int updateAiUserApiKey(AiUserApiKey aiUserApiKey)
     {
+        String incoming = aiUserApiKey.getApiKey();
+        // 留空或仍为脱敏占位(****)时，保留库中已有的加密值，避免误覆盖密钥
+        if (incoming == null || incoming.isEmpty() || incoming.startsWith("*"))
+        {
+            AiUserApiKey existing = aiUserApiKeyMapper.selectAiUserApiKeyByKeyId(aiUserApiKey.getKeyId());
+            aiUserApiKey.setApiKey(existing == null ? null : existing.getApiKey());
+        }
+        else if (!incoming.startsWith("ENC:"))
+        {
+            aiUserApiKey.setApiKey(aesGcmCrypto.encrypt(incoming));
+        }
         aiUserApiKey.setUpdateTime(DateUtils.getNowDate());
         return aiUserApiKeyMapper.updateAiUserApiKey(aiUserApiKey);
+    }
+
+    /** 解密入库密钥为明文(供内部调用)并填充脱敏字段(供返回) */
+    private void decorate(AiUserApiKey e)
+    {
+        if (e == null)
+        {
+            return;
+        }
+        String plain = aesGcmCrypto.decrypt(e.getApiKey());
+        e.setApiKey(plain);
+        e.setMaskedApiKey(AesGcmCrypto.maskKey(plain));
     }
 
     /**

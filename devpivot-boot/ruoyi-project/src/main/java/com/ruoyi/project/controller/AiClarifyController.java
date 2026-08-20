@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.validation.annotation.Validated;
+import com.ruoyi.common.utils.ParamValidator;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import com.alibaba.fastjson2.JSON;
@@ -53,6 +55,7 @@ import com.ruoyi.ai.service.IAiModelConfigService;
  * @date 2026-08-05
  */
 @RestController
+@Validated
 @RequestMapping("/ai/clarify")
 public class AiClarifyController extends BaseController
 {
@@ -176,6 +179,11 @@ public class AiClarifyController extends BaseController
             return emitter;
         }
         String message = body.get("message") == null ? "" : String.valueOf(body.get("message"));
+        if (message.length() > 8000)
+        {
+            writeError(emitter, "消息内容长度不能超过 8000 字符");
+            return emitter;
+        }
         Object selectedModelsObj = body.get("selectedModels");
 
         AiClarifySession session = aiClarifySessionService.getOrCreateSession(projectId);
@@ -382,10 +390,7 @@ public class AiClarifyController extends BaseController
     public AjaxResult nextQuestion(@RequestBody Map<String, Object> body)
     {
         Long projectId = parseProjectId(body.get("projectId"));
-        if (projectId == null)
-        {
-            return error("项目ID不能为空");
-        }
+        ParamValidator.projectId(projectId);
 
         // 1) 需求基线（作为提问的上下文）
         String baselineText = "";
@@ -637,10 +642,7 @@ public class AiClarifyController extends BaseController
     public AjaxResult adopt(@RequestBody Map<String, Object> body)
     {
         Long projectId = parseProjectId(body.get("projectId"));
-        if (projectId == null)
-        {
-            return error("项目ID不能为空");
-        }
+        ParamValidator.projectId(projectId);
         AiClarifySession session = aiClarifySessionService.getOrCreateSession(projectId);
 
         // 前端传回权威对话（含 adoptedModel 标记与 user_adopt 消息），优先持久化
@@ -670,10 +672,7 @@ public class AiClarifyController extends BaseController
     @PostMapping("/save/{projectId}")
     public AjaxResult save(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body)
     {
-        if (projectId == null)
-        {
-            return error("项目ID不能为空");
-        }
+        ParamValidator.projectId(projectId);
         AiClarifySession session = aiClarifySessionService.getOrCreateSession(projectId);
         Object convObj = body.get("conversation");
         if (convObj instanceof List)
@@ -696,10 +695,7 @@ public class AiClarifyController extends BaseController
     @PostMapping("/submit/{projectId}")
     public AjaxResult submit(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> conclusion)
     {
-        if (projectId == null)
-        {
-            return error("项目ID不能为空");
-        }
+        ParamValidator.projectId(projectId);
         String conclusionJson = JSON.toJSONString(conclusion);
         aiClarifySessionService.submitSession(projectId, conclusionJson);
         return success("提交成功");
@@ -718,10 +714,7 @@ public class AiClarifyController extends BaseController
     @Transactional
     public AjaxResult saveClarifyVersion(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body)
     {
-        if (projectId == null)
-        {
-            return error("项目ID不能为空");
-        }
+        ParamValidator.projectId(projectId);
         Object snapshotObj = body.get("snapshot");
         if (snapshotObj == null)
         {
@@ -761,10 +754,7 @@ public class AiClarifyController extends BaseController
     @GetMapping("/versions/{projectId}")
     public AjaxResult listClarifyVersions(@PathVariable("projectId") Long projectId)
     {
-        if (projectId == null)
-        {
-            return error("项目ID不能为空");
-        }
+        ParamValidator.projectId(projectId);
         AiVersionRecord query = new AiVersionRecord();
         query.setProjectId(projectId);
         query.setBizType(CLARIFY_BIZ_TYPE);

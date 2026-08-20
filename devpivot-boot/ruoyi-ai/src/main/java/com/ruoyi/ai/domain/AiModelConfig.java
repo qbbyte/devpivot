@@ -2,6 +2,7 @@ package com.ruoyi.ai.domain;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ruoyi.common.annotation.Excel;
 import com.ruoyi.common.core.domain.BaseEntity;
 
@@ -34,9 +35,13 @@ public class AiModelConfig extends BaseEntity
     @Excel(name = "接口地址")
     private String baseUrl;
 
-    /** API密钥(加密存储) */
-    @Excel(name = "API密钥(加密存储)")
+    /** API密钥(加密存储；落库为 AES/GCM 密文，JSON 响应不回传明文) */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String apiKey;
+
+    /** API密钥脱敏展示(仅后4位)，由 Service 层填充，不入库 */
+    @Excel(name = "API密钥(脱敏)")
+    private String maskedApiKey;
 
     /** 路由类型(GENERAL通用/STRUCT结构化/ENGINEER工程/LIGHT轻量) */
     @Excel(name = "路由类型(GENERAL通用/STRUCT结构化/ENGINEER工程/LIGHT轻量)")
@@ -118,6 +123,16 @@ public class AiModelConfig extends BaseEntity
         return apiKey;
     }
 
+    public void setMaskedApiKey(String maskedApiKey) 
+    {
+        this.maskedApiKey = maskedApiKey;
+    }
+
+    public String getMaskedApiKey() 
+    {
+        return maskedApiKey;
+    }
+
     public void setModelType(String modelType) 
     {
         this.modelType = modelType;
@@ -176,7 +191,6 @@ public class AiModelConfig extends BaseEntity
             .append("modelName", getModelName())
             .append("provider", getProvider())
             .append("baseUrl", getBaseUrl())
-            .append("apiKey", getApiKey())
             .append("modelType", getModelType())
             .append("contextLength", getContextLength())
             .append("isEnabled", getIsEnabled())

@@ -2,6 +2,7 @@ package com.ruoyi.ai.service.impl;
 
 import java.util.List;
 import com.ruoyi.common.utils.DateUtils;
+import com.ruoyi.common.utils.AesGcmCrypto;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.ruoyi.ai.mapper.AiModelConfigMapper;
@@ -20,6 +21,9 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService
     @Autowired
     private AiModelConfigMapper aiModelConfigMapper;
 
+    @Autowired
+    private AesGcmCrypto aesGcmCrypto;
+
     /**
      * 查询AI模型配置
      * 
@@ -29,7 +33,9 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService
     @Override
     public AiModelConfig selectAiModelConfigByModelId(Long modelId)
     {
-        return aiModelConfigMapper.selectAiModelConfigByModelId(modelId);
+        AiModelConfig e = aiModelConfigMapper.selectAiModelConfigByModelId(modelId);
+        decorate(e);
+        return e;
     }
 
     /**
@@ -41,7 +47,15 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService
     @Override
     public List<AiModelConfig> selectAiModelConfigList(AiModelConfig aiModelConfig)
     {
-        return aiModelConfigMapper.selectAiModelConfigList(aiModelConfig);
+        List<AiModelConfig> list = aiModelConfigMapper.selectAiModelConfigList(aiModelConfig);
+        if (list != null)
+        {
+            for (AiModelConfig e : list)
+            {
+                decorate(e);
+            }
+        }
+        return list;
     }
 
     /**
@@ -53,6 +67,11 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService
     @Override
     public int insertAiModelConfig(AiModelConfig aiModelConfig)
     {
+        String incoming = aiModelConfig.getApiKey();
+        if (incoming != null && !incoming.isEmpty() && !incoming.startsWith("ENC:"))
+        {
+            aiModelConfig.setApiKey(aesGcmCrypto.encrypt(incoming));
+        }
         aiModelConfig.setCreateTime(DateUtils.getNowDate());
         return aiModelConfigMapper.insertAiModelConfig(aiModelConfig);
     }
@@ -66,8 +85,31 @@ public class AiModelConfigServiceImpl implements IAiModelConfigService
     @Override
     public int updateAiModelConfig(AiModelConfig aiModelConfig)
     {
+        String incoming = aiModelConfig.getApiKey();
+        // 留空或仍为脱敏占位(****)时，保留库中已有的加密值，避免误覆盖密钥
+        if (incoming == null || incoming.isEmpty() || incoming.startsWith("*"))
+        {
+            AiModelConfig existing = aiModelConfigMapper.selectAiModelConfigByModelId(aiModelConfig.getModelId());
+            aiModelConfig.setApiKey(existing == null ? null : existing.getApiKey());
+        }
+        else if (!incoming.startsWith("ENC:"))
+        {
+            aiModelConfig.setApiKey(aesGcmCrypto.encrypt(incoming));
+        }
         aiModelConfig.setUpdateTime(DateUtils.getNowDate());
         return aiModelConfigMapper.updateAiModelConfig(aiModelConfig);
+    }
+
+    /** 解密入库密钥为明文(供内部调用)并填充脱敏字段(供返回) */
+    private void decorate(AiModelConfig e)
+    {
+        if (e == null)
+        {
+            return;
+        }
+        String plain = aesGcmCrypto.decrypt(e.getApiKey());
+        e.setApiKey(plain);
+        e.setMaskedApiKey(AesGcmCrypto.maskKey(plain));
     }
 
     /**
