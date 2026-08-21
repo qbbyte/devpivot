@@ -31,15 +31,15 @@
           :class="{ active: activeTeam && activeTeam.teamId === t.teamId }"
           @click="selectTeam(t)"
         >
-          <div class="tti-name">{{ t.teamName }}</div>
-          <div class="tti-meta">
-            <el-tag size="small" :type="t.myRole === 'OWNER' ? 'warning' : 'info'">
-              {{ roleLabel(t.myRole) }}
-            </el-tag>
-            <span class="tti-count">{{ t.memberCount || 0 }} 人</span>
+          <div class="tti-name-row">
+            <span class="tti-name" :title="t.teamName">{{ t.teamName }}</span>
             <span v-if="t.unreadCount > 0" class="tti-unread" :title="t.unreadCount + ' 条未读'">
               {{ t.unreadCount > 99 ? '99+' : t.unreadCount }}
             </span>
+          </div>
+          <div class="tti-meta">
+            <span class="tti-role" :class="{ 'is-owner': t.myRole === 'OWNER' }">{{ roleLabel(t.myRole) }}</span>
+            <span class="tti-count">{{ t.memberCount || 0 }} 人</span>
           </div>
         </div>
         <el-empty v-if="!teams.length" description="还没有团队，点击右上角创建" :image-size="70" />
@@ -47,21 +47,57 @@
 
       <!-- 右侧：团队详情 -->
       <section v-if="activeTeam" class="tp-detail">
-        <div class="td-head">
-          <div class="td-head-info">
-            <h2 class="td-name">{{ activeTeam.teamName }}</h2>
-            <p class="td-desc">{{ activeTeam.description || '暂无简介' }}</p>
+        <div class="td-banner">
+          <div class="td-banner-content">
+            <div class="td-banner-info">
+              <div class="td-banner-title-row">
+                <h2 class="td-name">{{ activeTeam.teamName }}</h2>
+                <el-tag size="small" effect="light" round :type="activeTeam.myRole === 'OWNER' ? 'warning' : 'info'">
+                  {{ roleLabel(activeTeam.myRole) }}
+                </el-tag>
+                <el-tag size="small" effect="plain" round :type="activeTeam.status === '0' ? 'success' : 'info'">
+                  {{ activeTeam.status === '0' ? '正常' : '已解散' }}
+                </el-tag>
+              </div>
+              <p class="td-desc">{{ activeTeam.description || '暂无简介' }}</p>
+            </div>
+            <div class="td-ops">
+              <el-button v-if="canManage" size="small" @click="openEdit">编辑</el-button>
+              <el-button v-if="!isOwner" size="small" type="warning" plain @click="handleLeave">退出团队</el-button>
+              <el-button v-if="isOwner" size="small" type="danger" plain @click="handleDissolve">解散团队</el-button>
+            </div>
           </div>
-          <div class="td-ops">
-            <el-button v-if="canManage" @click="openEdit">编辑</el-button>
-            <el-button v-if="!isOwner" type="warning" plain @click="handleLeave">退出团队</el-button>
-            <el-button v-if="isOwner" type="danger" plain @click="handleDissolve">解散团队</el-button>
+          <div class="td-banner-stats">
+            <div class="td-stat" title="查看成员" @click="activeTab = 'members'">
+              <span class="td-stat-num">{{ memberTotal }}</span>
+              <span class="td-stat-label">成员</span>
+            </div>
+            <div class="td-stat" title="查看项目" @click="activeTab = 'projects'">
+              <span class="td-stat-num">{{ projectTotal }}</span>
+              <span class="td-stat-label">项目</span>
+            </div>
+            <div class="td-stat" title="查看讨论" @click="activeTab = 'chat'">
+              <span class="td-stat-num">{{ unreadTotal }}</span>
+              <span class="td-stat-label">未读消息</span>
+            </div>
           </div>
         </div>
         <el-tabs v-model="activeTab" class="td-tabs">
           <!-- 团队信息 -->
           <el-tab-pane label="团队信息" name="info">
             <div class="tab-pane-inner">
+              <div class="td-invite-card">
+                <div class="td-invite-card-head">
+                  <span class="td-invite-title">邀请码</span>
+                  <span class="td-invite-tip">把邀请码发给同事，对方在左侧「加入团队」处输入即可加入</span>
+                </div>
+                <div class="td-invite-row">
+                  <code class="td-invite-code">{{ activeTeam.inviteCode || '—' }}</code>
+                  <el-button size="small" @click="copyInviteCode">复制</el-button>
+                  <el-button v-if="canManage" size="small" type="primary" plain @click="handleRefreshCode">重新生成</el-button>
+                </div>
+              </div>
+
               <el-descriptions :column="1" border class="td-info">
                 <el-descriptions-item label="团队ID">{{ activeTeam.teamId }}</el-descriptions-item>
                 <el-descriptions-item label="团队名称">{{ activeTeam.teamName }}</el-descriptions-item>
@@ -74,18 +110,6 @@
                 </el-descriptions-item>
                 <el-descriptions-item label="创建时间">{{ activeTeam.createTime || '—' }}</el-descriptions-item>
               </el-descriptions>
-
-              <div class="td-invite-card">
-                <div class="td-invite-card-head">
-                  <span class="td-invite-title">邀请码</span>
-                  <span class="td-invite-tip">把邀请码发给同事，对方在左侧「加入团队」处输入即可加入</span>
-                </div>
-                <div class="td-invite-row">
-                  <code class="td-invite-code">{{ activeTeam.inviteCode || '—' }}</code>
-                  <el-button size="small" @click="copyInviteCode">复制</el-button>
-                  <el-button v-if="canManage" size="small" type="primary" plain @click="handleRefreshCode">重新生成</el-button>
-                </div>
-              </div>
             </div>
           </el-tab-pane>
           <!-- 项目 -->
@@ -100,6 +124,13 @@
               </div>
               <div class="tab-pane-body">
                 <el-table v-if="projectRows.length" v-loading="loadingProjects" :data="projectRows" border stripe @row-dblclick="openProject">
+                  <el-table-column
+                    type="index"
+                    label="序号"
+                    width="64"
+                    align="center"
+                    :index="(projectQuery.pageNum - 1) * projectQuery.pageSize + 1"
+                  />
                   <el-table-column label="项目名称" min-width="200">
                     <template #default="{ row }">
                       <span class="project-link" title="点击查看项目" @click="openProject(row)">{{ row.projectName }}</span>
@@ -110,10 +141,24 @@
                       <el-tag size="small">{{ stepLabel(row.step) }}</el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" width="150" align="center">
+                  <el-table-column label="Git仓库" min-width="140">
+                    <template #default="{ row }">
+                      <span
+                        v-if="repoRows(row).length"
+                        class="git-repo-link"
+                        title="点击进入 Git 统计"
+                        @click.stop="gotoGit(row)"
+                      >
+                        <el-icon class="git-repo-icon"><Connection /></el-icon>
+                        <span>Git仓库</span>
+                        <span class="git-repo-count">×{{ repoRows(row).length }}</span>
+                      </span>
+                      <span v-else class="git-repo-empty">还没有绑定Git仓库</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="110" align="center">
                     <template #default="{ row }">
                       <el-button type="primary" link size="small" @click="openArtifacts(row)">产物</el-button>
-                      <el-button type="success" link size="small" @click="gotoGit(row)">Git</el-button>
                       <el-button type="danger" link size="small" :disabled="!canManage" @click="unbindProject(row)">解绑</el-button>
                     </template>
                   </el-table-column>
@@ -148,6 +193,13 @@
               </div>
               <div class="tab-pane-body">
                 <el-table v-if="memberRows.length" v-loading="loadingMembers" :data="memberRows" border stripe>
+                  <el-table-column
+                    type="index"
+                    label="序号"
+                    width="64"
+                    align="center"
+                    :index="(memberQuery.pageNum - 1) * memberQuery.pageSize + 1"
+                  />
                   <el-table-column label="成员" min-width="170">
                     <template #default="{ row }">
                       <div class="member-cell">
@@ -481,7 +533,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { Plus, Search, User, SwitchButton, Check, Right, Download } from '@element-plus/icons-vue'
+import { Plus, Search, User, SwitchButton, Check, Right, Download, Connection } from '@element-plus/icons-vue'
 import useUserStore from '@/store/modules/user'
 import defAva from '@/assets/images/profile.jpg'
 import PortalHeader from './components/PortalHeader.vue'
@@ -494,6 +546,7 @@ import {
 } from '@/api/ai/team'
 import { getProtoPages } from '@/api/ai/proto'
 import { protoToHtml } from '@/utils/protoHtml'
+import { listTeamProjectRepos } from '@/api/ai/teamGit'
 import { subscribeTeam, unsubscribeTeam, disconnectWs, setOnReconnect } from '@/api/ai/teamWs'
 
 const router = useRouter()
@@ -714,8 +767,19 @@ async function loadProjects() {
   loadingProjects.value = true
   try {
     const res = await listTeamProjects(activeTeam.value.teamId, { ...projectQuery })
-    projectRows.value = res.rows || []
+    const rows = res.rows || []
     projectTotal.value = res.total || 0
+    // 聚合每个项目关联的 Git 仓库(多仓库表 ai_team_project_repo，缺省时后端列表行会带旧单仓库字段)
+    const enriched = await Promise.all(rows.map(async (r) => {
+      try {
+        const repoRes = await listTeamProjectRepos(activeTeam.value.teamId, r.projectId)
+        r.repos = repoRes.data || []
+      } catch (e) {
+        r.repos = []
+      }
+      return r
+    }))
+    projectRows.value = enriched
   } finally {
     loadingProjects.value = false
   }
@@ -752,6 +816,19 @@ const STEP_LABELS = {
 function roleLabel(r) { return ROLE_LABELS[r] || r }
 function stepLabel(s) { return STEP_LABELS[s] || s }
 
+/* 项目行 → 是否已绑定 Git 仓库：优先多仓库表 repos，缺省回退 ai_team_project 旧单仓库字段 */
+function repoRows(row) {
+  if (row.repos && row.repos.length) return row.repos
+  if (row.repoFullName) return [{ repoFullName: row.repoFullName, platform: row.repoPlatform, repoBranch: row.repoBranch }]
+  return []
+}
+
+/* 当前团队未读消息数：以左侧列表的 DB 权威未读数为基准（新消息 notifyIfNeeded→bumpUnread +1，进入讨论区 markRead→clearUnread 清零） */
+const unreadTotal = computed(() => {
+  const t = teams.value.find(x => activeTeam.value && x.teamId === activeTeam.value.teamId)
+  return t ? (t.unreadCount || 0) : 0
+})
+
 /** 拼接头像完整 URL
  *  - 空值 → 默认头像 defAva（与全局导航一致）
  *  - 已完整地址（默认头像 / 已带 /dev-api / /assets / /src / data: / http）→ 直接返回，避免二次拼接
@@ -787,7 +864,6 @@ async function selectTeam(t) {
   await Promise.all([loadMembers(), loadProjects()])
   reinitSeen()
   await subscribeTeam(t.teamId, onWsMessage, onWsRead)
-  scrollChatToBottom()
   startMsgPoll() // 全局轮询兜底：团队激活即运行，不依赖 WS 是否连通
 }
 
@@ -934,6 +1010,11 @@ function scrollChatToBottom() {
   nextTick(() => {
     const el = chatListRef.value
     if (el) el.scrollTop = el.scrollHeight
+    // 兜底：等待多帧渲染完成（图片/复杂 DOM 回流可能跨多帧）
+    requestAnimationFrame(() => {
+      const el2 = chatListRef.value
+      if (el2) el2.scrollTop = el2.scrollHeight
+    })
   })
 }
 
@@ -1065,13 +1146,9 @@ async function refreshActiveTeamMessages() {
     // 先对新增消息弹提示（在 reinitSeen 重置 notifiedMsgIds 之前，避免被误判为已通知）
     for (const m of addedMsgs) notifyIfNeeded(m)
     reinitSeen()
-    // 非 chat tab：按 DB 真实已读状态刷新当前团队未读红点（不依赖 WS 推送）
-    if (activeTab.value !== 'chat') {
-      const unread = merged.filter(m => !m.readUsers || !m.readUsers.some(r => r.userId === currentUserId.value)).length
-      const t = teams.value.find(x => x.teamId === activeTeam.value.teamId)
-      if (t) t.unreadCount = unread
-    } else if (addedMsgs.length > 0) {
-      // 仅在 chat tab 且有新增消息时滚到底部，避免轮询打断正在阅读的人
+    // 未读红点不在此重算：DB 权威值(listMyTeams/getTeamDetail 的 unread_count)提供基准，
+    // 新增消息已由 notifyIfNeeded → bumpUnread 实时 +1，进入讨论区 markRead → clearUnread 清零。
+    if (activeTab.value === 'chat') {
       scrollChatToBottom()
     }
   } catch (e) {
@@ -1204,6 +1281,7 @@ watch(activeTab, (val) => {
   if (val === 'chat' && activeTeam.value) {
     refreshActiveTeamMessages()
     markTeamRead(activeTeam.value.teamId, []).then(() => clearUnread(activeTeam.value.teamId)).catch(() => {})
+    scrollChatToBottom()
   } else if (val === 'members') {
     // 切到成员 tab 时刷新当前分页数据
     loadMembers()
@@ -1230,7 +1308,7 @@ onMounted(async () => {
 .team-page {
   height: 100vh;
   overflow: hidden;
-  background: #f5f6f9;
+  background: var(--c-bg);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -1239,12 +1317,12 @@ onMounted(async () => {
 .portal-main {
   flex: 1;
   width: 100%;
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 16px 24px 36px;
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
 }
 .tp-list-head {
   display: flex;
@@ -1252,8 +1330,9 @@ onMounted(async () => {
   justify-content: space-between;
   font-size: 14px;
   font-weight: 600;
-  color: #1d2129;
-  margin-bottom: 10px;
+  color: var(--c-text);
+  margin-bottom: 12px;
+  padding: 2px 4px;
 }
 .tp-body {
   flex: 1;
@@ -1265,37 +1344,46 @@ onMounted(async () => {
   box-sizing: border-box;
 }
 .tp-list {
-  width: 260px;
+  width: 280px;
   flex-shrink: 0;
-  background: #fff;
-  border-radius: 12px;
+  background: var(--c-surface);
+  border-radius: var(--radius-lg);
   padding: 14px;
-  box-shadow: 0 2px 10px rgba(31, 45, 61, 0.05);
-  height: calc(100vh - 112px);
-  max-height: calc(100vh - 112px);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--c-border-light);
+  height: 100%;
+  min-height: 0;
   overflow: auto;
   box-sizing: border-box;
 }
 .tp-team-item {
   padding: 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   margin-bottom: 8px;
   border: 1px solid transparent;
-  transition: all 0.15s;
+  transition: all 0.18s;
 }
 .tp-team-item:hover {
-  background: #f5f9ff;
+  background: var(--c-primary-bg);
 }
 .tp-team-item.active {
-  background: #ecf5ff;
-  border-color: #b3d8ff;
+  background: var(--c-primary-bg);
+  border-color: var(--c-primary-light);
+  box-shadow: var(--shadow-sm);
+}
+.tti-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 .tti-name {
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
   font-size: 14px;
-  color: #1f2d3d;
-  margin-bottom: 8px;
+  color: var(--c-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1305,61 +1393,167 @@ onMounted(async () => {
   align-items: center;
   gap: 10px;
 }
+.tti-role {
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+.tti-role.is-owner {
+  color: var(--c-warning);
+  font-weight: 500;
+}
 .tti-count {
   font-size: 12px;
-  color: #8a96a3;
+  color: var(--c-text-subtle);
 }
 .tti-unread {
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: #f53f3f;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--c-danger);
   color: #fff;
   font-size: 11px;
-  line-height: 16px;
+  font-weight: 600;
+  line-height: 18px;
   text-align: center;
+  flex-shrink: 0;
 }
 .tp-detail {
   flex: 1;
-  background: #fff;
-  border-radius: 12px;
+  background: var(--c-surface);
+  border-radius: var(--radius-lg);
   padding: 20px 22px;
-  box-shadow: 0 2px 10px rgba(31, 45, 61, 0.05);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--c-border-light);
   min-height: 0;
-  height: calc(100vh - 112px);
+  height: 100%;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
 }
 .tp-detail-empty {
   flex: 1;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(31, 45, 61, 0.05);
+  background: var(--c-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--c-border-light);
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.td-head {
+/* ===== 团队 Banner ===== */
+.td-banner {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #dbeafe 0%, #eff4ff 55%, #e0f2fe 100%);
+  border: 1px solid var(--c-border-light);
+  color: var(--c-text);
+  padding: 14px 20px 0;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+.td-banner::before,
+.td-banner::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.06);
+  pointer-events: none;
+}
+.td-banner::before {
+  width: 220px;
+  height: 220px;
+  right: -60px;
+  top: -100px;
+}
+.td-banner::after {
+  width: 140px;
+  height: 140px;
+  right: 120px;
+  bottom: -90px;
+  background: rgba(37, 99, 235, 0.045);
+}
+.td-banner-content {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 16px;
+}
+.td-banner-info {
+  flex: 1;
+  min-width: 0;
+}
+.td-banner-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .td-name {
-  margin: 0 0 8px;
-  font-size: 26px;
-  color: #1f2d3d;
+  margin: 0;
+  font-size: 20px;
+  color: var(--c-text);
+  line-height: 1.2;
+}
+.td-banner-title-row :deep(.el-tag) {
+  border-color: var(--c-border);
+}
+.td-banner-title-row :deep(.el-tag--warning) {
+  background: var(--c-warning-bg);
+  color: var(--c-warning);
+}
+.td-banner-title-row :deep(.el-tag--info) {
+  background: var(--c-bg);
+  color: var(--c-text-muted);
 }
 .td-desc {
-  margin: 0;
-  color: #8a96a3;
-  font-size: 15px;
+  margin: 4px 0 0;
+  color: var(--c-text-muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 .td-ops {
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.td-banner-stats {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 36px;
+  margin-top: 10px;
+  padding: 10px 0 12px;
+  border-top: 1px solid var(--c-border-light);
+}
+.td-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+.td-stat:hover {
+  background: rgba(37, 99, 235, 0.07);
+}
+.td-stat-num {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--c-primary);
+}
+.td-stat-label {
+  font-size: 12px;
+  color: var(--c-text-muted);
 }
 
 /* 标签页自适应高度：内容区撑满，单个 tab 超出时内部滚动 */
@@ -1384,8 +1578,30 @@ onMounted(async () => {
 .td-tabs :deep(.el-tab-pane) {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.td-tabs :deep(.el-tabs__nav-wrap::after) {
+  background-color: var(--c-border-light);
+  height: 1px;
+}
+.td-tabs :deep(.el-tabs__item) {
+  font-size: 14px;
+  color: var(--c-text-muted);
+}
+.td-tabs :deep(.el-tabs__item:hover) {
+  color: var(--c-primary);
+}
+.td-tabs :deep(.el-tabs__item.is-active) {
+  color: var(--c-primary);
+  font-weight: 600;
+}
+.td-tabs :deep(.el-tabs__active-bar) {
+  background-color: var(--c-primary);
+  border-radius: 2px;
 }
 
 .td-toolbar {
@@ -1396,21 +1612,22 @@ onMounted(async () => {
 }
 .td-tab-count {
   font-size: 13px;
-  color: #8a96a3;
+  color: var(--c-text-muted);
 }
 .member-cell {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
 }
 .mc-name {
   font-weight: 500;
   font-size: 13px;
-  color: #1f2d3d;
+  color: var(--c-text);
 }
 .mc-sub {
   font-size: 12px;
-  color: #a0aab5;
+  color: var(--c-text-subtle);
 }
 .member-directory {
   margin-top: 14px;
@@ -1427,7 +1644,7 @@ onMounted(async () => {
   transition: background 0.15s;
 }
 .md-item:hover:not(.disabled) {
-  background: #f5f9ff;
+  background: var(--c-primary-bg);
 }
 .md-item.disabled {
   cursor: not-allowed;
@@ -1440,31 +1657,58 @@ onMounted(async () => {
 .md-name {
   font-size: 13px;
   font-weight: 500;
-  color: #1f2d3d;
+  color: var(--c-text);
 }
 .md-sub {
   font-size: 12px;
-  color: #a0aab5;
+  color: var(--c-text-subtle);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .md-add {
-  color: #409eff;
+  color: var(--c-primary);
   font-size: 18px;
 }
 
 /* 项目/成员 tab 内容撑满 pane */
 .project-link {
-  color: #409eff;
+  color: var(--c-primary);
   cursor: pointer;
   font-weight: 500;
 }
 .project-link:hover {
   text-decoration: underline;
 }
+/* Git 仓库列 */
+.git-repo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--c-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.git-repo-link:hover {
+  opacity: 0.85;
+  text-decoration: underline;
+}
+.git-repo-icon {
+  font-size: 15px;
+}
+.git-repo-count {
+  font-size: 12px;
+  color: var(--c-text-subtle);
+  font-weight: 400;
+}
+.git-repo-empty {
+  font-size: 13px;
+  color: var(--c-text-subtle);
+}
 .tab-pane-inner {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1474,6 +1718,17 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   overflow: auto;
+}
+/* 表头统一居中（项目表 / 成员表同用） */
+.tab-pane-body :deep(.el-table__header th.el-table__cell) {
+  text-align: center;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-weight: 600;
+}
+/* 表体内容统一居中 */
+.tab-pane-body :deep(.el-table__body td.el-table__cell) {
+  text-align: center;
 }
 .tab-pane-body > .el-table {
   flex: 1;
@@ -1495,24 +1750,41 @@ onMounted(async () => {
 
 /* ===== 团队信息 tab ===== */
 .td-info {
-  margin-bottom: 18px;
+  margin-top: 14px;
 }
 .td-info :deep(.el-descriptions__label) {
   width: 110px;
-  color: #6b7280;
+  color: var(--c-text-muted);
   font-weight: 500;
-  background: #fafbfc;
+  background: var(--c-bg);
 }
 .td-info :deep(.el-descriptions__content) {
-  color: #1f2d3d;
+  color: var(--c-text);
+}
+.td-info :deep(.el-descriptions__body) {
+  border-color: var(--c-border-light);
 }
 .td-invite-card {
-  border: 1px solid #eef0f3;
-  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--c-primary-light);
+  border-radius: var(--radius-md);
   padding: 16px 18px;
-  background: #fafbfc;
+  background: var(--c-primary-bg);
+}
+.td-invite-card::after {
+  content: '';
+  position: absolute;
+  right: -30px;
+  top: -30px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.08);
+  pointer-events: none;
 }
 .td-invite-card-head {
+  position: relative;
   display: flex;
   align-items: baseline;
   gap: 12px;
@@ -1522,13 +1794,14 @@ onMounted(async () => {
 .td-invite-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--c-primary);
 }
 .td-invite-tip {
   font-size: 12px;
-  color: #8a96a3;
+  color: var(--c-text-muted);
 }
 .td-invite-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1538,10 +1811,10 @@ onMounted(async () => {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 15px;
   letter-spacing: 1px;
-  color: #1f2d3d;
-  background: #fff;
-  border: 1px solid #e4e7ed;
-  border-radius: 6px;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
   padding: 5px 12px;
   min-width: 160px;
   text-align: center;
@@ -1854,7 +2127,8 @@ onMounted(async () => {
 
 /* ===== 群聊 ===== */
 .chat-pane {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1877,7 +2151,7 @@ onMounted(async () => {
 }
 .chat-avatar {
   flex-shrink: 0;
-  background: linear-gradient(135deg, #3370ff, #6e52ff);
+  background: linear-gradient(135deg, var(--c-primary), #7c3aed);
   color: #fff;
   font-size: 14px;
 }
@@ -1898,31 +2172,34 @@ onMounted(async () => {
 .chat-name {
   font-size: 13px;
   font-weight: 600;
-  color: #1f2d3d;
+  color: var(--c-text);
 }
 .chat-time {
   font-size: 11px;
-  color: #a0aab5;
+  color: var(--c-text-subtle);
 }
 .chat-bubble {
   display: inline-block;
   padding: 9px 13px;
-  border-radius: 10px;
-  background: #f2f5f9;
-  color: #1f2d3d;
+  border-radius: 12px;
+  border-top-left-radius: 4px;
+  background: var(--c-border-light);
+  color: var(--c-text);
   font-size: 14px;
   line-height: 1.55;
   word-break: break-word;
   white-space: pre-wrap;
 }
 .chat-mine .chat-bubble {
-  background: linear-gradient(135deg, #3370ff, #5b8bff);
+  background: linear-gradient(135deg, var(--c-primary), var(--c-primary-light));
   color: #fff;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 4px;
 }
 .chat-read {
   margin-top: 4px;
   font-size: 11px;
-  color: #a0aab5;
+  color: var(--c-text-subtle);
 }
 .chat-input {
   display: flex;
@@ -1930,7 +2207,7 @@ onMounted(async () => {
   align-items: flex-end;
   margin-top: 14px;
   padding-top: 14px;
-  border-top: 1px solid #eef0f3;
+  border-top: 1px solid var(--c-border-light);
 }
 .chat-input .el-button {
   flex-shrink: 0;

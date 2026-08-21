@@ -407,6 +407,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: transparent;
 }
 .aside-block {
   background: var(--c-surface);

@@ -76,10 +76,10 @@ function onUserCommand(cmd) {
 }
 
 .portal-header-inner {
-  max-width: 1440px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   height: 68px;
-  padding: 0 24px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
