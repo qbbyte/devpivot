@@ -25,6 +25,12 @@ export default defineConfig(({ mode, command }) => {
       // https://cn.vitejs.dev/config/#resolve-extensions
       extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.vue']
     },
+    // 预打包依赖：jszip 为 CommonJS，Vite 按需优化偶发卡死（返回 504），
+    // 导致 import 它的模块（exportDevContext）加载失败、级联报 “Failed to fetch dynamically imported module”。
+    // 显式声明可让 Vite 在启动时一次性预打包，避免运行时按需优化失败。
+    optimizeDeps: {
+      include: ['jszip', 'file-saver']
+    },
     // 打包配置
     build: {
       // https://vite.dev/config/build-options.html

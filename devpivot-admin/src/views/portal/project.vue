@@ -142,6 +142,27 @@
                     <p class="done-sub">所有阶段已交付，可查看各阶段产出物</p>
                   </div>
                 </div>
+                <div class="done-actions">
+                  <el-dropdown trigger="click" @command="handleExport" :disabled="exporting">
+                    <el-button type="primary" :loading="exporting">
+                      <el-icon><Download /></el-icon>
+                      <span>导出到开发工具</span>
+                      <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                    </el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="agents">通用 / AGENTS.md</el-dropdown-item>
+                        <el-dropdown-item command="cursor">Cursor</el-dropdown-item>
+                        <el-dropdown-item command="trae">Trae</el-dropdown-item>
+                        <el-dropdown-item command="vscode">VS Code (Copilot)</el-dropdown-item>
+                        <el-dropdown-item command="claudecode">Claude Code</el-dropdown-item>
+                        <el-dropdown-item divided command="copy">复制 Markdown（粘进终端/聊天框）</el-dropdown-item>
+                        <el-dropdown-item command="curl">复制 curl 命令（服务器终端拉取）</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                  <span class="done-actions-hint">导出项目上下文与 IDE 规则文件，拖入项目根目录即可使用；或用下方两个选项直接喂给终端 AI</span>
+                </div>
                 <div class="deliver-grid">
                   <div
                     v-for="d in deliverables"
@@ -212,6 +233,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { getProject, updateProject } from '@/api/ai/project'
 import { getBaselineByProject, saveBaseline } from '@/api/ai/baseline'
 import { listUser } from '@/api/system/user'
+import { exportDevContext, copyDevContextMarkdown, copyDevContextCurl } from '@/utils/exportDevContext'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -349,6 +371,48 @@ function handleSave() {
   saveBaseline(buildBaselinePayload('0')).then(() => {
     proxy.$modal.msgSuccess('草稿已保存')
   }).catch(() => { })
+}
+
+const exporting = ref(false)
+
+function handleExport(command) {
+  exporting.value = true
+  if (command === 'copy') {
+    copyDevContextMarkdown(projectId.value, project.value)
+      .then(() => {
+        proxy.$modal.msgSuccess('已复制项目上下文 Markdown，直接粘贴到终端 / 聊天框即可')
+      })
+      .catch(() => {
+        proxy.$modal.msgError('复制失败，请重试')
+      })
+      .finally(() => {
+        exporting.value = false
+      })
+    return
+  }
+  if (command === 'curl') {
+    copyDevContextCurl(projectId.value, 'agents')
+      .then(() => {
+        proxy.$modal.msgSuccess('已复制 curl 命令，在服务器终端粘贴执行即可拉取 AGENTS.md')
+      })
+      .catch(() => {
+        proxy.$modal.msgError('生成失败，请重试')
+      })
+      .finally(() => {
+        exporting.value = false
+      })
+    return
+  }
+  exportDevContext({ projectId: projectId.value, project: project.value, target: command })
+    .then(() => {
+      proxy.$modal.msgSuccess('已导出开发上下文')
+    })
+    .catch(() => {
+      proxy.$modal.msgError('导出失败，请重试')
+    })
+    .finally(() => {
+      exporting.value = false
+    })
 }
 
 function handleSubmit() {
@@ -672,6 +736,18 @@ onMounted(() => {
   margin: 4px 0 0;
   font-size: 13px;
   color: #4a6b22;
+}
+
+.done-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.done-actions-hint {
+  font-size: 12px;
+  color: #8a8f99;
 }
 
 .deliver-grid {

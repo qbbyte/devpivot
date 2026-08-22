@@ -26,6 +26,22 @@ export function getProject(projectId) {
   })
 }
 
+// 查询AI项目产物概览（聚合各阶段产物文本，用于导出开发上下文）
+export function getProjectContext(projectId) {
+  return request({
+    url: '/system/project/' + projectId + '/artifacts',
+    method: 'get'
+  })
+}
+
+// 生成项目上下文导出 token（24h 只读），用于服务器终端 curl 拉取约定文件
+export function createExportToken(projectId) {
+  return request({
+    url: '/system/project/' + projectId + '/export-token',
+    method: 'post'
+  })
+}
+
 // 新增AI项目
 export function addProject(data) {
   return request({
