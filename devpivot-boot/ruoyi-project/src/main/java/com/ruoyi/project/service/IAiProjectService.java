@@ -39,6 +39,32 @@ public interface IAiProjectService
     public Map<String, Object> getProjectArtifacts(Long projectId);
 
     /**
+     * 生成项目上下文导出用的短期只读 token（24h 有效），供服务器终端 curl 拉取约定文件时使用
+     * token 存入 Redis（键 dev:export:token:{token} = projectId），避免服务器终端携带 JWT 的不便
+     *
+     * @param projectId 项目ID
+     * @return 一次性只读 token 字符串
+     */
+    public String createExportToken(Long projectId);
+
+    /**
+     * 按目标工具格式渲染项目上下文的原始文本（AGENTS.md 及其镜像），供 curl 端点直接吐出
+     *
+     * @param projectId 项目ID
+     * @param fmt 目标格式：agents|claude|cursor|trae|vscode
+     * @return 原始 Markdown 文本（cursor 含 frontmatter）
+     */
+    public String getProjectContextText(Long projectId, String fmt);
+
+    /**
+     * 校验导出 token 是否合法且归属指定项目；非法/过期返回 null（调用方据此返回 401）
+     *
+     * @param token 导出 token
+     * @return 命中的 projectId，或 null
+     */
+    public Long verifyExportToken(String token);
+
+    /**
      * 查询AI项目列表
      * 
      * @param aiProject AI项目

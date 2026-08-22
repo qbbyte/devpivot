@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import com.ruoyi.common.utils.DateUtils;
+import com.ruoyi.common.core.redis.RedisCache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import com.ruoyi.project.mapper.AiProjectMapper;
@@ -52,6 +53,8 @@ public class AiProjectServiceImpl implements IAiProjectService
     private IAiClarifyRecordService aiClarifyRecordService;
     @Autowired
     private AiClarifySessionMapper aiClarifySessionMapper;
+    @Autowired
+    private RedisCache redisCache;
 
     /**
      * 查询AI项目
@@ -224,6 +227,101 @@ public class AiProjectServiceImpl implements IAiProjectService
         result.put("projectName", project.getProjectName());
         result.put("artifacts", artifacts);
         return result;
+    }
+
+    /** 导出 token 在 Redis 中的键前缀 */
+    private static final String EXPORT_TOKEN_PREFIX = "dev:export:token:";
+    /** 导出 token 有效期：24 小时（秒） */
+    private static final int EXPORT_TOKEN_TTL_SECONDS = 24 * 60 * 60;
+
+    /**
+     * 生成短期只读导出 token：存入 Redis，键=dev:export:token:{token}，值=projectId，24h 过期
+     */
+    @Override
+    public String createExportToken(Long projectId)
+    {
+        String token = java.util.UUID.randomUUID().toString().replace("-", "");
+        redisCache.setCacheObject(EXPORT_TOKEN_PREFIX + token, projectId, EXPORT_TOKEN_TTL_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+        return token;
+    }
+
+    /**
+     * 校验导出 token 是否合法且归属该项目；非法返回 null（调用方据此返回 401）
+     * 注意：Redis 值序列化器为 FastJson2(Object.class)，小数字会被反序列化为 Integer，
+     * 故用 Number 兼容，避免 Long 强转 ClassCastException
+     */
+    public Long verifyExportToken(String token)
+    {
+        if (token == null || token.isEmpty())
+        {
+            return null;
+        }
+        Object val = redisCache.getCacheObject(EXPORT_TOKEN_PREFIX + token);
+        if (val == null)
+        {
+            return null;
+        }
+        if (val instanceof Number)
+        {
+            return ((Number) val).longValue();
+        }
+        try
+        {
+            return Long.parseLong(val.toString());
+        }
+        catch (NumberFormatException e)
+        {
+            return null;
+        }
+    }
+
+    /**
+     * 按目标格式渲染项目上下文原始文本（AGENTS.md 及其镜像），与前端 exportDevContext.js 同源
+     */
+    @Override
+    public String getProjectContextText(Long projectId, String fmt)
+    {
+        AiProject project = selectAiProjectByProjectId(projectId);
+        if (project == null)
+        {
+            return "# 项目不存在\n";
+        }
+        String body = buildAgentsMd(project);
+        if ("cursor".equalsIgnoreCase(fmt))
+        {
+            String name = project.getProjectName() == null ? "未命名项目" : project.getProjectName();
+            return "---\ndescription: devPivot 项目「" + name + "」开发上下文\nalwaysApply: true\n---\n\n" + body;
+        }
+        return body;
+    }
+
+    /** 构建 AGENTS.md 正文（项目宪法：概览 + 约束 + 产物索引），与前端 buildAgentsMd 保持一致 */
+    private String buildAgentsMd(AiProject project)
+    {
+        String name = project.getProjectName() == null ? "未命名项目" : project.getProjectName();
+        StringBuilder sb = new StringBuilder();
+        sb.append("# ").append(name).append("\n\n");
+        sb.append("> 由 devPivot 协同研发平台导出 · 项目开发上下文\n\n");
+        sb.append("## 项目概览\n");
+        sb.append("- 行业分类：").append(nvl(project.getIndustryType())).append("\n");
+        sb.append("- 目标用户：").append(nvl(project.getTargetUser())).append("\n");
+        sb.append("- 当前阶段：").append(nvl(project.getStep())).append("\n");
+        sb.append("- 负责人：").append(nvl(project.getAssigneeName())).append("\n\n");
+        sb.append("## 技术约束\n");
+        sb.append("- 严格按照下方各阶段产物文档进行开发，不要偏离已确认的需求与设计\n");
+        sb.append("- 修改代码前，先阅读对应阶段的产物文档\n");
+        sb.append("- 不要引入未在「技术方案」中列出的新技术栈或依赖\n\n");
+        sb.append("## 阶段产物（位于仓库根目录）\n");
+        sb.append("- 需求基线 → `requirements.md`\n");
+        sb.append("- AI 澄清记录 → `clarify.md`\n");
+        sb.append("- PRD 文档 → `prd.md`\n");
+        sb.append("- 原型设计 → `proto.json`\n");
+        sb.append("- 技术方案 → `tech.md`\n");
+        sb.append("- 数据库设计 → `db.md`\n\n");
+        sb.append("## 协作约定\n");
+        sb.append("- 数据库变更必须同步更新 `db.md`\n");
+        sb.append("- 接口变更必须同步更新 `prd.md` 与 `tech.md`\n");
+        return sb.toString();
     }
 
     /** 需求基线：content 为 Markdown 文本 */

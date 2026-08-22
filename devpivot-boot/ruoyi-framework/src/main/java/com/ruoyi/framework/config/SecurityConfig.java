@@ -106,6 +106,8 @@ public class SecurityConfig
                     .requestMatchers("/swagger-ui.html", "/v3/api-docs/**", "/swagger-ui/**", "/druid/**").permitAll()
                     // WebSocket 端点：鉴权下沉到 STOMP 层(TeamWsAuthInterceptor)，此处仅放行握手
                     .requestMatchers("/ws/team/**").permitAll()
+                    // 项目上下文导出端点：匿名开放，改由导出 token 做只读鉴权（供服务器终端 curl 拉取）
+                    .requestMatchers("/system/project/*/context").permitAll()
                     // 除上面外的所有请求全部需要鉴权认证
                     .anyRequest().authenticated();
             })
