@@ -57,6 +57,17 @@ public class AiTeamController extends BaseController
         return success("已加入团队：" + teamName);
     }
 
+    /**
+     * 按邀请码查询团队邀请信息(分享链接落地页校验/展示用,仅登录态)
+     * 返回 data 为 null 表示邀请码无效或团队已解散;joined 标识当前用户是否已是成员
+     */
+    @GetMapping("/invite-info/{inviteCode}")
+    public AjaxResult inviteInfo(@PathVariable("inviteCode") String inviteCode)
+    {
+        Long userId = SecurityUtils.getUserId();
+        return success(teamService.getInviteInfo(inviteCode, userId));
+    }
+
     /** 重新生成团队邀请码(仅 OWNER/ADMIN) */
     @PostMapping("/{teamId}/invite-code/refresh")
     public AjaxResult refreshInviteCode(@PathVariable("teamId") Long teamId)

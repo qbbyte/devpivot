@@ -66,6 +66,9 @@ public interface IAiTeamService
     /** 凭邀请码加入团队(仅登录态,自动成为 MEMBER;返回团队名) */
     String joinByInviteCode(String inviteCode, Long userId, String username);
 
+    /** 按邀请码查询团队邀请信息(供分享链接落地页校验与展示;码无效或团队解散返回 null) */
+    Map<String, Object> getInviteInfo(String inviteCode, Long userId);
+
     /** 重新生成邀请码(仅 OWNER/ADMIN;返回新邀请码) */
     String refreshInviteCode(Long teamId, Long operatorId);
 

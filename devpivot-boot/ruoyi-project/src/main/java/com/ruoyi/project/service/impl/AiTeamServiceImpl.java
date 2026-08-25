@@ -364,6 +364,25 @@ public class AiTeamServiceImpl implements IAiTeamService
     }
 
     @Override
+    public Map<String, Object> getInviteInfo(String inviteCode, Long userId)
+    {
+        if (inviteCode == null || inviteCode.trim().isEmpty())
+        {
+            return null;
+        }
+        AiTeam team = teamMapper.selectByInviteCode(inviteCode.trim().toUpperCase());
+        if (team == null || "1".equals(team.getStatus()))
+        {
+            return null;
+        }
+        Map<String, Object> info = new HashMap<>(4);
+        info.put("teamId", team.getTeamId());
+        info.put("teamName", team.getTeamName());
+        info.put("joined", teamMapper.selectMember(team.getTeamId(), userId) != null);
+        return info;
+    }
+
+    @Override
     public String refreshInviteCode(Long teamId, Long operatorId)
     {
         assertManager(teamId, operatorId);
