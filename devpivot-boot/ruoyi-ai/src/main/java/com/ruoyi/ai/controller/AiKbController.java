@@ -1,7 +1,5 @@
 package com.ruoyi.ai.controller;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,15 +14,15 @@ import org.springframework.web.bind.annotation.RestController;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.utils.ParamValidator;
-import com.ruoyi.ai.domain.AiKbDoc;
 import com.ruoyi.ai.service.IKnowledgeRetrievalService;
 
 /**
- * 知识库管理 Controller（AI 引擎层）。
+ * 知识库管理 Controller（AI 引擎层，后台管理侧）。
  *
  * <p>权限策略（2026-08-12 调整）：知识库的「写操作」（上传索引 POST /upload、删除 DELETE /{docId}）
  * 要求管理员角色（@ss.hasRole('admin')），与若依后台其他 AI 配置（模型/提示词/API Key）一致；
- * 「只读」接口（列表 GET /list、检索预览 GET /retrieve）保持仅登录态，便于非管理员查看已沉淀知识。
+ * 检索日志的查询/清理（GET/DELETE /logs）同样要求管理员。
+ * 「只读」接口（列表 GET /list、检索预览 GET /retrieve）已迁至同包 KbController（/portal/kb），仅登录态。
  * 注意：AI 生成阶段对知识库的检索走引擎 service 层（KnowledgeRetrievalServiceImpl.retrieveAsContext），
  * 不经本 HTTP 接口，故角色校验不影响生成流水线。
  *
@@ -37,26 +35,6 @@ public class AiKbController extends BaseController
 {
     @Autowired
     private IKnowledgeRetrievalService knowledgeRetrievalService;
-
-    /** 文档列表（只读，登录即可）。
-     *  - shared=true：查组织共享库（projectId=-1）
-     *  - shared=false 且 projectId 非空：查该项目库
-     *  - 两者均为空：管理员总览，返回跨项目全量文档（含共享库） */
-    @GetMapping("/list")
-    public AjaxResult list(@RequestParam(required = false) Long projectId,
-                           @RequestParam(required = false, defaultValue = "false") boolean shared,
-                           @RequestParam(required = false) String stage)
-    {
-        if (shared)
-        {
-            return success(knowledgeRetrievalService.listDocs(IKnowledgeRetrievalService.SHARED_PROJECT_ID, stage));
-        }
-        if (projectId != null)
-        {
-            return success(knowledgeRetrievalService.listDocs(projectId, stage));
-        }
-        return success(knowledgeRetrievalService.listAllDocs(stage));
-    }
 
     /** 上传并索引一篇文档（upload 来源；shared=true 时存入组织共享库 projectId=-1） */
     @PreAuthorize("@ss.hasRole('admin')")
@@ -89,18 +67,6 @@ public class AiKbController extends BaseController
     public AjaxResult remove(@PathVariable Long docId)
     {
         return toAjax(knowledgeRetrievalService.deleteDoc(docId));
-    }
-
-    /** 检索预览/调试。只读，登录即可。 */
-    @GetMapping("/retrieve")
-    public AjaxResult retrieve(@RequestParam Long projectId,
-                               @RequestParam(required = false) String stage,
-                               @RequestParam String query)
-    {
-        String ctx = knowledgeRetrievalService.retrieveAsContext(projectId, stage, query);
-        Map<String, Object> m = new HashMap<>(2);
-        m.put("context", ctx);
-        return success(m);
     }
 
     /** 清理检索日志（管理员；保留天数由 kb.retrieval-log.keep-days 控制）。仅登录态不足以调用，需管理员。 */

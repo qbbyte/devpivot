@@ -48,18 +48,18 @@ import com.ruoyi.ai.service.IKnowledgeRetrievalService;
 import com.ruoyi.ai.service.IAiModelConfigService;
 
 /**
- * 原型设计 · AI 接口（/ai/proto）
- * 仅承载 AI/流式能力：可用模型、生成、对话、局部改稿。
- * 数据读写见同包 ProtoController（/system/proto）。
+ * 原型设计 · 数据接口（/portal/proto）
+ * 仅承载原型页面/组件的读写、确认推进、历史版本。
+ * AI 能力见同包 AiProtoController（/ai/proto）。
  * @author devpivot
  */
 @RestController
 @Validated
-@RequestMapping("/ai/proto")
-public class AiProtoController extends BaseController
+@RequestMapping("/portal/proto")
+public class ProtoController extends BaseController
 {
 
-    private static final Logger log = LoggerFactory.getLogger(AiProtoController.class);
+    private static final Logger log = LoggerFactory.getLogger(ProtoController.class);
 
     @Autowired
     private IAiProtoPageService aiProtoPageService;
@@ -523,330 +523,147 @@ public class AiProtoController extends BaseController
 
 
     /**
-     * 可用模型列表：返回 ai_model_config 中「启用」的模型，映射为前端所需的
-     * { modelId, modelName } 结构。本阶段为单模型，maxCompareCount 固定为 1。
+     * 按项目读取已存原型页面（含组件）。门户加载原型工作台的权威数据源。
      */
-    @GetMapping("/models")
-    public AjaxResult models()
+    @GetMapping("/pages/{projectId}")
+    public AjaxResult pages(@PathVariable("projectId") Long projectId)
     {
-        AiModelConfig query = new AiModelConfig();
-        query.setIsEnabled("0");
-        List<AiModelConfig> list = modelConfigService.selectAiModelConfigList(query);
-        List<Map<String, Object>> models = new ArrayList<>();
-        if (list != null)
+        ParamValidator.projectId(projectId);
+        List<AiProtoPage> pages = aiProtoPageService.selectAiProtoPageByProjectId(projectId);
+        List<Map<String, Object>> result = new ArrayList<>(pages.size());
+        for (AiProtoPage p : pages)
         {
-            for (AiModelConfig c : list)
-            {
-                if (c.getModelCode() == null || c.getModelCode().isEmpty())
-                {
-                    continue;
-                }
-                Map<String, Object> m = new HashMap<>(2);
-                m.put("modelId", c.getModelCode());
-                m.put("modelName", c.getModelName() == null ? c.getModelCode() : c.getModelName());
-                models.add(m);
-            }
+            result.add(toPageMap(p, aiProtoComponentService.selectAiProtoComponentByPageId(p.getPageId())));
         }
         Map<String, Object> data = new HashMap<>(2);
-        data.put("models", models);
-        data.put("maxCompareCount", 1);
+        data.put("pages", result);
         return success(data);
     }
 
     /**
-     * AI 生成原型（非流式）：读取 PRD（优先 body.prdText），调用模型输出页面+组件 JSON，
-     * 落库并返回。若未配置模型 / 调用失败 / 解析失败，回退到后端模板生成。
+     * 保存（upsert）整个原型：删除该项目旧页面与组件，插入新页面与组件。
+     * body: { pages: [前端页面结构], sourceModel: '人工/AI生成' }
      */
-    @PostMapping("/generate/{projectId}")
+    @PostMapping("/save/{projectId}")
     @Transactional
-    public AjaxResult generate(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body)
+    public AjaxResult save(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body)
     {
         ParamValidator.projectId(projectId);
-        String projectName = str(body.get("projectName"));
+        Object pagesObj = body.get("pages");
+        if (!(pagesObj instanceof List))
+        {
+            return error("页面数据格式不正确");
+        }
+        try
+        {
+            persistPages(projectId, (List<?>) pagesObj, body.get("sourceModel"));
+        }
+        catch (Exception e)
+        {
+            log.error("[proto] save 失败 projectId={}", projectId, e);
+            return error("保存失败：" + e.getMessage());
+        }
+        return success("保存成功");
+    }
+
+    /**
+     * 确认原型：将项目阶段推进到 TECH（技术方案）。
+     */
+    @PostMapping("/confirm/{projectId}")
+    @Transactional
+    public AjaxResult confirm(@PathVariable("projectId") Long projectId)
+    {
+        ParamValidator.projectId(projectId);
+        AiProject project = aiProjectService.selectAiProjectByProjectId(projectId);
+        if (project == null)
+        {
+            return error("项目不存在");
+        }
+        project.setStep("TECH");
+        project.setUpdateBy(SecurityUtils.getUsername());
+        project.setUpdateTime(DateUtils.getNowDate());
+        aiProjectService.updateAiProject(project);
+        return success("已确认原型，进入技术方案阶段");
+    }
+
+    /* ============================ 历史版本 ============================ */
+
+    /** 保存当前原型为历史版本（快照） */
+    @PostMapping("/version/{projectId}")
+    @Transactional
+    public AjaxResult saveVersion(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body)
+    {
+        ParamValidator.projectId(projectId);
+        Object pagesObj = body.get("pages");
+        if (!(pagesObj instanceof List)) return error("页面数据格式不正确");
+        String versionName = str(body.get("versionName"));
+        if (versionName == null || versionName.isEmpty())
+        {
+            versionName = "版本 " + DateUtils.dateTimeNow("yyyy-MM-dd HH:mm");
+        }
         String deviceType = str(body.get("deviceType"));
-        if (deviceType == null || deviceType.isEmpty())
+        if (deviceType == null && !((List<?>) pagesObj).isEmpty())
         {
-            deviceType = "WEB";
+            Object first = ((List<?>) pagesObj).get(0);
+            if (first instanceof Map) deviceType = str(((Map<?, ?>) first).get("deviceType"));
         }
-        String prdText = str(body.get("prdText"));
-        String model = str(body.get("model"));
+        AiProtoVersion v = new AiProtoVersion();
+        v.setProjectId(projectId);
+        v.setVersionName(versionName);
+        v.setDeviceType(deviceType);
+        v.setSourceModel(str(body.get("sourceModel")));
+        v.setSnapshot(JSON.toJSONString(pagesObj));
+        v.setCreateBy(SecurityUtils.getUsername());
+        v.setRemark(str(body.get("remark")));
+        aiProtoVersionService.insertAiProtoVersion(v);
+        return success(mapOf("versionId", v.getVersionId()));
+    }
 
-        // 入参防护：自由文本长度上限，避免超长内容撑爆存储或模型上下文
-        ParamValidator.requireText(projectName, 200, "项目名称", true);
-        ParamValidator.requireText(deviceType, 20, "设备类型", false);
-        ParamValidator.requireText(prdText, 20000, "PRD文本", true);
+    /** 历史版本列表（不含快照） */
+    @GetMapping("/versions/{projectId}")
+    public AjaxResult listVersions(@PathVariable("projectId") Long projectId)
+    {
+        ParamValidator.projectId(projectId);
+        List<AiProtoVersion> list = aiProtoVersionService.selectAiProtoVersionByProjectId(projectId);
+        List<Map<String, Object>> result = new ArrayList<>(list.size());
+        for (AiProtoVersion v : list)
+        {
+            result.add(mapOf("versionId", v.getVersionId(), "versionName", v.getVersionName(),
+                    "deviceType", v.getDeviceType(), "sourceModel", v.getSourceModel(),
+                    "createBy", v.getCreateBy(), "createTime", v.getCreateTime(), "remark", v.getRemark()));
+        }
+        return success(result);
+    }
 
-        List<Map<String, Object>> pages = null;
-        try
-        {
-            pages = tryGenerateByAi(projectId, projectName, deviceType, prdText, model);
-        }
-        catch (Exception e)
-        {
-            log.warn("[proto] AI 生成失败，回退模板 projectId={} {}", projectId, e.getMessage());
-        }
-        if (pages == null || pages.isEmpty())
-        {
-            pages = buildTemplatePages(projectId, projectName, deviceType);
-        }
-        try
-        {
-            persistPages(projectId, pages, "AI生成");
-        }
-        catch (Exception e)
-        {
-            log.error("[proto] generate 落库失败 projectId={}", projectId, e);
-            return error("生成落库失败：" + e.getMessage());
-        }
+    /** 获取单个版本（含页面快照） */
+    @GetMapping("/version/{versionId}")
+    public AjaxResult getVersion(@PathVariable("versionId") Long versionId)
+    {
+        if (versionId == null) return error("版本ID不能为空");
+        AiProtoVersion v = aiProtoVersionService.selectAiProtoVersionByVersionId(versionId);
+        if (v == null) return error("版本不存在");
+        Map<String, Object> data = new HashMap<>(4);
+        data.put("version", mapOf("versionId", v.getVersionId(), "versionName", v.getVersionName(),
+                "deviceType", v.getDeviceType(), "sourceModel", v.getSourceModel(),
+                "createBy", v.getCreateBy(), "createTime", v.getCreateTime(), "remark", v.getRemark()));
+        data.put("pages", parseJsonList(v.getSnapshot()));
+        return success(data);
+    }
+
+    /** 还原历史版本（覆盖当前原型并落库） */
+    @PostMapping("/version/restore/{versionId}")
+    @Transactional
+    public AjaxResult restoreVersion(@PathVariable("versionId") Long versionId)
+    {
+        if (versionId == null) return error("版本ID不能为空");
+        AiProtoVersion v = aiProtoVersionService.selectAiProtoVersionByVersionId(versionId);
+        if (v == null) return error("版本不存在");
+        List<Map<String, Object>> pages = parseJsonList(v.getSnapshot());
+        if (pages == null || pages.isEmpty()) return error("该版本快照为空");
+        persistPages(v.getProjectId(), pages, "历史还原");
         Map<String, Object> data = new HashMap<>(2);
         data.put("pages", pages);
-        data.put("deviceType", deviceType);
+        data.put("deviceType", v.getDeviceType());
         return success(data);
-    }
-
-    /**
-     * AI 对话（流式 SSE）：针对用户的原型设计提问，给出建议文本。
-     * 若未配置模型或调用失败，回退到本地规则建议文本。
-     */
-    @PostMapping("/chat")
-    public SseEmitter chat(@RequestBody Map<String, Object> body, HttpServletResponse response)
-    {
-        response.setHeader("Cache-Control", "no-cache, no-transform");
-        response.setHeader("X-Accel-Buffering", "no");
-        SseEmitter emitter = new SseEmitter(180000L);
-        emitter.onError(e -> emitter.completeWithError(e));
-        emitter.onTimeout(() -> emitter.complete());
-
-        String message = str(body.get("message"));
-        String model = str(body.get("model"));
-        String modelId = resolveModel(model);
-
-        if (modelId == null)
-        {
-            // 无可用模型：本地规则兜底
-            try
-            {
-                String reply = buildLocalReply(message);
-                emitter.send(SseEmitter.event().name("token").data(mapOf("type", "token", "delta", reply)));
-                emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
-                emitter.complete();
-            }
-            catch (IOException e)
-            {
-                emitter.completeWithError(e);
-            }
-            return emitter;
-        }
-
-        // 提示词工程化：从 ai_prompt_template 按 templateCode 渲染（DB 缺失回退内置常量，零回归）
-        Map<String, Object> chatVars = new HashMap<>(1);
-        chatVars.put("message", message);
-        RenderedPrompt chatPrompt = promptTemplateService.renderByCode("PROTO_CHAT", modelId, chatVars);
-        String systemPrompt = chatPrompt.getSystemPrompt();
-        String userPrompt = chatPrompt.getUserPrompt();
-        STREAM_POOL.submit(() -> {
-            try
-            {
-                aiModelClient.chatStream(modelId, systemPrompt, userPrompt, delta -> {
-                    try
-                    {
-                        emitter.send(SseEmitter.event().name("token")
-                                .data(mapOf("type", "token", "delta", delta)));
-                    }
-                    catch (IOException ignored)
-                    {
-                        // 前端断开，停止推送
-                    }
-                });
-                emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
-                emitter.complete();
-            }
-            catch (Exception e)
-            {
-                try
-                {
-                    emitter.send(SseEmitter.event().name("token")
-                            .data(mapOf("type", "token", "delta", buildLocalReply(message))));
-                    emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
-                    emitter.complete();
-                }
-                catch (IOException io)
-                {
-                    emitter.completeWithError(io);
-                }
-            }
-        });
-        return emitter;
-    }
-
-    /**
-     * AI 生成原型（真流式 SSE）：边生成边推 token，结束解析 JSON 数组落库并推 pages 事件。
-     * 前端以此获得实时生成体验；原 /generate（一次性 JSON）保留不删。
-     */
-    @PostMapping("/generate/stream")
-    public SseEmitter generateStream(@RequestBody Map<String, Object> body, HttpServletResponse response)
-    {
-        response.setHeader("Cache-Control", "no-cache, no-transform");
-        response.setHeader("X-Accel-Buffering", "no");
-        SseEmitter emitter = new SseEmitter(180000L);
-        emitter.onError(e -> emitter.completeWithError(e));
-        emitter.onTimeout(() -> emitter.complete());
-
-        Long projectId = toLong(body.get("projectId"));
-        ParamValidator.projectId(projectId);
-        String projectName = str(body.get("projectName"));
-        String rawDevice = str(body.get("deviceType"));
-        String deviceType = (rawDevice == null || rawDevice.isEmpty()) ? "WEB" : rawDevice;
-        String prdText = str(body.get("prdText"));
-        String model = str(body.get("model"));
-
-        // 入参防护：自由文本长度上限，避免超长内容撑爆存储或模型上下文
-        ParamValidator.requireText(projectName, 200, "项目名称", true);
-        ParamValidator.requireText(deviceType, 20, "设备类型", false);
-        ParamValidator.requireText(prdText, 20000, "PRD文本", true);
-
-        STREAM_POOL.submit(() -> {
-            try
-            {
-                String text = tryGenerateAiText(projectId, projectName, deviceType, prdText, model, delta -> {
-                    try
-                    {
-                        emitter.send(SseEmitter.event().name("token")
-                                .data(mapOf("type", "token", "delta", delta)));
-                    }
-                    catch (IOException ignored) { }
-                });
-                List<Map<String, Object>> pages = parsePagesFromText(text);
-                if (pages == null || pages.isEmpty())
-                {
-                    emitter.send(SseEmitter.event().name("token").data(mapOf("type", "token",
-                            "delta", "（未配置AI模型或解析失败，使用内置模板生成）\n")));
-                    pages = buildTemplatePages(projectId, projectName, deviceType);
-                }
-                persistPages(projectId, pages, "AI生成");
-                emitter.send(SseEmitter.event().name("pages")
-                        .data(mapOf("type", "pages", "pages", pages, "deviceType", deviceType)));
-                emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
-                emitter.complete();
-            }
-            catch (Exception e)
-            {
-                log.error("[proto] 流式生成失败 projectId={}", projectId, e);
-                try
-                {
-                    emitter.send(SseEmitter.event().name("token").data(mapOf("type", "token",
-                            "delta", "（生成失败：" + e.getMessage() + "）")));
-                    emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
-                    emitter.complete();
-                }
-                catch (IOException io)
-                {
-                    emitter.completeWithError(io);
-                }
-            }
-        });
-        return emitter;
-    }
-
-    /**
-     * AI 局部改稿（SSE）：把当前页面 + 指令发给模型，要求仅改指令涉及处、其余原样保留，
-     * 返回完整 pages 数组并落库。无模型或解析失败时保持原样返回。
-     */
-    @PostMapping("/patch/{projectId}")
-    public SseEmitter patch(@PathVariable("projectId") Long projectId, @RequestBody Map<String, Object> body,
-                            HttpServletResponse response)
-    {
-        ParamValidator.projectId(projectId);
-        response.setHeader("Cache-Control", "no-cache, no-transform");
-        response.setHeader("X-Accel-Buffering", "no");
-        SseEmitter emitter = new SseEmitter(180000L);
-        emitter.onError(e -> emitter.completeWithError(e));
-        emitter.onTimeout(() -> emitter.complete());
-
-        String instruction = str(body.get("instruction"));
-        String model = str(body.get("model"));
-
-        // 入参防护：局部改稿指令长度上限，避免超长指令撑爆模型上下文
-        ParamValidator.requireText(instruction, 8000, "改稿指令", true);
-
-        Object pagesObj = body.get("pages");
-
-        STREAM_POOL.submit(() -> {
-            try
-            {
-                List<Map<String, Object>> currentPages;
-                if (pagesObj instanceof List && !((List<?>) pagesObj).isEmpty())
-                {
-                    currentPages = (List<Map<String, Object>>) pagesObj;
-                }
-                else
-                {
-                    currentPages = loadPagesFromDb(projectId);
-                }
-                if (currentPages == null || currentPages.isEmpty())
-                {
-                    emitter.send(SseEmitter.event().name("token").data(mapOf("type", "token",
-                            "delta", "（当前还没有原型页面，无法局部改稿。请先生成或添加页面。）")));
-                    emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
-                    emitter.complete();
-                    return;
-                }
-                String modelId = resolveModel(model);
-                if (modelId == null)
-                {
-                    emitter.send(SseEmitter.event().name("token").data(mapOf("type", "token",
-                            "delta", "（未配置AI模型，局部改稿需模型支持。当前保持原样，不做改动。）\n")));
-                    emitter.send(SseEmitter.event().name("pages").data(mapOf("type", "pages", "pages", currentPages)));
-                    emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
-                    emitter.complete();
-                    return;
-                }
-                String currentJson = JSON.toJSONString(currentPages);
-                // 提示词工程化：从 ai_prompt_template 按 templateCode 渲染（DB 缺失回退内置常量，零回归）
-                Map<String, Object> patchVars = new HashMap<>(2);
-                patchVars.put("currentJson", currentJson);
-                patchVars.put("instruction", instruction == null ? "" : instruction);
-                RenderedPrompt patchPrompt = promptTemplateService.renderByCode("PROTO_PATCH", modelId, patchVars);
-                StringBuilder sb = new StringBuilder();
-                aiModelClient.chatStream(modelId,
-                        patchPrompt.getSystemPrompt(),
-                        patchPrompt.getUserPrompt(), delta -> {
-                            sb.append(delta);
-                            try
-                            {
-                                emitter.send(SseEmitter.event().name("token")
-                                        .data(mapOf("type", "token", "delta", delta)));
-                            }
-                            catch (IOException ignored) { }
-                        });
-                List<Map<String, Object>> pages = parsePagesFromText(sb.toString());
-                if (pages == null || pages.isEmpty())
-                {
-                    emitter.send(SseEmitter.event().name("token").data(mapOf("type", "token",
-                            "delta", "（AI 返回内容无法解析为页面 JSON，已保持原样。）\n")));
-                    pages = currentPages;
-                }
-                persistPages(projectId, pages, "AI生成");
-                emitter.send(SseEmitter.event().name("pages").data(mapOf("type", "pages", "pages", pages)));
-                emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
-                emitter.complete();
-            }
-            catch (Exception e)
-            {
-                log.error("[proto] 局部改稿失败 projectId={}", projectId, e);
-                try
-                {
-                    emitter.send(SseEmitter.event().name("token").data(mapOf("type", "token",
-                            "delta", "（局部改稿失败：" + e.getMessage() + "）")));
-                    emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
-                    emitter.complete();
-                }
-                catch (IOException io)
-                {
-                    emitter.completeWithError(io);
-                }
-            }
-        });
-        return emitter;
     }
 }

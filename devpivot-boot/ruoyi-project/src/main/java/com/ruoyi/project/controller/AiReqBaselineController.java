@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.validation.annotation.Validated;
 import com.ruoyi.common.annotation.Log;
-import com.ruoyi.common.utils.ParamValidator;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.enums.BusinessType;
@@ -24,8 +23,9 @@ import com.ruoyi.common.utils.poi.ExcelUtil;
 import com.ruoyi.common.core.page.TableDataInfo;
 
 /**
- * 需求基线Controller
- * 
+ * 需求基线Controller（后台管理侧：列表/导出/增删改，均需后台权限）
+ * 门户数据接口（按项目读取/保存 upsert）见同包 BaselineController（/portal/baseline）。
+ *
  * @author ruoyi
  * @date 2026-08-04
  */
@@ -70,37 +70,6 @@ public class AiReqBaselineController extends BaseController
     public AjaxResult getInfo(@PathVariable("baselineId") Long baselineId)
     {
         return success(aiReqBaselineService.selectAiReqBaselineByBaselineId(baselineId));
-    }
-
-    /**
-     * 按项目ID获取需求基线
-     * 门户需求采集页(/portal 的 REQ 步骤)依赖此接口，故放开后台权限，仅要求登录态即可访问
-     */
-    @GetMapping(value = "/byProject/{projectId}")
-    public AjaxResult getByProject(@PathVariable("projectId") Long projectId)
-    {
-        return success(aiReqBaselineService.selectAiReqBaselineByProjectId(projectId));
-    }
-
-    /**
-     * 保存（新增或更新）需求基线
-     * 门户需求采集页保存草稿/提交需求时使用，按 projectId 做 upsert，放开后台权限、仅要求登录态
-     */
-    @PostMapping("/save")
-    public AjaxResult save(@RequestBody AiReqBaseline aiReqBaseline)
-    {
-        ParamValidator.projectId(aiReqBaseline.getProjectId());
-        AiReqBaseline existing = aiReqBaselineService.selectAiReqBaselineByProjectId(aiReqBaseline.getProjectId());
-        if (existing != null)
-        {
-            aiReqBaseline.setBaselineId(existing.getBaselineId());
-            aiReqBaselineService.updateAiReqBaseline(aiReqBaseline);
-        }
-        else
-        {
-            aiReqBaselineService.insertAiReqBaseline(aiReqBaseline);
-        }
-        return success();
     }
 
     /**

@@ -38,26 +38,17 @@ import com.ruoyi.project.service.IAiProjectService;
 import com.ruoyi.project.service.IAiTechDocService;
 
 /**
- * 门户·数据库设计接口（/ai/db）
- *
- * 服务于门户「数据库设计」步骤页，提供：
- *  - GET  /ai/db/models  可用模型列表（来自 ai_model_config 启用项）
- *  - POST /ai/db/doc     按项目读取当前数据库设计（进入页面恢复编辑内容）
- *  - POST /ai/db/save    保存/更新数据库设计（草稿 upsert）
- *  - POST /ai/db/generate 流式生成数据库设计（SSE，复用 AiModelClient）
- *  - POST /ai/db/submit/{projectId} 提交数据库设计：落库 status=1 并推进项目阶段到 DONE
- *
- * 与后台管理接口 /system/table、/system/column（结构化库表 CRUD）完全独立，互不影响。
- * 所有接口仅校验登录态（SecurityConfig 中未匿名放行 /ai/**，需携带有效令牌）。
- *
+ * 门户·数据库设计 · AI 接口（/ai/db）
+ * 仅承载 AI/流式能力：可用模型、流式生成。
+ * 数据读写见同包 DbController（/system/db）。
  * @author devpivot
- * @date 2026-08-08
  */
 @RestController
 @Validated
 @RequestMapping("/ai/db")
 public class AiDbController extends BaseController
 {
+
     @Autowired
     private AiModelClient aiModelClient;
 
@@ -86,6 +77,126 @@ public class AiDbController extends BaseController
     private static final ExecutorService STREAM_POOL = Executors.newCachedThreadPool();
 
     private static final Logger log = LoggerFactory.getLogger(AiDbController.class);
+
+    /** 回源读取项目最新 PRD 与技术方案内容，作为生成上下文；无资料时返回提示 */
+    private String buildUpstream(Long projectId)
+    {
+        StringBuilder sb = new StringBuilder();
+        try
+        {
+            AiPrdDoc q = new AiPrdDoc();
+            q.setProjectId(projectId);
+            List<AiPrdDoc> list = prdDocService.selectAiPrdDocList(q);
+            if (list != null && !list.isEmpty())
+            {
+                String c = list.get(0).getContent();
+                if (c != null && !c.trim().isEmpty())
+                {
+                    if (c.length() > 3000)
+                    {
+                        c = c.substring(0, 3000) + "\n…（内容已截断，仅取前 3000 字作为上下文）";
+                    }
+                    sb.append("【上游 PRD 文档摘要】\n").append(c).append("\n\n");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            log.warn("[db-generate] 读取 PRD 上下文失败", e);
+        }
+        try
+        {
+            AiTechDoc q = new AiTechDoc();
+            q.setProjectId(projectId);
+            List<AiTechDoc> list = techDocService.selectAiTechDocList(q);
+            if (list != null && !list.isEmpty())
+            {
+                String c = list.get(0).getContent();
+                if (c != null && !c.trim().isEmpty())
+                {
+                    if (c.length() > 2000)
+                    {
+                        c = c.substring(0, 2000) + "\n…（内容已截断，仅取前 2000 字作为上下文）";
+                    }
+                    sb.append("【上游技术方案摘要】\n").append(c).append("\n\n");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            log.warn("[db-generate] 读取技术方案上下文失败", e);
+        }
+        if (sb.length() == 0) return "（暂无上游 PRD 与技术方案文档）";
+        return sb.toString();
+    }
+
+    /** 取第一个启用模型的 modelCode，无配置时回退 "deepseek" */
+    private String defaultModelCode()
+    {
+        try
+        {
+            AiModelConfig query = new AiModelConfig();
+            query.setIsEnabled("0");
+            List<AiModelConfig> list = modelConfigService.selectAiModelConfigList(query);
+            if (list != null)
+            {
+                for (AiModelConfig c : list)
+                {
+                    if (c.getModelCode() != null && !c.getModelCode().isEmpty())
+                    {
+                        return c.getModelCode();
+                    }
+                }
+            }
+        }
+        catch (Exception e) { }
+        return "deepseek";
+    }
+
+    private void writeError(SseEmitter emitter, String msg)
+    {
+        try
+        {
+            emitter.send(SseEmitter.event().name("error").data(mapOf("type", "error", "content", msg)));
+            emitter.complete();
+        }
+        catch (IOException e)
+        {
+            emitter.completeWithError(e);
+        }
+    }
+
+    private Long parseProjectId(Object obj)
+    {
+        if (obj == null) return null;
+        if (obj instanceof Number) return ((Number) obj).longValue();
+        try
+        {
+            return Long.valueOf(String.valueOf(obj).trim());
+        }
+        catch (NumberFormatException e)
+        {
+            return null;
+        }
+    }
+
+    private static String str(Object obj, String def)
+    {
+        return obj == null ? def : String.valueOf(obj);
+    }
+
+    /** 简化的不可变 Map 构造 */
+    private static Map<String, Object> mapOf(Object... kv)
+    {
+        Map<String, Object> m = new HashMap<>(kv.length / 2 + 1);
+        for (int i = 0; i + 1 < kv.length; i += 2)
+        {
+            m.put(String.valueOf(kv[i]), kv[i + 1]);
+        }
+        return m;
+    }
+
+
 
     /**
      * 可用模型列表：返回 ai_model_config 中「启用」的模型，映射为前端所需的
@@ -116,97 +227,6 @@ public class AiDbController extends BaseController
         data.put("models", models);
         data.put("maxCompareCount", 1);
         return success(data);
-    }
-
-    /**
-     * 门户读取项目当前数据库设计（按 projectId 取最新一条），供进入页面恢复编辑内容。
-     */
-    @PostMapping("/doc")
-    public AjaxResult getByProject(@RequestBody Map<String, Object> body)
-    {
-        Long projectId = parseProjectId(body.get("projectId"));
-        ParamValidator.projectId(projectId);
-        AiDbDoc q = new AiDbDoc();
-        q.setProjectId(projectId);
-        List<AiDbDoc> list = dbDocService.selectAiDbDocList(q);
-        if (list != null && !list.isEmpty()) return success(list.get(0));
-        return success(null);
-    }
-
-    /**
-     * 门户保存/更新数据库设计（按 projectId upsert），供编辑保存与生成后落库。
-     * 兼容字段：docName / dbType / content / multiSource / sourceModel / status。
-     */
-    @PostMapping("/save")
-    public AjaxResult save(@RequestBody Map<String, Object> body)
-    {
-        Long projectId = parseProjectId(body.get("projectId"));
-        ParamValidator.projectId(projectId);
-
-        AiDbDoc q = new AiDbDoc();
-        q.setProjectId(projectId);
-        List<AiDbDoc> list = dbDocService.selectAiDbDocList(q);
-
-        AiDbDoc doc = new AiDbDoc();
-        doc.setProjectId(projectId);
-        doc.setDocName(str(body.get("docName"), "数据库设计"));
-        doc.setDbType(str(body.get("dbType"), null));
-        doc.setContent(body.get("content") == null ? "" : String.valueOf(body.get("content")));
-        doc.setMultiSource(str(body.get("multiSource"), null));
-        doc.setSourceModel(str(body.get("sourceModel"), null));
-        doc.setStatus(str(body.get("status"), "0"));
-
-        if (list != null && !list.isEmpty())
-        {
-            doc.setDocId(list.get(0).getDocId());
-            dbDocService.updateAiDbDoc(doc);
-            return success(doc.getDocId());
-        }
-        dbDocService.insertAiDbDoc(doc);
-        return success(doc.getDocId());
-    }
-
-    /**
-     * 提交数据库设计：落库 status=1（upsert）并推进项目阶段到 DONE。
-     * 后端统一处理阶段推进，前端无需再单独调用项目更新接口。
-     */
-    @PostMapping("/submit/{projectId}")
-    public AjaxResult submit(@PathVariable("projectId") Long projectId,
-                             @RequestBody(required = false) Map<String, Object> body)
-    {
-        ParamValidator.projectId(projectId);
-        Map<String, Object> b = body == null ? new HashMap<>(0) : body;
-
-        AiDbDoc q = new AiDbDoc();
-        q.setProjectId(projectId);
-        List<AiDbDoc> list = dbDocService.selectAiDbDocList(q);
-
-        AiDbDoc doc = new AiDbDoc();
-        doc.setProjectId(projectId);
-        doc.setDocName(str(b.get("docName"), "数据库设计"));
-        doc.setDbType(str(b.get("dbType"), null));
-        doc.setContent(b.get("content") == null ? "" : String.valueOf(b.get("content")));
-        doc.setMultiSource(str(b.get("multiSource"), null));
-        doc.setSourceModel(str(b.get("sourceModel"), null));
-        doc.setStatus("1");
-
-        if (list != null && !list.isEmpty())
-        {
-            doc.setDocId(list.get(0).getDocId());
-            dbDocService.updateAiDbDoc(doc);
-        }
-        else
-        {
-            dbDocService.insertAiDbDoc(doc);
-        }
-
-        // 推进项目阶段到 DONE（完成）
-        AiProject project = new AiProject();
-        project.setProjectId(projectId);
-        project.setStep("DONE");
-        projectService.updateAiProject(project);
-
-        return success();
     }
 
     /**
@@ -325,123 +345,5 @@ public class AiDbController extends BaseController
             }
         });
         return emitter;
-    }
-
-    /** 回源读取项目最新 PRD 与技术方案内容，作为生成上下文；无资料时返回提示 */
-    private String buildUpstream(Long projectId)
-    {
-        StringBuilder sb = new StringBuilder();
-        try
-        {
-            AiPrdDoc q = new AiPrdDoc();
-            q.setProjectId(projectId);
-            List<AiPrdDoc> list = prdDocService.selectAiPrdDocList(q);
-            if (list != null && !list.isEmpty())
-            {
-                String c = list.get(0).getContent();
-                if (c != null && !c.trim().isEmpty())
-                {
-                    if (c.length() > 3000)
-                    {
-                        c = c.substring(0, 3000) + "\n…（内容已截断，仅取前 3000 字作为上下文）";
-                    }
-                    sb.append("【上游 PRD 文档摘要】\n").append(c).append("\n\n");
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            log.warn("[db-generate] 读取 PRD 上下文失败", e);
-        }
-        try
-        {
-            AiTechDoc q = new AiTechDoc();
-            q.setProjectId(projectId);
-            List<AiTechDoc> list = techDocService.selectAiTechDocList(q);
-            if (list != null && !list.isEmpty())
-            {
-                String c = list.get(0).getContent();
-                if (c != null && !c.trim().isEmpty())
-                {
-                    if (c.length() > 2000)
-                    {
-                        c = c.substring(0, 2000) + "\n…（内容已截断，仅取前 2000 字作为上下文）";
-                    }
-                    sb.append("【上游技术方案摘要】\n").append(c).append("\n\n");
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            log.warn("[db-generate] 读取技术方案上下文失败", e);
-        }
-        if (sb.length() == 0) return "（暂无上游 PRD 与技术方案文档）";
-        return sb.toString();
-    }
-
-    /** 取第一个启用模型的 modelCode，无配置时回退 "deepseek" */
-    private String defaultModelCode()
-    {
-        try
-        {
-            AiModelConfig query = new AiModelConfig();
-            query.setIsEnabled("0");
-            List<AiModelConfig> list = modelConfigService.selectAiModelConfigList(query);
-            if (list != null)
-            {
-                for (AiModelConfig c : list)
-                {
-                    if (c.getModelCode() != null && !c.getModelCode().isEmpty())
-                    {
-                        return c.getModelCode();
-                    }
-                }
-            }
-        }
-        catch (Exception e) { }
-        return "deepseek";
-    }
-
-    private void writeError(SseEmitter emitter, String msg)
-    {
-        try
-        {
-            emitter.send(SseEmitter.event().name("error").data(mapOf("type", "error", "content", msg)));
-            emitter.complete();
-        }
-        catch (IOException e)
-        {
-            emitter.completeWithError(e);
-        }
-    }
-
-    private Long parseProjectId(Object obj)
-    {
-        if (obj == null) return null;
-        if (obj instanceof Number) return ((Number) obj).longValue();
-        try
-        {
-            return Long.valueOf(String.valueOf(obj).trim());
-        }
-        catch (NumberFormatException e)
-        {
-            return null;
-        }
-    }
-
-    private static String str(Object obj, String def)
-    {
-        return obj == null ? def : String.valueOf(obj);
-    }
-
-    /** 简化的不可变 Map 构造 */
-    private static Map<String, Object> mapOf(Object... kv)
-    {
-        Map<String, Object> m = new HashMap<>(kv.length / 2 + 1);
-        for (int i = 0; i + 1 < kv.length; i += 2)
-        {
-            m.put(String.valueOf(kv[i]), kv[i + 1]);
-        }
-        return m;
     }
 }
