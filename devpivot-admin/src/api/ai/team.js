@@ -137,6 +137,14 @@ export function joinTeamByCode(code) {
   })
 }
 
+// 按邀请码查询团队邀请信息(分享链接落地页校验/展示用;data 为 null 表示码无效或团队解散)
+export function getInviteInfo(inviteCode) {
+  return request({
+    url: '/team/invite-info/' + inviteCode,
+    method: 'get'
+  })
+}
+
 // 重新生成团队邀请码(仅 OWNER/ADMIN)
 export function refreshInviteCode(teamId) {
   return request({

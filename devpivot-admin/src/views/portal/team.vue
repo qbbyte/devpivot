@@ -62,6 +62,7 @@
               <p class="td-desc">{{ activeTeam.description || '暂无简介' }}</p>
             </div>
             <div class="td-ops">
+              <el-button size="small" :icon="Promotion" @click="showInviteDialog = true">分享邀请</el-button>
               <el-button v-if="canManage" size="small" @click="openEdit">编辑</el-button>
               <el-button v-if="!isOwner" size="small" type="warning" plain @click="handleLeave">退出团队</el-button>
               <el-button v-if="isOwner" size="small" type="danger" plain @click="handleDissolve">解散团队</el-button>
@@ -86,18 +87,6 @@
           <!-- 团队信息 -->
           <el-tab-pane label="团队信息" name="info">
             <div class="tab-pane-inner">
-              <div class="td-invite-card">
-                <div class="td-invite-card-head">
-                  <span class="td-invite-title">邀请码</span>
-                  <span class="td-invite-tip">把邀请码发给同事，对方在左侧「加入团队」处输入即可加入</span>
-                </div>
-                <div class="td-invite-row">
-                  <code class="td-invite-code">{{ activeTeam.inviteCode || '—' }}</code>
-                  <el-button size="small" @click="copyInviteCode">复制</el-button>
-                  <el-button v-if="canManage" size="small" type="primary" plain @click="handleRefreshCode">重新生成</el-button>
-                </div>
-              </div>
-
               <el-descriptions :column="1" border class="td-info">
                 <el-descriptions-item label="团队ID">{{ activeTeam.teamId }}</el-descriptions-item>
                 <el-descriptions-item label="团队名称">{{ activeTeam.teamName }}</el-descriptions-item>
@@ -526,6 +515,29 @@
         <el-button @click="artifactDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 分享邀请码弹窗 -->
+    <el-dialog
+      v-model="showInviteDialog"
+      title="分享邀请码"
+      width="440px"
+      :close-on-click-modal="false"
+      align-center
+    >
+      <div class="invite-dialog-body">
+        <p class="invite-tip">把邀请码发给同事，对方在左侧「加入团队」处输入即可加入；也可直接分享链接，对方点击后登录即可加入</p>
+        <div class="invite-row">
+          <code class="invite-code">{{ activeTeam.inviteCode || '—' }}</code>
+          <el-button size="small" @click="copyInviteCode">复制</el-button>
+          <el-button v-if="canManage" size="small" type="primary" plain @click="handleRefreshCode">重新生成</el-button>
+        </div>
+        <div class="invite-link-row">
+          <code class="invite-link">{{ inviteLink }}</code>
+          <el-button size="small" type="primary" plain @click="copyInviteLink">复制链接</el-button>
+        </div>
+        <p class="invite-warn">⚠️ 重新生成后旧码立即失效，已有成员不受影响</p>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -533,7 +545,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
-import { Plus, Search, User, SwitchButton, Check, Right, Download, Connection } from '@element-plus/icons-vue'
+import { Plus, Search, User, SwitchButton, Check, Right, Download, Connection, Promotion } from '@element-plus/icons-vue'
 import useUserStore from '@/store/modules/user'
 import defAva from '@/assets/images/profile.jpg'
 import PortalHeader from './components/PortalHeader.vue'
@@ -562,6 +574,7 @@ const activeTab = ref('projects')
 const joinDialogVisible = ref(false)
 const joinCode = ref('')
 const joining = ref(false)
+const showInviteDialog = ref(false)
 
 function openJoin() {
   joinCode.value = ''
@@ -597,6 +610,22 @@ async function copyInviteCode() {
     ElMessage.success('邀请码已复制')
   } catch (e) {
     ElMessage.warning('复制失败，请手动复制：' + code)
+  }
+}
+// 分享链接：{origin}/#/invite/{邀请码}，对方点击后登录即可加入
+const inviteLink = computed(() => {
+  const code = activeTeam.value && activeTeam.value.inviteCode
+  if (!code) return ''
+  const origin = (typeof window !== 'undefined' && window.location.origin) || ''
+  return `${origin}/#/invite/${code}`
+})
+async function copyInviteLink() {
+  if (!inviteLink.value) return
+  try {
+    await navigator.clipboard.writeText(inviteLink.value)
+    ElMessage.success('分享链接已复制')
+  } catch (e) {
+    ElMessage.warning('复制失败，请手动复制：' + inviteLink.value)
   }
 }
 async function handleRefreshCode() {
@@ -2212,5 +2241,76 @@ onMounted(async () => {
 .chat-input .el-button {
   flex-shrink: 0;
   height: 54px;
+}
+.td-share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--c-primary);
+  font-size: 13px;
+  font-weight: 500;
+  margin-left: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: background 0.18s;
+}
+.td-share-btn:hover {
+  background: var(--c-primary-bg, rgba(37, 99, 235, 0.08));
+  color: var(--c-primary);
+}
+.td-share-btn :deep(.el-icon) {
+  font-size: 15px;
+}
+.invite-dialog-body {
+  padding: 4px 0 0;
+}
+.invite-tip {
+  font-size: 13px;
+  color: var(--c-text-muted);
+  line-height: 1.6;
+  margin: 0 0 14px;
+}
+.invite-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--c-primary-bg, rgba(37, 99, 235, 0.06));
+  border-radius: 8px;
+}
+.invite-code {
+  flex: 1;
+  font-family: monospace;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--c-text);
+  letter-spacing: 1.5px;
+  user-select: all;
+}
+.invite-warn {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--c-text-subtle, #94a3b8);
+  line-height: 1.5;
+}
+.invite-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: var(--c-bg, #f5f8fd);
+  border: 1px dashed var(--c-border-light, #e2e8f0);
+  border-radius: 8px;
+}
+.invite-link {
+  flex: 1;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--c-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
 }
 </style>

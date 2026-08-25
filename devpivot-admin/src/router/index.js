@@ -76,6 +76,12 @@ export const constantRoutes = [
     meta: { title: '模型设置' }
   },
   {
+    path: '/invite/:code',
+    component: () => import('@/views/portal/invite'),
+    hidden: true,
+    meta: { title: '团队邀请' }
+  },
+  {
     path: '/portal/project/:id/req',
     component: () => import('@/views/portal/steps/req'),
     hidden: true,

@@ -19,7 +19,8 @@
         </nav>
         <el-dropdown trigger="click" @command="onUserCommand">
           <div class="user-trigger" role="button" tabindex="0" :aria-label="`用户菜单：${userStore.nickName || '用户'}`">
-            <span class="user-avatar">{{ avatarChar }}</span>
+            <img v-if="userStore.avatar" :src="userStore.avatar" class="user-avatar user-avatar-img" :alt="userStore.nickName" />
+            <span v-else class="user-avatar">{{ avatarChar }}</span>
             <span class="user-name">{{ userStore.nickName || '用户' }}</span>
             <el-icon class="user-caret"><ArrowDown /></el-icon>
           </div>
@@ -161,6 +162,10 @@ function onUserCommand(cmd) {
   font-size: 13px;
   font-weight: 600;
   flex-shrink: 0;
+}
+.user-avatar.user-avatar-img {
+  background: transparent;
+  object-fit: cover;
 }
 .user-name {
   font-size: 13px;
