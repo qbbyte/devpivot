@@ -58,4 +58,14 @@ public interface IAiParallelTaskService
      * @return 结果
      */
     public int deleteAiParallelTaskByTaskId(Long taskId);
+
+    /**
+     * 创建并同步执行多模型并行任务：
+     * 解析 modelIds(JSON 数组，元素为 model_code) 与 requestParams(JSON：{systemPrompt, userPrompt})，
+     * 并发调用各模型，结果按模型写入 resultSummary(JSON Map)，status 流转 0→1（2 部分失败/3 失败暂未细分）。
+     *
+     * @param task 待执行任务（projectId/taskType/modelIds/requestParams 必填）
+     * @return 执行完成后的任务（含 taskId 与 resultSummary）
+     */
+    public AiParallelTask executeParallelTask(AiParallelTask task);
 }

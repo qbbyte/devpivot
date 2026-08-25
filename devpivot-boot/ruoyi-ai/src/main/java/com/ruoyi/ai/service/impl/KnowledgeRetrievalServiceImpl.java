@@ -223,6 +223,16 @@ public class KnowledgeRetrievalServiceImpl implements IKnowledgeRetrievalService
     }
 
     @Override
+    public AiKbDoc getDocById(Long docId)
+    {
+        if (docId == null)
+        {
+            return null;
+        }
+        return aiKbMapper.selectAiKbDocByDocId(docId);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public int deleteDoc(Long docId)
     {

@@ -470,6 +470,46 @@ public class AiProjectServiceImpl implements IAiProjectService
     }
 
     /**
+     * 判断当前用户是否为该项目可写者（创建者 / 负责人 / 「我的项目」成员）
+     */
+    @Override
+    public boolean isProjectWriter(Long projectId, Long userId, String userName)
+    {
+        if (projectId == null)
+        {
+            return false;
+        }
+        AiProject project = selectAiProjectByProjectId(projectId);
+        if (project == null)
+        {
+            return false;
+        }
+        // 项目创建者本人
+        if (userName != null && userName.equals(project.getCreateBy()))
+        {
+            return true;
+        }
+        // 项目负责人（门户创建时 assigneeId=当前用户）
+        if (userId != null && userId.equals(project.getAssigneeId()))
+        {
+            return true;
+        }
+        // 我参与团队关联的项目（复用「我的项目」查询逻辑）
+        List<AiProject> mine = aiProjectMapper.selectMyProjectList(new AiProject(), userId, userName);
+        if (mine != null)
+        {
+            for (AiProject p : mine)
+            {
+                if (projectId.equals(p.getProjectId()))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * 新增AI项目
      * 
      * @param aiProject AI项目

@@ -84,6 +84,17 @@ public interface IAiProjectService
     public List<AiProject> selectMyProjectList(AiProject aiProject, Long userId, String userName);
 
     /**
+     * 判断当前用户是否为该项目的可写者（项目创建者 / 负责人 / 「我的项目」成员）
+     * 供门户侧对项目库的写操作（如知识库上传/删除）做归属校验
+     *
+     * @param projectId 项目ID
+     * @param userId 当前登录用户ID
+     * @param userName 当前登录用户名
+     * @return true=可写
+     */
+    public boolean isProjectWriter(Long projectId, Long userId, String userName);
+
+    /**
      * 新增AI项目
      * 
      * @param aiProject AI项目

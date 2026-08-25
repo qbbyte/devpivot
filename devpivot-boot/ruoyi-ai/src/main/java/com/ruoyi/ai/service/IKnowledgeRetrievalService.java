@@ -51,6 +51,9 @@ public interface IKnowledgeRetrievalService
     /** 删除文档（级联删除其切片） */
     int deleteDoc(Long docId);
 
+    /** 按文档ID查询（含 projectId，供门户侧写操作的归属校验） */
+    AiKbDoc getDocById(Long docId);
+
     /** 清理超过保留天数的检索日志，返回删除行数 */
     int cleanupRetrievalLog();
 

@@ -23,7 +23,10 @@ import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.ruoyi.ai.domain.AiModelConfig;
+import com.ruoyi.ai.domain.AiUserApiKey;
+import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import io.netty.channel.ChannelOption;
 import reactor.netty.http.client.HttpClient;
 
@@ -42,6 +45,9 @@ public class AiModelClient
     private final RestTemplate restTemplate;
     private final WebClient webClient;
     private final IAiModelConfigService modelConfigService;
+
+    @Autowired
+    private IAiUserApiKeyService userApiKeyService;
 
     public AiModelClient(IAiModelConfigService modelConfigService)
     {
@@ -269,19 +275,56 @@ public class AiModelClient
             {
                 for (AiModelConfig c : list)
                 {
-                    if (modelCode != null && modelCode.equals(c.getModelCode()))
+                if (modelCode != null && modelCode.equals(c.getModelCode()))
+                {
+                    // 用户自带 Key 覆盖：登录用户在该供应商下配置了启用 Key 则优先使用（仅覆盖 apiKey，baseUrl 仍用全局）
+                    String userKey = findActiveUserApiKey(c.getProvider());
+                    if (userKey != null)
                     {
-                        return c;
+                        c.setApiKey(userKey);
                     }
+                    return c;
                 }
             }
         }
-        catch (Exception e)
-        {
-            // 配置查询异常，返回 null 走兜底
-        }
-        return null;
     }
+    catch (Exception e)
+    {
+        // 配置查询异常，返回 null 走兜底
+    }
+    return null;
+}
+
+/**
+ * 查询当前登录用户在该供应商下的启用 API Key 明文（无登录态/未配置/异常时返回 null，调用方回退全局配置）
+ * 注：IAiUserApiKeyService 列表查询已解密，apiKey 字段即为明文
+ */
+private String findActiveUserApiKey(String provider)
+{
+    try
+    {
+        Long userId = SecurityUtils.getUserId();
+        if (userId == null || StringUtils.isBlank(provider))
+        {
+            return null;
+        }
+        AiUserApiKey query = new AiUserApiKey();
+        query.setUserId(userId);
+        query.setProvider(provider);
+        query.setIsActive("Y");
+        List<AiUserApiKey> keys = userApiKeyService.selectAiUserApiKeyList(query);
+        if (keys != null && !keys.isEmpty())
+        {
+            String plain = keys.get(0).getApiKey();
+            return StringUtils.isNotBlank(plain) ? plain : null;
+        }
+    }
+    catch (Exception e)
+    {
+        // 非登录态/查询异常：静默回退全局配置
+    }
+    return null;
+}
 
     /**
      * 流式调用指定模型进行对话补全（SSE）。

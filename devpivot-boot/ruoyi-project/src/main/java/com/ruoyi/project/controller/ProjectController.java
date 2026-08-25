@@ -12,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -125,5 +126,17 @@ public class ProjectController extends BaseController
         if ("trae".equalsIgnoreCase(fmt)) return "project_rules.md";
         if ("vscode".equalsIgnoreCase(fmt)) return "copilot-instructions.md";
         return "AGENTS.md";
+    }
+
+    /**
+     * 门户创建项目：仅要求登录态，强制归属当前登录用户（避免客户端伪造归属）
+     * 后台管理侧的创建仍走 AiProjectController（POST /system/project，需 system:project:add 权限）
+     */
+    @PostMapping
+    public AjaxResult add(@RequestBody AiProject aiProject)
+    {
+        aiProject.setProjectId(null);
+        aiProject.setCreateBy(getUsername());
+        return toAjax(aiProjectService.insertAiProject(aiProject));
     }
 }

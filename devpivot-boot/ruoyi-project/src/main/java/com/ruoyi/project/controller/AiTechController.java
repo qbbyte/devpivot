@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import jakarta.servlet.http.HttpServletResponse;
@@ -58,6 +59,9 @@ public class AiTechController extends BaseController
 
     @Autowired
     private IAiModelConfigService modelConfigService;
+
+    /** 多模型对比最大模型数（前端 models 接口 maxCompareCount 与此保持一致） */
+    private static final int MAX_COMPARE_MODELS = 3;
 
     @Autowired
     private IAiTechDocService techDocService;
@@ -196,7 +200,7 @@ public class AiTechController extends BaseController
         }
         Map<String, Object> data = new HashMap<>(2);
         data.put("models", models);
-        data.put("maxCompareCount", 1);
+        data.put("maxCompareCount", MAX_COMPARE_MODELS);
         return success(data);
     }
 
@@ -234,10 +238,29 @@ public class AiTechController extends BaseController
             return emitter;
         }
 
-        // 单模型：取前端传入模型的第一个
-        List<Object> models = body.get("models") instanceof List ? (List<Object>) body.get("models") : null;
-        String model = (models != null && !models.isEmpty()) ? String.valueOf(models.get(0)) : defaultModelCode();
-        final String usedModel = model;
+        // 多模型：前端传入 models 数组（各模型并行流式）；空则默认模型
+        List<Object> raw = body.get("models") instanceof List ? (List<Object>) body.get("models") : null;
+        List<String> modelCodes = new ArrayList<>();
+        if (raw != null)
+        {
+            for (Object o : raw)
+            {
+                String code = String.valueOf(o);
+                if (code != null && !code.isBlank() && !modelCodes.contains(code))
+                {
+                    modelCodes.add(code);
+                }
+            }
+        }
+        if (modelCodes.isEmpty())
+        {
+            modelCodes.add(defaultModelCode());
+        }
+        if (modelCodes.size() > MAX_COMPARE_MODELS)
+        {
+            writeError(emitter, "对比模型数不能超过 " + MAX_COMPARE_MODELS + " 个");
+            return emitter;
+        }
 
         String projectName = str(body.get("projectName"), "产品");
         String industryType = str(body.get("industryType"), "通用行业");
@@ -259,62 +282,80 @@ public class AiTechController extends BaseController
 
         // 上游上下文：优先回源 PRD 文档，使生成真正参考上一阶段产物
         String upstream = buildUpstream(projectId);
-
-        // 提示词工程化：从 ai_prompt_template 渲染（DB 缺失时回退内置常量，零回归）
         String extraBlock = (extraReq != null && !extraReq.trim().isEmpty())
                 ? "【补充要求】\n" + extraReq + "\n\n" : "";
-        Map<String, Object> techVars = new HashMap<>(8);
-        techVars.put("projectName", projectName);
-        techVars.put("industryType", industryType);
-        techVars.put("targetUser", targetUser);
-        techVars.put("techStack", techStack);
-        techVars.put("upstream", upstream);
-        techVars.put("extraBlock", extraBlock);
-        String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "TECH", upstream, usedModel);
-        techVars.put("kbContext", kbContext);
-        RenderedPrompt techPrompt = promptTemplateService.render("TECH", usedModel, techVars);
-        String systemPrompt = techPrompt.getSystemPrompt();
-        String userPrompt = techPrompt.getUserPrompt();
 
-        try
+        // 各模型共享同一 SseEmitter，事件带各自 modelId（前端多路复用）；全部完成才 complete
+        final CountDownLatch latch = new CountDownLatch(modelCodes.size());
+        for (String modelCode : modelCodes)
         {
-            emitter.send(SseEmitter.event().name("start").data(mapOf("type", "start", "modelId", usedModel)));
+            final String usedModel = modelCode;
+            STREAM_POOL.submit(() -> {
+                try
+                {
+                    streamOneModel(emitter, projectId, usedModel,
+                            projectName, industryType, targetUser, techStack, extraBlock, upstream);
+                }
+                finally
+                {
+                    latch.countDown();
+                }
+            });
         }
-        catch (IOException e)
-        {
-            emitter.completeWithError(e);
-            return emitter;
-        }
-
         STREAM_POOL.submit(() -> {
             try
             {
-                aiModelClient.chatStream(usedModel, systemPrompt, userPrompt, delta -> {
-                    try
-                    {
-                        emitter.send(SseEmitter.event().name("token")
-                                .data(mapOf("type", "token", "delta", delta, "modelId", usedModel)));
-                    }
-                    catch (IOException ignored)
-                    {
-                        // 前端断开：停止推送
-                    }
-                });
-                emitter.send(SseEmitter.event().name("done").data(mapOf("type", "done", "modelId", usedModel)));
-                emitter.complete();
+                latch.await();
             }
-            catch (Exception e)
-            {
-                log.error("[tech-generate] 生成异常", e);
-                try
-                {
-                    emitter.send(SseEmitter.event().name("error")
-                            .data(mapOf("type", "error", "content", e.getMessage(), "modelId", usedModel)));
-                }
-                catch (IOException ignored) { }
-                emitter.complete();
-            }
+            catch (InterruptedException ignored) { }
+            emitter.complete();
         });
         return emitter;
+    }
+
+    /** 单模型流式：渲染提示词（含该模型的 KB 检索与模板）→ 发 start/token/done 事件，事件带 modelId 供前端多路复用 */
+    private void streamOneModel(SseEmitter emitter, Long projectId, String usedModel,
+                                String projectName, String industryType, String targetUser,
+                                String techStack, String extraBlock, String upstream)
+    {
+        try
+        {
+            Map<String, Object> techVars = new HashMap<>(8);
+            techVars.put("projectName", projectName);
+            techVars.put("industryType", industryType);
+            techVars.put("targetUser", targetUser);
+            techVars.put("techStack", techStack);
+            techVars.put("upstream", upstream);
+            techVars.put("extraBlock", extraBlock);
+            String kbContext = knowledgeRetrievalService.retrieveAsContext(projectId, "TECH", upstream, usedModel);
+            techVars.put("kbContext", kbContext);
+            RenderedPrompt techPrompt = promptTemplateService.render("TECH", usedModel, techVars);
+            String systemPrompt = techPrompt.getSystemPrompt();
+            String userPrompt = techPrompt.getUserPrompt();
+
+            emitter.send(SseEmitter.event().name("start").data(mapOf("type", "start", "modelId", usedModel)));
+            aiModelClient.chatStream(usedModel, systemPrompt, userPrompt, delta -> {
+                try
+                {
+                    emitter.send(SseEmitter.event().name("token")
+                            .data(mapOf("type", "token", "delta", delta, "modelId", usedModel)));
+                }
+                catch (IOException ignored)
+                {
+                    // 前端断开：停止推送
+                }
+            });
+            emitter.send(SseEmitter.event().name("done").data(mapOf("type", "done", "modelId", usedModel)));
+        }
+        catch (Exception e)
+        {
+            log.error("[tech-generate] 模型 {} 生成异常", usedModel, e);
+            try
+            {
+                emitter.send(SseEmitter.event().name("error")
+                        .data(mapOf("type", "error", "content", e.getMessage(), "modelId", usedModel)));
+            }
+            catch (IOException ignored) { }
+        }
     }
 }
