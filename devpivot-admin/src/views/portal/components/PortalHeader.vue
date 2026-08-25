@@ -11,6 +11,7 @@
         <nav class="portal-links">
           <router-link to="/portal" class="pn-item" :class="{ active: route.path === '/portal' }">工作台</router-link>
           <router-link to="/portal/team" class="pn-item" :class="{ active: route.path.startsWith('/portal/team') }">我的团队</router-link>
+          <router-link to="/portal/models" class="pn-item" :class="{ active: route.path.startsWith('/portal/models') }">模型设置</router-link>
           <router-link v-hasRole="['admin']" to="/index" class="pn-item pn-admin">
             <el-icon><Setting /></el-icon>
             <span>进入管理后台</span>

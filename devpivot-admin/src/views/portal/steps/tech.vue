@@ -431,7 +431,7 @@ function getProjectInfo() {
 function loadModels() {
   getTechModels().then(res => {
     modelOptions.value = res.models || []
-    maxCompare.value = 1
+    maxCompare.value = res.maxCompareCount || 1
     selectedModels.value = (res.models || [])[0] ? [res.models[0].modelId] : []
     if (modelOptions.value.length && !chatModel.value.value) {
       chatModel.value = { value: modelOptions.value[0].modelId, label: modelOptions.value[0].modelName }
@@ -512,7 +512,7 @@ function confirmSettings() {
   if (!selectedModels.value.length) {
     if (modelOptions.value.length) {
       // 未选模型时自动默认选中首个，点击即直接生成
-      const count = Math.min(1, maxCompare.value, modelOptions.value.length)
+      const count = Math.min(maxCompare.value, modelOptions.value.length)
       selectedModels.value = modelOptions.value.slice(0, count).map(m => m.modelId)
       startGenerate()
     } else {
@@ -530,9 +530,17 @@ function openModelDialog() {
 }
 
 function toggleModelItem(model) {
-  // 单模型：点击即选中该模型（始终保留一个）
-  if (tempSelectedIds.value.includes(model.modelId)) return
-  tempSelectedIds.value = [model.modelId]
+  // 多模型对比：点击切换选中，最多 maxCompare 个
+  const idx = tempSelectedIds.value.indexOf(model.modelId)
+  if (idx >= 0) {
+    tempSelectedIds.value.splice(idx, 1)
+  } else {
+    if (tempSelectedIds.value.length >= maxCompare.value) {
+      proxy.$modal.msgWarning(`最多同时对比 ${maxCompare.value} 个模型`)
+      return
+    }
+    tempSelectedIds.value.push(model.modelId)
+  }
 }
 
 function confirmModelDialog() {

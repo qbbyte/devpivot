@@ -42,7 +42,16 @@ export function createExportToken(projectId) {
   })
 }
 
-// 新增AI项目
+// 门户：创建项目（仅登录态，后端强制归属当前登录用户）
+export function createMyProject(data) {
+  return request({
+    url: '/portal/project',
+    method: 'post',
+    data: data
+  })
+}
+
+// 新增AI项目（后台管理，需 system:project:add 权限）
 export function addProject(data) {
   return request({
     url: '/system/project',

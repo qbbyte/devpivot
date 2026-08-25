@@ -41,9 +41,9 @@
         </section>
 
         <div class="main-grid">
-          <!-- 左栏：上传 + 检索预览 -->
+          <!-- 左栏：上传 + 检索预览（共享库仅管理员维护，门户隐藏上传卡片） -->
           <aside class="left-col">
-            <section class="card upload-card">
+            <section v-if="scope !== 'shared'" class="card upload-card">
               <h3 class="section-title">
                 <el-icon><UploadFilled /></el-icon>
                 <span>上传知识文档</span>
@@ -164,7 +164,7 @@ import { ref, reactive, computed, onMounted, getCurrentInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
-import { listKbDocs, uploadKbDoc, deleteKbDoc, previewKbRetrieve } from '@/api/ai/kb'
+import { listKbDocs, uploadPortalKbDoc, deletePortalKbDoc, previewKbRetrieve } from '@/api/ai/kb'
 
 const router = useRouter()
 const route = useRoute()
@@ -260,7 +260,7 @@ function handleUpload() {
   } else {
     payload.projectId = projectId.value
   }
-  uploadKbDoc(payload).then(() => {
+  uploadPortalKbDoc(payload).then(() => {
     proxy?.$modal.msgSuccess('索引成功')
     uploadForm.title = ''
     uploadForm.content = ''
@@ -292,7 +292,7 @@ function handleDelete(doc) {
   ElMessageBox.confirm('确认删除文档「' + doc.title + '」？该文档的切片将一并删除。', '删除确认', {
     type: 'warning'
   }).then(() => {
-    deleteKbDoc(doc.docId).then(() => {
+    deletePortalKbDoc(doc.docId).then(() => {
       proxy?.$modal.msgSuccess('已删除')
       loadDocs()
     })

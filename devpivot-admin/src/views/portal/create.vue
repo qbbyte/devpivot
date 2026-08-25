@@ -54,7 +54,7 @@
 <script setup name="CreateProject">
 import { ref, reactive, getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
-import { addProject } from '@/api/ai/project'
+import { createMyProject } from '@/api/ai/project'
 import useUserStore from '@/store/modules/user'
 
 const { proxy } = getCurrentInstance()
@@ -84,7 +84,7 @@ function submitForm() {
   proxy.$refs.projectRef.validate(valid => {
     if (valid) {
       submitting.value = true
-      addProject({
+      createMyProject({
         ...form,
         assigneeId: userStore.userId,
         step: 'REQ',

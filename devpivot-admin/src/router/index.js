@@ -70,6 +70,12 @@ export const constantRoutes = [
     meta: { title: '新建项目' }
   },
   {
+    path: '/portal/models',
+    component: () => import('@/views/portal/models'),
+    hidden: true,
+    meta: { title: '模型设置' }
+  },
+  {
     path: '/portal/project/:id/req',
     component: () => import('@/views/portal/steps/req'),
     hidden: true,
