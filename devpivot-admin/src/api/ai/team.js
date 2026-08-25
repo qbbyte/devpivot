@@ -166,7 +166,7 @@ export function listTeamProjects(teamId, params) {
 // 项目阶段概览(含每阶段状态与实现人)，弹窗展示用
 export function getProjectPhases(projectId) {
   return request({
-    url: '/system/project/' + projectId + '/phases',
+    url: '/portal/project/' + projectId + '/phases',
     method: 'get'
   })
 }
@@ -174,7 +174,7 @@ export function getProjectPhases(projectId) {
 // 项目产物概览(聚合各阶段产物文本)，「产物」按钮弹窗展示/下载用
 export function getProjectArtifacts(projectId) {
   return request({
-    url: '/system/project/' + projectId + '/artifacts',
+    url: '/portal/project/' + projectId + '/artifacts',
     method: 'get'
   })
 }

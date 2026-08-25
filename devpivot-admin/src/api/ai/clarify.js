@@ -22,7 +22,7 @@ export function getModelConfig() {
 // 获取澄清会话
 export function getClarifySession(projectId) {
   return request({
-    url: `/ai/clarify/session/${projectId}`,
+    url: `/portal/clarify/session/${projectId}`,
     method: 'get'
   })
 }
@@ -30,7 +30,7 @@ export function getClarifySession(projectId) {
 // 持久化完整对话（前端为权威源）：传入 { conversation, retained }，原样落库供刷新恢复
 export function saveSession(projectId, data) {
   return request({
-    url: `/ai/clarify/save/${projectId}`,
+    url: `/portal/clarify/save/${projectId}`,
     method: 'post',
     data
   })
@@ -103,7 +103,7 @@ function parseSseEvent(raw) {
 // 获取澄清进度
 export function getClarifyProgress(projectId) {
   return request({
-    url: `/ai/clarify/progress/${projectId}`,
+    url: `/portal/clarify/progress/${projectId}`,
     method: 'get'
   })
 }
@@ -120,7 +120,7 @@ export function nextClarifyQuestion(data) {
 // 提交澄清结果（conclusion 为完整结论对象，将落库并推进项目阶段到 PRD）
 export function submitClarify(projectId, conclusion) {
   return request({
-    url: `/ai/clarify/submit/${projectId}`,
+    url: `/portal/clarify/submit/${projectId}`,
     method: 'post',
     data: conclusion
   })
@@ -129,18 +129,18 @@ export function submitClarify(projectId, conclusion) {
 // 采纳模型回答
 export function adoptAnswer(data) {
   return request({
-    url: '/ai/clarify/adopt',
+    url: '/portal/clarify/adopt',
     method: 'post',
     data
   })
 }
 
-// ===================== 历史版本（/ai/clarify/version，复用后端 ai_version_record，bizType=CLARIFY） =====================
+// ===================== 历史版本（/portal/clarify/version，复用后端 ai_version_record，bizType=CLARIFY） =====================
 
 // 保存当前澄清结论为历史版本：snapshot=完整澄清结论对象；versionName/remark/sourceModel 可选
 export function saveClarifyVersion(projectId, snapshot, versionName = '', remark = '', sourceModel = '') {
   return request({
-    url: `/ai/clarify/version/${projectId}`,
+    url: `/portal/clarify/version/${projectId}`,
     method: 'post',
     data: { snapshot, versionName, remark, sourceModel }
   })
@@ -149,7 +149,7 @@ export function saveClarifyVersion(projectId, snapshot, versionName = '', remark
 // 历史版本列表（含派生文件清单，不含大快照正文）
 export function listClarifyVersions(projectId) {
   return request({
-    url: `/ai/clarify/versions/${projectId}`,
+    url: `/portal/clarify/versions/${projectId}`,
     method: 'get'
   }).then(res => res.data || [])
 }
@@ -157,7 +157,7 @@ export function listClarifyVersions(projectId) {
 // 获取单个版本（含快照正文，供查看/还原）
 export function getClarifyVersion(versionId) {
   return request({
-    url: `/ai/clarify/version/${versionId}`,
+    url: `/portal/clarify/version/${versionId}`,
     method: 'get'
   }).then(res => res.data || {})
 }
@@ -165,7 +165,7 @@ export function getClarifyVersion(versionId) {
 // 还原历史版本（把快照写回当前会话）
 export function restoreClarifyVersion(versionId) {
   return request({
-    url: `/ai/clarify/version/restore/${versionId}`,
+    url: `/portal/clarify/version/restore/${versionId}`,
     method: 'post'
   })
 }

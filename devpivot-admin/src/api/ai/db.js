@@ -1,26 +1,26 @@
 import request from '@/utils/request'
 import { getToken } from '@/utils/auth'
 
-/* ===================== 门户·数据库设计读写（/ai/db，仅校验登录态） ===================== */
+/* ===================== 门户·数据库设计读写（/system/db 数据 + /ai/db 生成，仅校验登录态） ===================== */
 
 // 获取可用模型列表与最大对比数（来自后端 ai_model_config 启用项）
 export function getDbModels() {
   return request({ url: '/ai/db/models', method: 'get' })
 }
 
-// 按项目读取当前数据库设计（返 AiDbDoc 或 null），已对接后端 /ai/db/doc
+// 按项目读取当前数据库设计（返 AiDbDoc 或 null），已对接后端 /portal/db/doc
 export function getDbDoc(projectId) {
-  return request({ url: '/ai/db/doc', method: 'post', data: { projectId } })
+  return request({ url: '/portal/db/doc', method: 'post', data: { projectId } })
 }
 
-// 按项目 upsert 数据库设计（编辑保存 / 生成后落库），返回主键 docId，已对接后端 /ai/db/save
+// 按项目 upsert 数据库设计（编辑保存 / 生成后落库），返回主键 docId，已对接后端 /portal/db/save
 export function saveDbDoc(data) {
-  return request({ url: '/ai/db/save', method: 'post', data })
+  return request({ url: '/portal/db/save', method: 'post', data })
 }
 
-// 提交数据库设计：落库 status=1 并推进项目阶段到 DONE（后端统一处理），已对接 /ai/db/submit/{projectId}
+// 提交数据库设计：落库 status=1 并推进项目阶段到 DONE（后端统一处理），已对接 /portal/db/submit/{projectId}
 export function submitDb(projectId, data) {
-  return request({ url: '/ai/db/submit/' + projectId, method: 'post', data })
+  return request({ url: '/portal/db/submit/' + projectId, method: 'post', data })
 }
 
 /**

@@ -44,31 +44,31 @@ export function delDoc(docId) {
   })
 }
 
-/* ===================== 门户·PRD 读写（/ai/doc，仅校验登录态，门户用户可用） ===================== */
+/* ===================== 门户·PRD 读写（/system/prd 数据 + /ai/doc 生成，仅校验登录态，门户用户可用） ===================== */
 
 // 获取可用模型列表与最大对比数（来自后端 ai_model_config 启用项）
 export function getDocModels() {
   return request({ url: '/ai/doc/models', method: 'get' })
 }
 
-// 提交 PRD：落库 status=1 并推进项目阶段到 PROTO（后端统一处理阶段推进）
+// 提交 PRD：落库 status=1 并推进项目阶段到 PROTO（后端统一处理阶段推进），已对接 /portal/prd/submit/{projectId}
 export function submitPrd(projectId, data) {
-  return request({ url: '/ai/doc/submit/' + projectId, method: 'post', data })
+  return request({ url: '/portal/prd/submit/' + projectId, method: 'post', data })
 }
 
-// 按项目读取当前 PRD（返回 AiPrdDoc 或 null）
+// 按项目读取当前 PRD（返回 AiPrdDoc 或 null），已对接后端 /portal/prd/get
 export function getPrdDoc(projectId) {
   return request({
-    url: '/ai/doc/get',
+    url: '/portal/prd/get',
     method: 'post',
     data: { projectId }
   })
 }
 
-// 按项目 upsert PRD（编辑保存 / 生成后落库），返回主键 docId
+// 按项目 upsert PRD（编辑保存 / 生成后落库），返回主键 docId，已对接后端 /portal/prd/save
 export function savePrdDoc(data) {
   return request({
-    url: '/ai/doc/save',
+    url: '/portal/prd/save',
     method: 'post',
     data
   })

@@ -12,7 +12,7 @@ export function listProject(query) {
 // 查询「我的项目」列表（我创建的 ∪ 我参与团队关联的项目，仅登录态）
 export function listMyProject(query) {
   return request({
-    url: '/system/project/my',
+    url: '/portal/project/my',
     method: 'get',
     params: query
   })
@@ -21,7 +21,7 @@ export function listMyProject(query) {
 // 查询AI项目详细
 export function getProject(projectId) {
   return request({
-    url: '/system/project/' + projectId,
+    url: '/portal/project/' + projectId,
     method: 'get'
   })
 }
@@ -29,7 +29,7 @@ export function getProject(projectId) {
 // 查询AI项目产物概览（聚合各阶段产物文本，用于导出开发上下文）
 export function getProjectContext(projectId) {
   return request({
-    url: '/system/project/' + projectId + '/artifacts',
+    url: '/portal/project/' + projectId + '/artifacts',
     method: 'get'
   })
 }
@@ -37,7 +37,7 @@ export function getProjectContext(projectId) {
 // 生成项目上下文导出 token（24h 只读），用于服务器终端 curl 拉取约定文件
 export function createExportToken(projectId) {
   return request({
-    url: '/system/project/' + projectId + '/export-token',
+    url: '/portal/project/' + projectId + '/export-token',
     method: 'post'
   })
 }

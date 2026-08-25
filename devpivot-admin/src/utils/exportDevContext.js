@@ -6,7 +6,7 @@ import { getProjectContext, createExportToken } from '@/api/ai/project'
  * 导出项目开发上下文到各类 AI 编程工具。
  *
  * 设计要点（一源多投）：
- * - 后端 /system/project/{id}/artifacts 已聚合 PRD/原型/技术/DB 等各阶段产物文本
+ * - 后端 /portal/project/{id}/artifacts 已聚合 PRD/原型/技术/DB 等各阶段产物文本
  * - AGENTS.md 作为跨工具权威文件（2026 行业事实标准，Linux Foundation 托管）
  * - 选中具体工具时，再补一份该工具专属规则文件（内容镜像 AGENTS.md）
  * - 各阶段产物独立成文件，AGENTS.md 仅做索引，避免撑爆上下文
@@ -156,7 +156,7 @@ export async function copyDevContextMarkdown(projectId, project) {
 
 /**
  * 生成「服务器终端一行拉取约定文件」的 curl 命令，并复制到剪贴板
- * 命令形态：curl -s "{origin}{baseApi}/system/project/{id}/context?fmt=agents&token=xxx" -o AGENTS.md
+ * 命令形态：curl -s "{origin}{baseApi}/portal/project/{id}/context?fmt=agents&token=xxx" -o AGENTS.md
  * @param {string|number} projectId
  * @param {string} [fmt='agents'] 目标格式：agents|claude|cursor|trae|vscode
  * @returns {Promise<string>} 复制的 curl 命令
@@ -174,7 +174,7 @@ function buildCurlCommand(projectId, fmt, token) {
   const baseApi = (import.meta.env && import.meta.env.VITE_APP_BASE_API) || ''
   const origin = (typeof window !== 'undefined' && window.location.origin) || ''
   const file = FMT_FILE[fmt] || 'AGENTS.md'
-  const url = `${origin}${baseApi}/system/project/${projectId}/context?fmt=${fmt}&token=${encodeURIComponent(token)}`
+  const url = `${origin}${baseApi}/portal/project/${projectId}/context?fmt=${fmt}&token=${encodeURIComponent(token)}`
   return `curl -s "${url}" -o ${file}`
 }
 

@@ -3,7 +3,7 @@ import request from '@/utils/request'
 // 知识库文档列表（按项目 + 可选阶段过滤）
 export function listKbDocs(params) {
   return request({
-    url: '/system/kb/list',
+    url: '/portal/kb/list',
     method: 'get',
     params
   })
@@ -29,7 +29,7 @@ export function deleteKbDoc(docId) {
 // 检索预览/调试（返回 context 字符串）
 export function previewKbRetrieve(params) {
   return request({
-    url: '/system/kb/retrieve',
+    url: '/portal/kb/retrieve',
     method: 'get',
     params
   })

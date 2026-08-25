@@ -17,7 +17,7 @@ function toPlain(val) {
 }
 
 /* =========================================================================
- * 原型设计 · 门户接口层（全部数据来自真实后端 /api/ai/proto/*，无 mock 兜底）
+ * 原型设计 · 门户接口层（数据读写来自真实后端 /portal/proto/*，生成/改稿/对话来自 /ai/proto/*，无 mock 兜底）
  *
  * 设计约定（与 prd/doc 同款）：
  *  - 生成 / 局部改稿 / AI 对话均调用后端流式接口；页面与组件读写走后端库。
@@ -459,7 +459,7 @@ export function getProtoModels() {
   return request({ url: '/ai/proto/models', method: 'get' })
 }
 
-/* ============================ 后端真实接口（门户门面 /ai/proto，无 /api 前缀） ============================ */
+/* ============================ 后端真实接口（数据 /portal/proto，生成 /ai/proto，无 /api 前缀） ============================ */
 // 后端页面 Map → 前端页面对象
 export function fromBackendPage(p = {}) {
   return {
@@ -502,18 +502,18 @@ export function fromBackendComp(c = {}) {
 
 // 按项目读取已存原型页面（权威源：后端库）
 export function getProtoPages(projectId) {
-  return request({ url: `/ai/proto/pages/${projectId}`, method: 'get' }).then(res => {
+  return request({ url: `/portal/proto/pages/${projectId}`, method: 'get' }).then(res => {
     const pages = (res && res.data && res.data.pages) || []
     return pages.map(fromBackendPage)
   })
 }
 // upsert 页面 + 组件（草稿保存：前端 page/comp 对象直接透传，后端按 map 取字段）
 export function saveProto(projectId, pages, sourceModel = '人工') {
-  return request({ url: `/ai/proto/save/${projectId}`, method: 'post', data: { pages: toPlain(pages), sourceModel } })
+  return request({ url: `/portal/proto/save/${projectId}`, method: 'post', data: { pages: toPlain(pages), sourceModel } })
 }
 // 确认原型，推进项目阶段到 TECH
 export function confirmProto(projectId) {
-  return request({ url: `/ai/proto/confirm/${projectId}`, method: 'post', data: { projectId } })
+  return request({ url: `/portal/proto/confirm/${projectId}`, method: 'post', data: { projectId } })
 }
 
 
@@ -594,7 +594,7 @@ export function generateProto(params, handlers = {}) {
   return { stop() { ctrl.abort() } }
 }
 
-/* 局部改稿：把当前页面 + 自然语言指令发给后端 /ai/proto/patch（SSE），返回修改后的完整页面 */
+/* 局部改稿：把当前页面 + 自然语言指令发给后端 /ai/proto/patch/{projectId}（SSE），返回修改后的完整页面 */
 export function applyProtoPatch(params, handlers = {}) {
   const body = {
     projectId: params.projectId,
@@ -605,7 +605,7 @@ export function applyProtoPatch(params, handlers = {}) {
   const base = import.meta.env.VITE_APP_BASE_API || ''
   const ctrl = new AbortController()
   handlers.onProgress && handlers.onProgress('正在应用修改…')
-  fetch(base + '/ai/proto/patch', {
+  fetch(base + '/ai/proto/patch/' + params.projectId, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -650,16 +650,16 @@ export function applyProtoPatch(params, handlers = {}) {
 
 /* ============================ 历史版本 ============================ */
 export function saveVersion(projectId, pages, versionName = '', remark = '') {
-  return request({ url: `/ai/proto/version/${projectId}`, method: 'post', data: { pages: toPlain(pages), versionName, remark, sourceModel: '人工' } })
+  return request({ url: `/portal/proto/version/${projectId}`, method: 'post', data: { pages: toPlain(pages), versionName, remark, sourceModel: '人工' } })
 }
 export function listVersions(projectId) {
-  return request({ url: `/ai/proto/version/${projectId}`, method: 'get' }).then(res => res.data || [])
+  return request({ url: `/portal/proto/versions/${projectId}`, method: 'get' }).then(res => res.data || [])
 }
 export function getVersion(versionId) {
-  return request({ url: `/ai/proto/version/${versionId}`, method: 'get' }).then(res => res.data || {})
+  return request({ url: `/portal/proto/version/${versionId}`, method: 'get' }).then(res => res.data || {})
 }
 export function restoreVersion(versionId) {
-  return request({ url: `/ai/proto/version/restore/${versionId}`, method: 'post' }).then(res => res.data || {})
+  return request({ url: `/portal/proto/version/restore/${versionId}`, method: 'post' }).then(res => res.data || {})
 }
 
 /* ============================ AI 对话（调用后端 /ai/proto/chat 流式 SSE） ============================ */

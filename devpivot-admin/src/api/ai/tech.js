@@ -18,26 +18,26 @@ export function delTechdoc(docId) {
   return request({ url: '/system/techdoc/' + docId, method: 'delete' })
 }
 
-/* ===================== 门户·技术方案读写（/ai/tech，仅校验登录态） ===================== */
+/* ===================== 门户·技术方案读写（/system/tech 数据 + /ai/tech 生成，仅校验登录态） ===================== */
 
 // 获取可用模型列表与最大对比数（来自后端 ai_model_config 启用项）
 export function getTechModels() {
   return request({ url: '/ai/tech/models', method: 'get' })
 }
 
-// 按项目读取当前技术方案（返 AiTechDoc 或 null），已对接后端 /ai/tech/doc
+// 按项目读取当前技术方案（返 AiTechDoc 或 null），已对接后端 /portal/tech/doc
 export function getTechDoc(projectId) {
-  return request({ url: '/ai/tech/doc', method: 'post', data: { projectId } })
+  return request({ url: '/portal/tech/doc', method: 'post', data: { projectId } })
 }
 
-// 按项目 upsert 技术方案（编辑保存 / 生成后落库），返回主键 docId，已对接后端 /ai/tech/save
+// 按项目 upsert 技术方案（编辑保存 / 生成后落库），返回主键 docId，已对接后端 /portal/tech/save
 export function saveTechDoc(data) {
-  return request({ url: '/ai/tech/save', method: 'post', data })
+  return request({ url: '/portal/tech/save', method: 'post', data })
 }
 
-// 提交技术方案：落库 status=1 并推进项目阶段到 DB（后端统一处理），已对接 /ai/tech/submit/{projectId}
+// 提交技术方案：落库 status=1 并推进项目阶段到 DB（后端统一处理），已对接 /portal/tech/submit/{projectId}
 export function submitTech(projectId, data) {
-  return request({ url: '/ai/tech/submit/' + projectId, method: 'post', data })
+  return request({ url: '/portal/tech/submit/' + projectId, method: 'post', data })
 }
 
 /**

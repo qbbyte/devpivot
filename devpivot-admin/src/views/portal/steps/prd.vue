@@ -547,7 +547,7 @@ function handleSave() {
   proxy.$modal.msgSuccess('PRD 已保存' + (prdDocId.value ? '' : '（已落库）'))
 }
 
-// 从后端加载已有 PRD（/ai/doc/get）；存在则作为权威源覆盖本地草稿
+// 从后端加载已有 PRD（/portal/prd/get）；存在则作为权威源覆盖本地草稿
 async function loadPrdFromBackend() {
   try {
     const res = await getPrdDoc(projectId.value)
@@ -562,7 +562,7 @@ async function loadPrdFromBackend() {
   return false
 }
 
-// 将当前 PRD 落库 ai_prd_doc（/ai/doc/save upsert）；失败不影响本地草稿
+// 将当前 PRD 落库 ai_prd_doc（/portal/prd/save upsert）；失败不影响本地草稿
 async function persistPrd() {
   if (!docContent.value.trim()) return
   const payload = {
