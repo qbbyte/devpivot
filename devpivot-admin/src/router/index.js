@@ -106,6 +106,12 @@ export const constantRoutes = [
     meta: { title: '原型设计' }
   },
   {
+    path: '/portal/project/:id/arch',
+    component: () => import('@/views/portal/steps/arch'),
+    hidden: true,
+    meta: { title: '系统架构设计' }
+  },
+  {
     path: '/portal/project/:id/tech',
     component: () => import('@/views/portal/steps/tech'),
     hidden: true,
