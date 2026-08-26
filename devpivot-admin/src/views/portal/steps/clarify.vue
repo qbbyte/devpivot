@@ -501,6 +501,7 @@ const stepOrder = [
   { value: 'CLARIFY', label: 'AI 澄清' },
   { value: 'PRD', label: 'PRD 文档' },
   { value: 'PROTO', label: '原型设计' },
+  { value: 'ARCH', label: '系统架构' },
   { value: 'TECH', label: '技术方案' },
   { value: 'DB', label: '数据库' },
   { value: 'DONE', label: '完成' }
@@ -517,7 +518,7 @@ const stepLabel = computed(() => {
 
 // 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
 const readOnly = computed(() => {
-  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'TECH', 'DB', 'DONE']
+  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'ARCH', 'TECH', 'DB', 'DONE']
   const cur = order.indexOf(currentStep.value)
   const mine = order.indexOf('CLARIFY')
   return cur > mine

@@ -11,6 +11,7 @@
         <span class="stage-pill"><span class="stage-dot"></span>数据库设计</span>
       </div>
       <div class="header-right">
+        <HistoryEntry :project-id="projectId" stage="DB" :snapshot="finalContent" />
         <template v-if="!readOnly">
           <el-button class="header-btn" @click="handleSaveDraft">
             <el-icon><DocumentChecked /></el-icon>
@@ -362,6 +363,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '@/api/ai/project'
 import { Lock } from '@element-plus/icons-vue'
 import { getDbModels, getDbDoc, saveDbDoc, generateDb, submitDb } from '@/api/ai/db'
+import HistoryEntry from '@/views/portal/components/HistoryEntry.vue'
 import { sendChatMessage } from '@/api/ai/chat'
 
 const { proxy } = getCurrentInstance()
@@ -376,7 +378,7 @@ const submitting = ref(false)
 
 // 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
 const readOnly = computed(() => {
-  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'TECH', 'DB', 'DONE']
+  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'ARCH', 'TECH', 'DB', 'DONE']
   const cur = order.indexOf(currentStep.value)
   const mine = order.indexOf('DB')
   return cur > mine

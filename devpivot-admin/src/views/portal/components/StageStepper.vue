@@ -25,6 +25,7 @@ const props = defineProps({
       { value: 'CLARIFY', label: 'AI 澄清' },
       { value: 'PRD', label: 'PRD 文档' },
       { value: 'PROTO', label: '原型设计' },
+      { value: 'ARCH', label: '系统架构' },
       { value: 'TECH', label: '技术方案' },
       { value: 'DB', label: '数据库设计' },
       { value: 'DONE', label: '完成' }

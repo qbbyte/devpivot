@@ -10,6 +10,7 @@
         <span class="header-title">{{ project.projectName || 'PRD 文档' }}</span>
       </div>
       <div class="header-right">
+        <HistoryEntry :project-id="projectId" stage="PRD" :snapshot="docContent" />
         <el-button v-if="!readOnly" class="save-btn" @click="handleSave">
           <el-icon><DocumentChecked /></el-icon>
           <span>保存草稿</span>
@@ -292,6 +293,7 @@ import { ElMessageBox } from 'element-plus'
 import { getProject } from '@/api/ai/project'
 import { getClarifySession } from '@/api/ai/clarify'
 import { generatePrd, getPrdDoc, savePrdDoc, getDocModels, submitPrd } from '@/api/ai/doc'
+import HistoryEntry from '@/views/portal/components/HistoryEntry.vue'
 import { sendChatMessage } from '@/api/ai/chat'
 
 const { proxy } = getCurrentInstance()
@@ -304,6 +306,7 @@ const stepOrder = [
   { value: 'CLARIFY', label: 'AI 澄清' },
   { value: 'PRD', label: 'PRD 文档' },
   { value: 'PROTO', label: '原型设计' },
+  { value: 'ARCH', label: '系统架构' },
   { value: 'TECH', label: '技术方案' },
   { value: 'DB', label: '数据库' },
   { value: 'DONE', label: '完成' }

@@ -11,6 +11,7 @@
         <span class="stage-pill"><span class="stage-dot"></span>技术方案</span>
       </div>
       <div class="header-right">
+        <HistoryEntry :project-id="projectId" stage="TECH" :snapshot="finalContent" />
         <template v-if="!readOnly">
           <el-button class="header-btn" @click="openSettings">
             <el-icon><Setting /></el-icon>
@@ -333,6 +334,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '@/api/ai/project'
 import { Lock } from '@element-plus/icons-vue'
 import { getTechModels, getTechDoc, saveTechDoc, generateTech, submitTech } from '@/api/ai/tech'
+import HistoryEntry from '@/views/portal/components/HistoryEntry.vue'
 import { sendChatMessage } from '@/api/ai/chat'
 
 const { proxy } = getCurrentInstance()
@@ -347,7 +349,7 @@ const submitting = ref(false)
 
 // 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
 const readOnly = computed(() => {
-  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'TECH', 'DB', 'DONE']
+  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'ARCH', 'TECH', 'DB', 'DONE']
   const cur = order.indexOf(currentStep.value)
   const mine = order.indexOf('TECH')
   return cur > mine

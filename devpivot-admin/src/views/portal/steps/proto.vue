@@ -10,6 +10,13 @@
         <span class="header-title">{{ project.projectName || '原型设计' }}</span>
       </div>
       <div class="header-right">
+        <HistoryEntry
+          ref="historyEntryRef"
+          :project-id="projectId"
+          stage="PROTO"
+          :snapshot="pages"
+          @restored="onHistoryRestored"
+        />
         <el-radio-group v-model="currentDevice" size="small" class="device-select" :disabled="readOnly" @change="onDeviceChange">
           <el-radio-button v-for="d in DEVICE_OPTIONS" :key="d.value" :value="d.value">{{ d.label }}</el-radio-button>
         </el-radio-group>
@@ -171,7 +178,7 @@
                   <el-radio-button value="edit"><el-icon><Edit /></el-icon> 编辑</el-radio-button>
                   <el-radio-button value="preview"><el-icon><View /></el-icon> 预览走查</el-radio-button>
                 </el-radio-group>
-                <el-button size="small" @click="openVersionDialog"><el-icon><Clock /></el-icon> 历史版本</el-button>
+                <el-button size="small" @click="openHistoryPanel"><el-icon><Clock /></el-icon> 历史版本</el-button>
                 <el-button size="small" :loading="generating" @click="onGenerate"><el-icon><Refresh /></el-icon> 重新生成</el-button>
               </div>
             </div>
@@ -559,28 +566,6 @@
             </el-tabs>
           </aside>
 
-          <el-dialog v-model="versionDialogVisible" title="历史版本" width="560px" append-to-body>
-            <div class="ver-toolbar">
-              <el-input v-model="versionNameInput" size="small" placeholder="版本名称（留空自动命名）" style="width:240px" />
-              <el-button type="primary" size="small" @click="onSaveVersion">
-                <el-icon><Collection /></el-icon> 保存当前为版本
-              </el-button>
-            </div>
-            <el-table :data="versionList" v-loading="versionLoading" size="small" style="margin-top:12px" max-height="320">
-              <el-table-column prop="versionName" label="版本名称" min-width="140" show-overflow-tooltip />
-              <el-table-column prop="deviceType" label="设备" width="90" />
-              <el-table-column prop="createBy" label="作者" width="90" />
-              <el-table-column label="时间" width="160">
-                <template #default="{ row }">{{ row.createTime }}</template>
-              </el-table-column>
-              <el-table-column label="操作" width="140" fixed="right">
-                <template #default="{ row }">
-                  <el-button link type="primary" size="small" @click="previewVersion(row)">预览</el-button>
-                  <el-button link type="primary" size="small" :loading="restoringVersionId === row.versionId" @click="onRestoreVersion(row)">还原</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-dialog>
         </div>
 
         <footer class="status-bar">
@@ -602,9 +587,10 @@ import { Lock } from '@element-plus/icons-vue'
 import {
   PALETTE, uid, buildComponent, generateProto, DEVICE_OPTIONS, DEVICE_MODELS, defaultStyle, ICON_LIST,
   sendProtoChat, getProtoPages, saveProto, confirmProto, getProtoModels,
-  applyProtoPatch, saveVersion, listVersions, getVersion, restoreVersion
+  applyProtoPatch
 } from '@/api/ai/proto'
 import ProtoComponent from '@/components/proto/ProtoComponent.vue'
+import HistoryEntry from '@/views/portal/components/HistoryEntry.vue'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -616,6 +602,7 @@ const stepOrder = [
   { value: 'CLARIFY', label: 'AI 澄清' },
   { value: 'PRD', label: 'PRD 文档' },
   { value: 'PROTO', label: '原型设计' },
+  { value: 'ARCH', label: '系统架构' },
   { value: 'TECH', label: '技术方案' },
   { value: 'DB', label: '数据库' },
   { value: 'DONE', label: '完成' }
@@ -634,7 +621,7 @@ const stepLabel = computed(() => {
 
 // 阶段已"过去"判定：项目当前阶段在我这一阶之后 → 整页只读锁定
 const readOnly = computed(() => {
-  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'TECH', 'DB', 'DONE']
+  const order = ['REQ', 'CLARIFY', 'PRD', 'PROTO', 'ARCH', 'TECH', 'DB', 'DONE']
   const cur = order.indexOf(currentStep.value)
   const mine = order.indexOf('PROTO')
   return cur > mine
@@ -1075,12 +1062,26 @@ const chatGenerating = ref(false)
 const chatScrollRef = ref(null)
 let chatController = null
 
-/* 历史版本对话框状态 */
-const versionDialogVisible = ref(false)
-const versionLoading = ref(false)
-const versionList = ref([])
-const versionNameInput = ref('')
-const restoringVersionId = ref(null)
+/* 历史记录入口（Header 头像组 + 抽屉双 Tab；旧版本 dialog 已下线，统一走 HistoryPanel） */
+const historyEntryRef = ref(null)
+function openHistoryPanel() {
+  historyEntryRef.value && historyEntryRef.value.open()
+}
+/* 版本还原完成：HistoryPanel 已写回业务表，此处刷新画布展示 */
+function onHistoryRestored(payload) {
+  if (!payload || !payload.content) { proxy.$modal.msgWarning('还原内容为空'); return }
+  try {
+    const pagesArr = JSON.parse(payload.content)
+    if (!Array.isArray(pagesArr)) { proxy.$modal.msgWarning('还原内容格式不正确'); return }
+    pages.value = pagesArr
+    currentPageUid.value = pages.value.length ? pages.value[0].uid : ''
+    selectedCompUid.value = ''
+    if (payload.artifactType) currentDevice.value = payload.artifactType
+    proxy.$modal.msgSuccess('已还原版本')
+  } catch (e) {
+    proxy.$modal.msgWarning('还原内容解析失败')
+  }
+}
 
 function renderMarkdown(text) {
   // 轻量渲染：换行 + 加粗，足够预览
@@ -1148,54 +1149,6 @@ function sendCompAi() {
     }
   )
   chatController = ctrl
-}
-
-/* ---------------- 历史版本 ---------------- */
-function openVersionDialog() {
-  versionDialogVisible.value = true
-  versionNameInput.value = ''
-  loadVersions()
-}
-function loadVersions() {
-  versionLoading.value = true
-  listVersions(projectId.value)
-    .then(list => { versionList.value = list || [] })
-    .catch(() => { versionList.value = [] })
-    .finally(() => { versionLoading.value = false })
-}
-function onSaveVersion() {
-  if (!pages.value.length) { proxy.$modal.msgWarning('当前没有可保存的原型'); return }
-  const name = versionNameInput.value.trim() || ('版本 ' + new Date().toLocaleString())
-  saveVersion(projectId.value, pages.value, name, '')
-    .then(() => { proxy.$modal.msgSuccess('已保存版本'); versionNameInput.value = ''; loadVersions() })
-    .catch(() => {})
-}
-function onRestoreVersion(row) {
-  proxy.$modal.confirm('还原将覆盖当前原型画布，确定还原到「' + row.versionName + '」？').then(() => {
-    restoringVersionId.value = row.versionId
-    restoreVersion(row.versionId).then(res => {
-      const pagesArr = (res && res.pages) || []
-      pages.value = pagesArr
-      currentPageUid.value = pages.value.length ? pages.value[0].uid : ''
-      selectedCompUid.value = ''
-      if (res && res.deviceType) currentDevice.value = res.deviceType
-      saveProto(projectId.value, pages.value, '人工')
-      proxy.$modal.msgSuccess('已还原版本')
-      versionDialogVisible.value = false
-    }).catch(() => {}).finally(() => { restoringVersionId.value = null })
-  }).catch(() => {})
-}
-function previewVersion(row) {
-  getVersion(row.versionId).then(res => {
-    const pagesArr = (res && res.pages) || []
-    if (!pagesArr.length) { proxy.$modal.msgWarning('该版本快照为空'); return }
-    pages.value = pagesArr
-    currentPageUid.value = pages.value.length ? pages.value[0].uid : ''
-    selectedCompUid.value = ''
-    if (res.version && res.version.deviceType) currentDevice.value = res.version.deviceType
-    saveProto(projectId.value, pages.value, '人工')
-    proxy.$modal.msgInfo('已载入该版本预览，如需长期使用请点「还原」')
-  }).catch(() => {})
 }
 
 /* ---------------- 初始化 ---------------- */

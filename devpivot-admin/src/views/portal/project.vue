@@ -176,7 +176,7 @@
                     <div class="deliver-icon">{{ d.icon }}</div>
                     <div class="deliver-meta">
                       <div class="deliver-name">{{ d.label }}</div>
-                      <div class="deliver-state">已生成</div>
+                      <div class="deliver-state">{{ deliverStateOf(d.stage) }}</div>
                     </div>
                     <span class="deliver-go">查看 →</span>
                   </div>
@@ -246,6 +246,7 @@ const stepOrder = [
   { value: 'CLARIFY', label: 'AI 澄清', short: '澄清' },
   { value: 'PRD', label: 'PRD 文档', short: 'PRD' },
   { value: 'PROTO', label: '原型设计', short: '原型' },
+  { value: 'ARCH', label: '系统架构', short: '架构' },
   { value: 'TECH', label: '技术方案', short: '技术' },
   { value: 'DB', label: '数据库', short: '库表' },
   { value: 'DONE', label: '完成', short: '完成' }
@@ -257,6 +258,7 @@ const stepRouteMap = {
   CLARIFY: 'clarify',
   PRD: 'prd',
   PROTO: 'proto',
+  ARCH: 'arch',
   TECH: 'tech',
   DB: 'db'
 }
@@ -265,6 +267,7 @@ const stageDescMap = {
   CLARIFY: 'AI 将针对需求进行澄清问答，补齐模糊点后进入 PRD。',
   PRD: '基于需求与澄清，生成结构化的产品需求文档（PRD）。',
   PROTO: '基于 PRD 生成可交互的原型界面。',
+  ARCH: '基于 PRD 与原型生成系统架构设计（模块划分/核心流程/接口契约/部署架构/非功能）。',
   TECH: '基于原型生成落地技术方案。',
   DB: '基于技术方案生成数据库表结构设计。'
 }
@@ -272,9 +275,18 @@ const stageDescMap = {
 const deliverables = [
   { stage: 'PRD', label: 'PRD 文档', icon: 'P' },
   { stage: 'PROTO', label: '原型设计', icon: '◳' },
+  { stage: 'ARCH', label: '系统架构设计', icon: '⌬' },
   { stage: 'TECH', label: '技术方案', icon: '⌘' },
   { stage: 'DB', label: '数据库设计', icon: '⛁' }
 ]
+
+// 阶段产物状态：项目当前阶段索引 >= 产物所在阶段索引 → 已生成（含 DONE）；否则未生成
+function deliverStateOf(stage)
+{
+  if (currentStep.value === 'DONE') return '已生成'
+  const myIdx = stepOrder.findIndex(s => s.value === stage)
+  return myIdx >= 0 && myIdx <= stepIndex.value ? '已生成' : '未生成'
+}
 
 const loading = ref(false)
 const submitting = ref(false)
