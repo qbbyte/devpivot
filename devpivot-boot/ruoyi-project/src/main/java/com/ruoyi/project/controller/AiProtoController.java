@@ -34,12 +34,11 @@ import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.ParamValidator;
 import com.ruoyi.project.domain.AiProtoComponent;
 import com.ruoyi.project.domain.AiProtoPage;
-import com.ruoyi.project.domain.AiProtoVersion;
 import com.ruoyi.project.domain.AiProject;
 import com.ruoyi.project.service.IAiProtoComponentService;
 import com.ruoyi.project.service.IAiProtoPageService;
-import com.ruoyi.project.service.IAiProtoVersionService;
 import com.ruoyi.project.service.IAiProjectService;
+import com.ruoyi.project.support.EditHistoryRecorder;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.prompt.PromptTemplateService;
@@ -83,7 +82,7 @@ public class AiProtoController extends BaseController
     private IAiModelConfigService modelConfigService;
 
     @Autowired
-    private IAiProtoVersionService aiProtoVersionService;
+    private EditHistoryRecorder editHistoryRecorder;
 
     private static final ExecutorService STREAM_POOL = Executors.newCachedThreadPool();
 
@@ -598,6 +597,7 @@ public class AiProtoController extends BaseController
             log.error("[proto] generate 落库失败 projectId={}", projectId, e);
             return error("生成落库失败：" + e.getMessage());
         }
+        editHistoryRecorder.record(projectId, "PROTO", "UPDATE", "原型设计", "AI 生成原型", null, null);
         Map<String, Object> data = new HashMap<>(2);
         data.put("pages", pages);
         data.put("deviceType", deviceType);
@@ -724,6 +724,7 @@ public class AiProtoController extends BaseController
                     pages = buildTemplatePages(projectId, projectName, deviceType);
                 }
                 persistPages(projectId, pages, "AI生成");
+                editHistoryRecorder.record(projectId, "PROTO", "UPDATE", "原型设计", "AI 生成原型", null, null);
                 emitter.send(SseEmitter.event().name("pages")
                         .data(mapOf("type", "pages", "pages", pages, "deviceType", deviceType)));
                 emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
@@ -827,6 +828,7 @@ public class AiProtoController extends BaseController
                     pages = currentPages;
                 }
                 persistPages(projectId, pages, "AI生成");
+                editHistoryRecorder.record(projectId, "PROTO", "UPDATE", "原型设计", "AI 局部改稿", null, null);
                 emitter.send(SseEmitter.event().name("pages").data(mapOf("type", "pages", "pages", pages)));
                 emitter.send(SseEmitter.event().name("done-all").data(mapOf("type", "done-all")));
                 emitter.complete();

@@ -35,6 +35,7 @@ import com.ruoyi.project.domain.AiTechDoc;
 import com.ruoyi.project.service.IAiDbDocService;
 import com.ruoyi.project.service.IAiPrdDocService;
 import com.ruoyi.project.service.IAiProjectService;
+import com.ruoyi.project.support.EditHistoryRecorder;
 import com.ruoyi.project.service.IAiTechDocService;
 
 /**
@@ -66,6 +67,9 @@ public class DbController extends BaseController
 
     @Autowired
     private IAiProjectService projectService;
+
+    @Autowired
+    private EditHistoryRecorder editHistoryRecorder;
 
     @Autowired
     private IAiPrdDocService prdDocService;
@@ -240,9 +244,11 @@ public class DbController extends BaseController
         {
             doc.setDocId(list.get(0).getDocId());
             dbDocService.updateAiDbDoc(doc);
+            editHistoryRecorder.record(projectId, "DB", "UPDATE", "数据库设计", "编辑了数据库设计", null, null);
             return success(doc.getDocId());
         }
         dbDocService.insertAiDbDoc(doc);
+        editHistoryRecorder.record(projectId, "DB", "UPDATE", "数据库设计", "编辑了数据库设计", null, null);
         return success(doc.getDocId());
     }
 
@@ -285,6 +291,8 @@ public class DbController extends BaseController
         project.setProjectId(projectId);
         project.setStep("DONE");
         projectService.updateAiProject(project);
+
+        editHistoryRecorder.record(projectId, "DB", "RELEASE", "数据库设计", "确认数据库设计，流水线完成", null, null);
 
         return success();
     }

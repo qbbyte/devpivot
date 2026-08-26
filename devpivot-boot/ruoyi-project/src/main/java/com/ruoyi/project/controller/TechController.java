@@ -33,6 +33,7 @@ import com.ruoyi.project.domain.AiProject;
 import com.ruoyi.project.domain.AiTechDoc;
 import com.ruoyi.project.service.IAiPrdDocService;
 import com.ruoyi.project.service.IAiProjectService;
+import com.ruoyi.project.support.EditHistoryRecorder;
 import com.ruoyi.project.service.IAiTechDocService;
 
 /**
@@ -65,6 +66,9 @@ public class TechController extends BaseController
 
     @Autowired
     private IAiProjectService projectService;
+
+    @Autowired
+    private EditHistoryRecorder editHistoryRecorder;
 
     @Autowired
     private IAiPrdDocService prdDocService;
@@ -212,9 +216,11 @@ public class TechController extends BaseController
         {
             doc.setDocId(list.get(0).getDocId());
             techDocService.updateAiTechDoc(doc);
+            editHistoryRecorder.record(projectId, "TECH", "UPDATE", "技术方案", "编辑了技术方案", null, null);
             return success(doc.getDocId());
         }
         techDocService.insertAiTechDoc(doc);
+        editHistoryRecorder.record(projectId, "TECH", "UPDATE", "技术方案", "编辑了技术方案", null, null);
         return success(doc.getDocId());
     }
 
@@ -257,6 +263,8 @@ public class TechController extends BaseController
         project.setProjectId(projectId);
         project.setStep("DB");
         projectService.updateAiProject(project);
+
+        editHistoryRecorder.record(projectId, "TECH", "RELEASE", "技术方案", "确认技术方案，进入数据库设计", null, null);
 
         return success();
     }

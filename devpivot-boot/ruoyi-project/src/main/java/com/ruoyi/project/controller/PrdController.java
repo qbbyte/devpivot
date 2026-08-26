@@ -35,6 +35,7 @@ import com.ruoyi.project.domain.AiProject;
 import com.ruoyi.project.service.IAiClarifySessionService;
 import com.ruoyi.project.service.IAiPrdDocService;
 import com.ruoyi.project.service.IAiProjectService;
+import com.ruoyi.project.support.EditHistoryRecorder;
 
 /**
  * 门户·PRD 数据接口（/portal/prd）
@@ -69,6 +70,9 @@ public class PrdController extends BaseController
 
     @Autowired
     private IAiProjectService projectService;
+
+    @Autowired
+    private EditHistoryRecorder editHistoryRecorder;
 
     /** 流式推送任务线程池 */
     private static final ExecutorService STREAM_POOL = Executors.newCachedThreadPool();
@@ -230,6 +234,8 @@ public class PrdController extends BaseController
         project.setStep("PROTO");
         projectService.updateAiProject(project);
 
+        editHistoryRecorder.record(projectId, "PRD", "RELEASE", "PRD 文档", "确认 PRD，进入原型设计", null, null);
+
         return success();
     }
 
@@ -274,9 +280,11 @@ public class PrdController extends BaseController
         {
             doc.setDocId(list.get(0).getDocId());
             prdDocService.updateAiPrdDoc(doc);
+            editHistoryRecorder.record(projectId, "PRD", "UPDATE", "PRD 文档", "编辑了 PRD 文档", null, null);
             return success(doc.getDocId());
         }
         prdDocService.insertAiPrdDoc(doc);
+        editHistoryRecorder.record(projectId, "PRD", "UPDATE", "PRD 文档", "编辑了 PRD 文档", null, null);
         return success(doc.getDocId());
     }
 }

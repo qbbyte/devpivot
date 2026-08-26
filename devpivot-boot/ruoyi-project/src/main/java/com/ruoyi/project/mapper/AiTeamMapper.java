@@ -68,6 +68,9 @@ public interface AiTeamMapper
     int countMembersByRole(@Param("teamId") Long teamId, @Param("role") String role);
     int existsProject(@Param("teamId") Long teamId, @Param("projectId") Long projectId);
 
+    /** 按项目反查已绑定团队ID列表(供项目级访问控制 ProjectAccessService 使用) */
+    List<Long> selectTeamIdsByProjectId(Long projectId);
+
     /** 更新项目关联的 Git 仓库配置(平台/全名/分支/API base/加密令牌) */
     int updateProjectRepo(AiTeamProject project);
 

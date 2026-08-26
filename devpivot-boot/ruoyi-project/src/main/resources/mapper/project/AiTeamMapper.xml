@@ -289,6 +289,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         select count(*) from ai_team_project where team_id = #{teamId} and project_id = #{projectId}
     </select>
 
+    <!-- 按项目反查已绑定团队ID列表(项目级访问控制) -->
+    <select id="selectTeamIdsByProjectId" resultType="Long">
+        select team_id from ai_team_project where project_id = #{projectId}
+    </select>
+
     <!-- 查询当前用户未读消息ID -->
     <select id="selectUnreadMessageIds" resultType="Long">
         select m.msg_id

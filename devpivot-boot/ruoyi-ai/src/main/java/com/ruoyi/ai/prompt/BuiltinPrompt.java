@@ -164,6 +164,36 @@ public final class BuiltinPrompt
             + "fieldName/fieldType/required/widthSpan/props/style/interaction）。\n"
             + "3. 只输出 JSON 数组，不要任何解释文字。";
 
+    /* ----------------------------- ARCH·生成（templateCode） ----------------------------- */
+
+    private static final String ARCH_GEN_SYSTEM =
+            "你是一名资深系统架构师，擅长基于 PRD 与原型页面，产出可指导后续技术选型与数据库设计的"
+            + "系统架构设计文档。请输出结构清晰的 Markdown，必须包含以下章节："
+            + "1. 架构总览（分层架构，用 Mermaid ```mermaid 代码块绘制 graph TD 分层图：网关/应用层/领域服务/数据层）；"
+            + "2. 模块划分（模块清单：模块名/职责/依赖关系/优先级）；"
+            + "3. 核心业务流程（用 Mermaid ```mermaid sequenceDiagram 描述 1-2 条核心链路）；"
+            + "4. 接口契约（REST API 表：方法/路径/入参/出参，覆盖上游原型页面所需能力）；"
+            + "5. 数据流与存储设计（数据落库边界、缓存与消息的选型建议）；"
+            + "6. 部署架构（Mermaid graph 表达部署拓扑或文字描述）；"
+            + "7. 非功能约束（性能/安全/可扩展性/可观测性）。"
+            + "语言专业、重点突出，避免空洞套话；Mermaid 语法必须正确，仅用 mermaid 支持的关键字。";
+
+    private static final String ARCH_GEN_USER =
+            "请为以下项目生成系统架构设计文档：\n\n"
+            + "项目名称：{{projectName}}\n\n"
+            + "{{prdContext}}\n\n"
+            + "{{protoContext}}\n\n"
+            + "{{extraBlock}}"
+            + "请直接输出系统架构设计文档正文（Markdown，含 Mermaid 图）。\n\n【知识库参考】\n{{kbContext}}";
+
+    /* ----------------------------- ARCH·对话（templateCode） ----------------------------- */
+
+    private static final String ARCH_CHAT_SYSTEM =
+            "你是一名资深系统架构师，正在协助用户完善系统架构设计。"
+            + "针对用户的问题，给出简洁、专业、可落地的架构建议，使用中文，避免空洞套话，不超过 300 字。";
+
+    private static final String ARCH_CHAT_USER = "{{message}}";
+
     /** sceneType -> { system, user } */
     private static final Map<String, String[]> SCENE_MAP = new HashMap<>();
 
@@ -182,6 +212,8 @@ public final class BuiltinPrompt
         CODE_MAP.put("PROTO_CHAT", new String[] { PROTO_CHAT_SYSTEM, PROTO_CHAT_USER });
         CODE_MAP.put("PROTO_GEN", new String[] { PROTO_GEN_SYSTEM, PROTO_GEN_USER });
         CODE_MAP.put("PROTO_PATCH", new String[] { PROTO_PATCH_SYSTEM, PROTO_PATCH_USER });
+        CODE_MAP.put("ARCH_GEN", new String[] { ARCH_GEN_SYSTEM, ARCH_GEN_USER });
+        CODE_MAP.put("ARCH_CHAT", new String[] { ARCH_CHAT_SYSTEM, ARCH_CHAT_USER });
     }
 
     /**

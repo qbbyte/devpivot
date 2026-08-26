@@ -34,12 +34,13 @@ import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.ParamValidator;
 import com.ruoyi.project.domain.AiProtoComponent;
 import com.ruoyi.project.domain.AiProtoPage;
-import com.ruoyi.project.domain.AiProtoVersion;
+import com.ruoyi.project.domain.AiArtifactVersion;
 import com.ruoyi.project.domain.AiProject;
 import com.ruoyi.project.service.IAiProtoComponentService;
 import com.ruoyi.project.service.IAiProtoPageService;
-import com.ruoyi.project.service.IAiProtoVersionService;
+import com.ruoyi.project.service.IAiArtifactVersionService;
 import com.ruoyi.project.service.IAiProjectService;
+import com.ruoyi.project.support.EditHistoryRecorder;
 import com.ruoyi.ai.domain.AiModelConfig;
 import com.ruoyi.ai.service.AiModelClient;
 import com.ruoyi.ai.prompt.PromptTemplateService;
@@ -83,7 +84,10 @@ public class ProtoController extends BaseController
     private IAiModelConfigService modelConfigService;
 
     @Autowired
-    private IAiProtoVersionService aiProtoVersionService;
+    private IAiArtifactVersionService versionService;
+
+    @Autowired
+    private EditHistoryRecorder editHistoryRecorder;
 
     private static final ExecutorService STREAM_POOL = Executors.newCachedThreadPool();
 
@@ -563,11 +567,12 @@ public class ProtoController extends BaseController
             log.error("[proto] save 失败 projectId={}", projectId, e);
             return error("保存失败：" + e.getMessage());
         }
+        editHistoryRecorder.record(projectId, "PROTO", "UPDATE", "原型设计", "编辑了原型设计", null, null);
         return success("保存成功");
     }
 
     /**
-     * 确认原型：将项目阶段推进到 TECH（技术方案）。
+     * 确认原型：将项目阶段推进到 ARCH（系统架构设计）。
      */
     @PostMapping("/confirm/{projectId}")
     @Transactional
@@ -579,14 +584,15 @@ public class ProtoController extends BaseController
         {
             return error("项目不存在");
         }
-        project.setStep("TECH");
+        project.setStep("ARCH");
         project.setUpdateBy(SecurityUtils.getUsername());
         project.setUpdateTime(DateUtils.getNowDate());
         aiProjectService.updateAiProject(project);
-        return success("已确认原型，进入技术方案阶段");
+        editHistoryRecorder.record(projectId, "PROTO", "RELEASE", "原型设计", "确认原型，进入系统架构设计阶段", null, null);
+        return success("已确认原型，进入系统架构设计阶段");
     }
 
-    /* ============================ 历史版本 ============================ */
+    /* ============================ 历史版本（内部统一走 ai_artifact_version，URL 兼容） ============================ */
 
     /** 保存当前原型为历史版本（快照） */
     @PostMapping("/version/{projectId}")
@@ -596,26 +602,22 @@ public class ProtoController extends BaseController
         ParamValidator.projectId(projectId);
         Object pagesObj = body.get("pages");
         if (!(pagesObj instanceof List)) return error("页面数据格式不正确");
-        String versionName = str(body.get("versionName"));
-        if (versionName == null || versionName.isEmpty())
-        {
-            versionName = "版本 " + DateUtils.dateTimeNow("yyyy-MM-dd HH:mm");
-        }
         String deviceType = str(body.get("deviceType"));
         if (deviceType == null && !((List<?>) pagesObj).isEmpty())
         {
             Object first = ((List<?>) pagesObj).get(0);
             if (first instanceof Map) deviceType = str(((Map<?, ?>) first).get("deviceType"));
         }
-        AiProtoVersion v = new AiProtoVersion();
-        v.setProjectId(projectId);
-        v.setVersionName(versionName);
-        v.setDeviceType(deviceType);
-        v.setSourceModel(str(body.get("sourceModel")));
-        v.setSnapshot(JSON.toJSONString(pagesObj));
-        v.setCreateBy(SecurityUtils.getUsername());
-        v.setRemark(str(body.get("remark")));
-        aiProtoVersionService.insertAiProtoVersion(v);
+        String source = str(body.get("sourceModel"));
+        Map<String, Object> cmd = new HashMap<>(7);
+        cmd.put("stage", "PROTO");
+        cmd.put("artifactType", deviceType);
+        cmd.put("versionName", str(body.get("versionName")));
+        cmd.put("snapshot", JSON.toJSONString(pagesObj));
+        cmd.put("sourceType", mapSourceType(source));
+        cmd.put("sourceModel", source);
+        cmd.put("changeRemark", str(body.get("remark")));
+        AiArtifactVersion v = versionService.saveVersion(projectId, cmd);
         return success(mapOf("versionId", v.getVersionId()));
     }
 
@@ -624,13 +626,14 @@ public class ProtoController extends BaseController
     public AjaxResult listVersions(@PathVariable("projectId") Long projectId)
     {
         ParamValidator.projectId(projectId);
-        List<AiProtoVersion> list = aiProtoVersionService.selectAiProtoVersionByProjectId(projectId);
+        List<AiArtifactVersion> list = versionService.selectVersionList(projectId, "PROTO", null);
         List<Map<String, Object>> result = new ArrayList<>(list.size());
-        for (AiProtoVersion v : list)
+        for (AiArtifactVersion v : list)
         {
             result.add(mapOf("versionId", v.getVersionId(), "versionName", v.getVersionName(),
-                    "deviceType", v.getDeviceType(), "sourceModel", v.getSourceModel(),
-                    "createBy", v.getCreateBy(), "createTime", v.getCreateTime(), "remark", v.getRemark()));
+                    "deviceType", v.getArtifactType(), "sourceModel", v.getSourceModel(),
+                    "createBy", v.getCreateBy(), "createTime", v.getCreateTime(), "remark", v.getChangeRemark(),
+                    "status", v.getStatus()));
         }
         return success(result);
     }
@@ -640,30 +643,38 @@ public class ProtoController extends BaseController
     public AjaxResult getVersion(@PathVariable("versionId") Long versionId)
     {
         if (versionId == null) return error("版本ID不能为空");
-        AiProtoVersion v = aiProtoVersionService.selectAiProtoVersionByVersionId(versionId);
+        AiArtifactVersion v = versionService.selectVersionDetail(versionId);
         if (v == null) return error("版本不存在");
         Map<String, Object> data = new HashMap<>(4);
         data.put("version", mapOf("versionId", v.getVersionId(), "versionName", v.getVersionName(),
-                "deviceType", v.getDeviceType(), "sourceModel", v.getSourceModel(),
-                "createBy", v.getCreateBy(), "createTime", v.getCreateTime(), "remark", v.getRemark()));
+                "deviceType", v.getArtifactType(), "sourceModel", v.getSourceModel(),
+                "createBy", v.getCreateBy(), "createTime", v.getCreateTime(), "remark", v.getChangeRemark()));
         data.put("pages", parseJsonList(v.getSnapshot()));
         return success(data);
     }
 
-    /** 还原历史版本（覆盖当前原型并落库） */
+    /** 还原历史版本（写回业务表并自动生成新版本） */
     @PostMapping("/version/restore/{versionId}")
     @Transactional
     public AjaxResult restoreVersion(@PathVariable("versionId") Long versionId)
     {
         if (versionId == null) return error("版本ID不能为空");
-        AiProtoVersion v = aiProtoVersionService.selectAiProtoVersionByVersionId(versionId);
-        if (v == null) return error("版本不存在");
+        AiArtifactVersion v = versionService.restoreVersion(versionId);
         List<Map<String, Object>> pages = parseJsonList(v.getSnapshot());
         if (pages == null || pages.isEmpty()) return error("该版本快照为空");
-        persistPages(v.getProjectId(), pages, "历史还原");
         Map<String, Object> data = new HashMap<>(2);
         data.put("pages", pages);
-        data.put("deviceType", v.getDeviceType());
+        data.put("deviceType", v.getArtifactType());
         return success(data);
+    }
+
+    /** 来源说明 → source_type 枚举 */
+    private String mapSourceType(String source)
+    {
+        if (source == null) return "MANUAL";
+        if (source.contains("AI")) return "AI_GEN";
+        if (source.contains("还原")) return "RESTORE";
+        if (source.contains("模板")) return "TEMPLATE";
+        return "MANUAL";
     }
 }
