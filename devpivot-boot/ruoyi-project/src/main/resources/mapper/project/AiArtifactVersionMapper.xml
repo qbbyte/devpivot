@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.project.mapper.AiArtifactVersionMapper">
+
+    <resultMap type="AiArtifactVersion" id="AiArtifactVersionResult">
+        <result property="versionId"        column="version_id"        />
+        <result property="projectId"        column="project_id"        />
+        <result property="stage"            column="stage"             />
+        <result property="artifactType"     column="artifact_type"     />
+        <result property="artifactId"       column="artifact_id"       />
+        <result property="versionNo"        column="version_no"        />
+        <result property="versionName"      column="version_name"      />
+        <result property="snapshot"         column="snapshot"          />
+        <result property="snapshotHash"     column="snapshot_hash"     />
+        <result property="parentVersionId"  column="parent_version_id" />
+        <result property="sourceType"       column="source_type"       />
+        <result property="sourceModel"      column="source_model"      />
+        <result property="status"           column="status"            />
+        <result property="changeRemark"     column="change_remark"     />
+        <result property="createBy"         column="create_by"         />
+        <result property="createTime"       column="create_time"       />
+        <result property="updateBy"         column="update_by"         />
+        <result property="updateTime"       column="update_time"       />
+        <result property="remark"           column="remark"            />
+    </resultMap>
+
+    <!-- 列表查询列（不含 snapshot 大字段） -->
+    <sql id="selectArtifactVersionListVo">
+        select version_id, project_id, stage, artifact_type, artifact_id, version_no, version_name,
+               snapshot_hash, parent_version_id, source_type, source_model, status, change_remark,
+               create_by, create_time, update_by, update_time, remark
+        from ai_artifact_version
+    </sql>
+
+    <!-- 详情查询列（含快照） -->
+    <sql id="selectArtifactVersionDetailVo">
+        select version_id, project_id, stage, artifact_type, artifact_id, version_no, version_name,
+               snapshot, snapshot_hash, parent_version_id, source_type, source_model, status, change_remark,
+               create_by, create_time, update_by, update_time, remark
+        from ai_artifact_version
+    </sql>
+
+    <select id="selectAiArtifactVersionByVersionId" parameterType="Long" resultMap="AiArtifactVersionResult">
+        <include refid="selectArtifactVersionDetailVo"/>
+        where version_id = #{versionId}
+    </select>
+
+    <select id="selectAiArtifactVersionList" parameterType="AiArtifactVersion" resultMap="AiArtifactVersionResult">
+        <include refid="selectArtifactVersionListVo"/>
+        <where>
+            <if test="projectId != null"> and project_id = #{projectId}</if>
+            <if test="stage != null and stage != ''"> and stage = #{stage}</if>
+            <if test="artifactType != null and artifactType != ''"> and artifact_type = #{artifactType}</if>
+            <if test="versionNo != null and versionNo != ''"> and version_no = #{versionNo}</if>
+            <if test="status != null and status != ''"> and status = #{status}</if>
+        </where>
+        order by version_id desc
+    </select>
+
+    <insert id="insertAiArtifactVersion" parameterType="AiArtifactVersion" useGeneratedKeys="true" keyProperty="versionId">
+        insert into ai_artifact_version
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">project_id,</if>
+            <if test="stage != null">stage,</if>
+            <if test="artifactType != null">artifact_type,</if>
+            <if test="artifactId != null">artifact_id,</if>
+            <if test="versionNo != null">version_no,</if>
+            <if test="versionName != null">version_name,</if>
+            <if test="snapshot != null">snapshot,</if>
+            <if test="snapshotHash != null">snapshot_hash,</if>
+            <if test="parentVersionId != null">parent_version_id,</if>
+            <if test="sourceType != null">source_type,</if>
+            <if test="sourceModel != null">source_model,</if>
+            <if test="status != null">status,</if>
+            <if test="changeRemark != null">change_remark,</if>
+            <if test="createBy != null">create_by,</if>
+            <if test="createTime != null">create_time,</if>
+            <if test="updateBy != null">update_by,</if>
+            <if test="updateTime != null">update_time,</if>
+            <if test="remark != null">remark,</if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="projectId != null">#{projectId},</if>
+            <if test="stage != null">#{stage},</if>
+            <if test="artifactType != null">#{artifactType},</if>
+            <if test="artifactId != null">#{artifactId},</if>
+            <if test="versionNo != null">#{versionNo},</if>
+            <if test="versionName != null">#{versionName},</if>
+            <if test="snapshot != null">#{snapshot},</if>
+            <if test="snapshotHash != null">#{snapshotHash},</if>
+            <if test="parentVersionId != null">#{parentVersionId},</if>
+            <if test="sourceType != null">#{sourceType},</if>
+            <if test="sourceModel != null">#{sourceModel},</if>
+            <if test="status != null">#{status},</if>
+            <if test="changeRemark != null">#{changeRemark},</if>
+            <if test="createBy != null">#{createBy},</if>
+            <if test="createTime != null">#{createTime},</if>
+            <if test="updateBy != null">#{updateBy},</if>
+            <if test="updateTime != null">#{updateTime},</if>
+            <if test="remark != null">#{remark},</if>
+        </trim>
+    </insert>
+
+    <update id="updateStatus">
+        update ai_artifact_version
+        set status = #{status},
+            update_by = #{updateBy},
+            update_time = #{updateTime}
+        where version_id = #{versionId}
+    </update>
+
+    <delete id="deleteAiArtifactVersionByVersionId" parameterType="Long">
+        delete from ai_artifact_version where version_id = #{versionId}
+    </delete>
+
+    <select id="selectLatestReleased" resultMap="AiArtifactVersionResult">
+        <include refid="selectArtifactVersionDetailVo"/>
+        where project_id = #{projectId} and stage = #{stage} and status = 'RELEASED'
+        order by version_id desc limit 1
+    </select>
+
+    <select id="selectLastForUpdate" resultMap="AiArtifactVersionResult">
+        <include refid="selectArtifactVersionListVo"/>
+        where project_id = #{projectId} and stage = #{stage}
+        order by version_id desc limit 1
+        for update
+    </select>
+</mapper>
