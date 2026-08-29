@@ -533,7 +533,7 @@
                 <div class="chat-body">
                   <div ref="chatScrollRef" class="chat-messages">
                     <div v-for="(m, i) in chatMessages" :key="i" class="chat-msg" :class="m.role">
-                      <div class="bubble" v-html="renderMarkdown(m.content)"></div>
+                      <div class="bubble md-body" v-html="renderMarkdown(m.content)"></div>
                     </div>
                     <div v-if="!chatMessages.length" class="chat-empty">
                       <div class="chat-empty-icon"><el-icon><ChatDotRound /></el-icon></div>
@@ -591,6 +591,7 @@ import {
 } from '@/api/ai/proto'
 import ProtoComponent from '@/components/proto/ProtoComponent.vue'
 import HistoryEntry from '@/views/portal/components/HistoryEntry.vue'
+import { renderMarkdown } from '@/utils/markdown'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -1083,13 +1084,6 @@ function onHistoryRestored(payload) {
   }
 }
 
-function renderMarkdown(text) {
-  // 轻量渲染：换行 + 加粗，足够预览
-  return String(text || '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br/>')
-}
 function scrollChat() {
   nextTick(() => {
     if (chatScrollRef.value) chatScrollRef.value.scrollTop = chatScrollRef.value.scrollHeight

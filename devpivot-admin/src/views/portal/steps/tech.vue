@@ -85,7 +85,7 @@
                     resize="none"
                     placeholder="在此编辑技术方案（支持 Markdown）…"
                   />
-                  <div v-else-if="finalContent.trim()" ref="previewRef" class="markdown-body doc-markdown" v-html="renderMarkdown(finalContent)"></div>
+                  <div v-else-if="finalContent.trim()" ref="previewRef" class="markdown-body doc-markdown md-body" v-html="renderMarkdown(finalContent)"></div>
                   <div v-if="isGenerating && activeView === 'final'" class="generating-tip">
                     <el-icon class="rotating"><Loading /></el-icon>
                     <span>AI 正在撰写中…</span>
@@ -159,7 +159,7 @@
                       <el-icon class="rotating"><Loading /></el-icon>
                       <span>AI 正在思考…</span>
                     </div>
-                    <div v-else class="markdown-body" v-html="renderMarkdown(msg.content)"></div>
+                    <div v-else class="markdown-body md-body" v-html="renderMarkdown(msg.content)"></div>
                   </div>
                 </template>
                 <template v-else>
@@ -336,6 +336,7 @@ import { Lock } from '@element-plus/icons-vue'
 import { getTechModels, getTechDoc, saveTechDoc, generateTech, submitTech } from '@/api/ai/tech'
 import HistoryEntry from '@/views/portal/components/HistoryEntry.vue'
 import { sendChatMessage } from '@/api/ai/chat'
+import { renderMarkdown } from '@/utils/markdown'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -771,44 +772,6 @@ function scrollPreview() {
     const el = previewRef.value
     if (el) el.scrollTop = el.scrollHeight
   })
-}
-
-/* 轻量 Markdown 渲染（与 prd.vue 一致） */
-function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
-function inlineMd(s) {
-  return s
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-}
-function renderMarkdown(md) {
-  if (!md) return ''
-  const lines = escapeHtml(md).split('\n')
-  let html = ''
-  let inUl = false, inOl = false
-  const closeLists = () => {
-    if (inUl) { html += '</ul>'; inUl = false }
-    if (inOl) { html += '</ol>'; inOl = false }
-  }
-  for (const line of lines) {
-    const h = line.match(/^(#{1,3})\s+(.*)$/)
-    if (h) { closeLists(); const lvl = h[1].length; html += `<h${lvl}>${inlineMd(h[2])}</h${lvl}>`; continue }
-    const bq = line.match(/^>\s?(.*)$/)
-    if (bq) { closeLists(); html += `<blockquote>${inlineMd(bq[1])}</blockquote>`; continue }
-    if (/^\s*[-*]\s+/.test(line)) {
-      if (!inUl) { closeLists(); html += '<ul>'; inUl = true }
-      if (inOl) { html += '</ol>'; inOl = false }
-      html += `<li>${inlineMd(line.replace(/^\s*[-*]\s+/, ''))}</li>`; continue
-    }
-    if (/^\s*\d+\.\s+/.test(line)) {
-      if (!inOl) { closeLists(); html += '<ol>'; inOl = true }
-      if (inUl) { html += '</ul>'; inUl = false }
-      html += `<li>${inlineMd(line.replace(/^\s*\d+\.\s+/, ''))}</li>`; continue
-    }
-    if (line.trim() === '') { closeLists(); continue }
-    closeLists(); html += `<p>${inlineMd(line)}</p>`
-  }
-  closeLists()
-  return html
 }
 
 onMounted(() => {

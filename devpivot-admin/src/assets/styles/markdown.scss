@@ -1,0 +1,116 @@
+/* ===== Markdown 渲染内容全局排版 =====
+ *
+ * 适用范围：renderMarkdown()（src/utils/markdown.js）通过 v-html 输出的内容。
+ *
+ * 为什么放在全局：
+ * v-html 插入的 DOM 不带 data-v-xxx 属性，scoped 样式默认命不中
+ * （必须写 :deep()，否则样式静默失效）。与其在每个页面重复一套 :deep() 规则，
+ * 不如收敛成一份全局样式：页面只需给容器加 .md-body 类。
+ *
+ * 覆盖 renderMarkdown 可能输出的标签：
+ * p / h1-h6 / ul / ol / li / blockquote / code / pre / table / a / img / hr / strong / del
+ */
+.md-body {
+  word-break: break-word;
+
+  > :first-child { margin-top: 0; }
+  > :last-child { margin-bottom: 0; }
+
+  p { margin: 6px 0; }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    color: #1d2129;
+    line-height: 1.4;
+  }
+  h1 {
+    font-size: 20px;
+    margin: 16px 0 8px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #eef0f3;
+  }
+  h2 { font-size: 17px; margin: 14px 0 8px; }
+  h3 { font-size: 15px; margin: 12px 0 6px; }
+  h4 { font-size: 14px; margin: 10px 0 6px; }
+
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin: 3px 0; }
+  li > ul, li > ol { margin: 2px 0; }
+
+  blockquote {
+    margin: 10px 0;
+    padding: 8px 14px;
+    border-left: 3px solid var(--c-primary, #2563eb);
+    background: #f7f8fa;
+    color: #4e5969;
+    border-radius: 0 8px 8px 0;
+
+    p { margin: 0; }
+  }
+
+  code {
+    background: #f0f1f4;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: #d6326e;
+    font-family: 'SF Mono', Consolas, monospace;
+  }
+
+  pre {
+    background: #f7f8fa;
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin: 10px 0;
+
+    code {
+      background: none;
+      padding: 0;
+      color: #1d2129;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+  }
+
+  table {
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 13.5px;
+    /* 宽表格在窄容器（如聊天气泡）内可横向滚动，不撑破布局 */
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  th, td {
+    border: 1px solid #e5e6eb;
+    padding: 7px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #f7f8fa;
+    font-weight: 600;
+    color: #1d2129;
+  }
+  tbody tr:nth-child(even) td { background: #fafbfc; }
+
+  a {
+    color: var(--c-primary, #2563eb);
+    text-decoration: none;
+
+    &:hover { text-decoration: underline; }
+  }
+
+  img { max-width: 100%; border-radius: 6px; }
+
+  hr {
+    border: none;
+    border-top: 1px solid #e5e6eb;
+    margin: 14px 0;
+  }
+
+  strong { font-weight: 600; color: #1d2129; }
+  del { color: #86909c; }
+}

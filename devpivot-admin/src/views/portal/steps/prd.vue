@@ -76,7 +76,7 @@
                   resize="none"
                   placeholder="在此编辑 PRD 文档（支持 Markdown）…"
                 />
-                <div v-else ref="previewRef" class="markdown-body" v-html="renderedContent"></div>
+                <div v-else ref="previewRef" class="markdown-body md-body" v-html="renderedContent"></div>
                 <div v-if="isGenerating" class="generating-tip">
                   <el-icon class="rotating"><Loading /></el-icon>
                   <span>AI 正在撰写中…</span>
@@ -151,7 +151,7 @@
                       <el-icon class="rotating"><Loading /></el-icon>
                       <span>AI 正在思考…</span>
                     </div>
-                    <div v-else class="markdown-body" v-html="formatMarkdown(msg.content)"></div>
+                    <div v-else class="markdown-body md-body" v-html="renderMarkdown(msg.content)"></div>
                   </div>
                 </template>
                 <!-- 用户：气泡在左、头像在右 -->
@@ -295,6 +295,7 @@ import { getClarifySession } from '@/api/ai/clarify'
 import { generatePrd, getPrdDoc, savePrdDoc, getDocModels, submitPrd } from '@/api/ai/doc'
 import HistoryEntry from '@/views/portal/components/HistoryEntry.vue'
 import { sendChatMessage } from '@/api/ai/chat'
+import { renderMarkdown } from '@/utils/markdown'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -502,7 +503,7 @@ function startDrag(e) {
   document.body.style.userSelect = 'none'
 }
 
-const renderedContent = computed(() => highlightQuotes(formatMarkdown(docContent.value)))
+const renderedContent = computed(() => highlightQuotes(renderMarkdown(docContent.value)))
 const wordCount = computed(() => docContent.value.replace(/[\s#*>`\-|]/g, '').length)
 
 // 正则转义
@@ -688,43 +689,7 @@ function regenerate() {
   }
 }
 
-// 轻量 Markdown 渲染（与项目现有 formatMessage 风格一致，扩展标题/列表/引用）
-function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
-function inlineMd(s) {
-  return s
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-}
-function formatMarkdown(md) {
-  if (!md) return ''
-  const lines = escapeHtml(md).split('\n')
-  let html = ''
-  let inUl = false, inOl = false
-  const closeLists = () => {
-    if (inUl) { html += '</ul>'; inUl = false }
-    if (inOl) { html += '</ol>'; inOl = false }
-  }
-  for (const line of lines) {
-    const h = line.match(/^(#{1,3})\s+(.*)$/)
-    if (h) { closeLists(); const lvl = h[1].length; html += `<h${lvl}>${inlineMd(h[2])}</h${lvl}>`; continue }
-    const bq = line.match(/^>\s?(.*)$/)
-    if (bq) { closeLists(); html += `<blockquote>${inlineMd(bq[1])}</blockquote>`; continue }
-    if (/^\s*[-*]\s+/.test(line)) {
-      if (!inUl) { closeLists(); html += '<ul>'; inUl = true }
-      if (inOl) { html += '</ol>'; inOl = false }
-      html += `<li>${inlineMd(line.replace(/^\s*[-*]\s+/, ''))}</li>`; continue
-    }
-    if (/^\s*\d+\.\s+/.test(line)) {
-      if (!inOl) { closeLists(); html += '<ol>'; inOl = true }
-      if (inUl) { html += '</ul>'; inUl = false }
-      html += `<li>${inlineMd(line.replace(/^\s*\d+\.\s+/, ''))}</li>`; continue
-    }
-    if (line.trim() === '') { closeLists(); continue }
-    closeLists(); html += `<p>${inlineMd(line)}</p>`
-  }
-  closeLists()
-  return html
-}
+// Markdown 渲染统一由 @/utils/markdown 的 renderMarkdown 提供（含 GFM 表格与 XSS 过滤）
 
 function startGenerate() {
   if (isGenerating.value) return
@@ -1192,29 +1157,21 @@ mark.quote-highlight {
   padding: 0 1px;
   box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.4);
 }
-.markdown-body h1 {
+/* v-html 内容不带 data-v 属性，scoped 下必须用 :deep() 命中。
+   基础排版由全局 .md-body 提供，此处为 PRD 页的定制值。 */
+.markdown-body :deep(h1) {
   font-size: 20px;
   margin: 4px 0 10px;
   padding-bottom: 8px;
   border-bottom: 2px solid #eef0f3;
   color: #1d2129;
 }
-.markdown-body h2 {
-  font-size: 17px;
-  margin: 18px 0 8px;
-  color: #272e3b;
-  font-weight: 600;
-}
-.markdown-body h3 {
-  font-size: 15px;
-  margin: 14px 0 6px;
-  color: #333d4d;
-  font-weight: 600;
-}
-.markdown-body p { margin: 6px 0; }
-.markdown-body ul, .markdown-body ol { margin: 6px 0; padding-left: 20px; }
-.markdown-body li { margin: 3px 0; }
-.markdown-body blockquote {
+.markdown-body :deep(h2) { font-size: 17px; margin: 18px 0 8px; color: #272e3b; font-weight: 600; }
+.markdown-body :deep(h3) { font-size: 15px; margin: 14px 0 6px; color: #333d4d; font-weight: 600; }
+.markdown-body :deep(p) { margin: 6px 0; }
+.markdown-body :deep(ul), .markdown-body :deep(ol) { margin: 6px 0; padding-left: 20px; }
+.markdown-body :deep(li) { margin: 3px 0; }
+.markdown-body :deep(blockquote) {
   margin: 10px 0;
   padding: 8px 14px;
   background: linear-gradient(135deg, #f7f8fb 0%, #f0f2f5 100%);
@@ -1222,7 +1179,7 @@ mark.quote-highlight {
   color: #4e5969;
   border-radius: 0 8px 8px 0;
 }
-.markdown-body code {
+.markdown-body :deep(code) {
   background: #f0f1f4;
   padding: 1px 6px;
   border-radius: 4px;
@@ -1230,7 +1187,35 @@ mark.quote-highlight {
   color: #d6326e;
   font-family: 'SF Mono', Consolas, monospace;
 }
-.markdown-body strong { color: #1d2129; font-weight: 600; }
+.markdown-body :deep(strong) { color: #1d2129; font-weight: 600; }
+.markdown-body :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13.5px;
+}
+.markdown-body :deep(th), .markdown-body :deep(td) {
+  border: 1px solid #e5e6eb;
+  padding: 7px 12px;
+  text-align: left;
+}
+.markdown-body :deep(th) { background: #f7f8fa; font-weight: 600; color: #1d2129; }
+.markdown-body :deep(tbody tr:nth-child(even) td) { background: #fafbfc; }
+.markdown-body :deep(pre) {
+  background: #f7f8fa;
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  margin: 10px 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.markdown-body :deep(pre code) {
+  background: none;
+  padding: 0;
+  color: #1d2129;
+  font-size: 13px;
+}
 
 .generating-tip {
   position: absolute;

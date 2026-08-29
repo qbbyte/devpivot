@@ -96,7 +96,7 @@
                     <el-icon><MagicStick /></el-icon> AI 生成架构设计
                   </el-button>
                 </div>
-                <div v-else ref="previewRef" class="markdown-body arch-markdown" v-html="renderedContent"></div>
+                <div v-else ref="previewRef" class="markdown-body arch-markdown md-body" v-html="renderedContent"></div>
                 <div v-if="isGenerating && finalContent" class="gen-streaming-tip">
                   <el-icon class="gen-spin"><Loading /></el-icon>
                   <span>正在生成，架构图将在完成后渲染…</span>
@@ -177,6 +177,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { getProject } from '@/api/ai/project'
 import { getArchModels, getArchDoc, saveArchDoc, submitArch, generateArch, sendArchChat } from '@/api/ai/arch'
 import HistoryEntry from '@/views/portal/components/HistoryEntry.vue'
+import { renderMarkdown } from '@/utils/markdown'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -225,7 +226,7 @@ let chatController = null
 
 const canSubmit = computed(() => finalContent.value.trim().length > 0 && !isGenerating.value)
 
-const renderedContent = computed(() => renderMarkdown(finalContent.value, true))
+const renderedContent = computed(() => renderMarkdown(finalContent.value, { mermaid: true }))
 
 watch(readOnly, (ro) => { if (ro) isEditing.value = false })
 
@@ -377,7 +378,7 @@ function sendChat() {
 }
 
 function renderMsg(msg) {
-  if (msg.role === 'assistant') return renderMarkdown(msg.content, false)
+  if (msg.role === 'assistant') return renderMarkdown(msg.content)
   return String(msg.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>')
 }
 
@@ -433,88 +434,6 @@ function ensureMermaid() {
     })
   }
   return mermaidReady
-}
-
-function escapeHtml(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
-/** 轻量 Markdown 渲染：标题/列表/表格/代码块/粗体/行内码；```mermaid 块转为占位 div 待渲染 */
-function renderMarkdown(text, withMermaid) {
-  let t = String(text || '')
-  // mermaid 代码块优先提取为占位
-  if (withMermaid) {
-    t = t.replace(/```mermaid\s*\n?([\s\S]*?)```/g, (all, code) => {
-      return `<div class="arch-mermaid" data-mermaid="${escapeHtml(code.trim())}"><div class="mermaid-fallback">\`\`\`mermaid\n${escapeHtml(code.trim())}\n\`\`\`</div></div>`
-    })
-  }
-  const lines = t.split('\n')
-  let html = ''
-  let inCode = false
-  let codeBuf = []
-  let inTable = false
-  let tableBuf = []
-  const flushCode = () => {
-    if (codeBuf.length) {
-      html += `<pre class="arch-code">${escapeHtml(codeBuf.join('\n'))}</pre>`
-      codeBuf = []
-    }
-  }
-  const flushTable = () => {
-    if (tableBuf.length) {
-      const rows = tableBuf
-      html += '<table class="arch-table">'
-      rows.forEach((row, i) => {
-        const cells = row.split('|').map(c => c.trim()).filter((_, idx, arr) => !(idx === 0 && arr.length > 2 && !c))
-        const tag = i === 0 ? 'th' : 'td'
-        html += '<tr>' + cells.map(c => `<${tag}>${inlineMd(c)}</${tag}>`).join('') + '</tr>'
-      })
-      html += '</table>'
-      tableBuf = []
-    }
-  }
-  for (const line of lines) {
-    if (line.trim().startsWith('```') && !inCode) {
-      flushTable()
-      inCode = true
-      codeBuf = [line.replace(/^```\w*/, '')]
-      continue
-    }
-    if (line.trim() === '```' && inCode) {
-      flushCode()
-      inCode = false
-      continue
-    }
-    if (inCode) { codeBuf.push(line); continue }
-    if (line.trim().startsWith('|')) {
-      if (!inTable) { inTable = true; tableBuf = [] }
-      tableBuf.push(line)
-      continue
-    }
-    if (inTable) { flushTable(); inTable = false }
-    if (line.trim() === '') { html += ''; continue }
-    if (/^#{1,6}\s/.test(line)) {
-      const level = line.match(/^#{1,6}/)[0].length
-      html += `<h${Math.min(level, 4)} class="arch-h${level}">${inlineMd(line.replace(/^#{1,6}\s*/, ''))}</h${Math.min(level, 4)}>`
-    } else if (/^\s*[-*]\s+/.test(line)) {
-      html += `<li class="arch-li">${inlineMd(line.replace(/^\s*[-*]\s+/, ''))}</li>`
-    } else if (/^\s*\d+\.\s+/.test(line)) {
-      html += `<li class="arch-li">${inlineMd(line.replace(/^\s*\d+\.\s+/, ''))}</li>`
-    } else {
-      html += `<p class="arch-p">${inlineMd(line)}</p>`
-    }
-  }
-  flushCode()
-  flushTable()
-  return html
-}
-
-function inlineMd(s) {
-  return escapeHtml(s)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
 }
 
 /** 渲染所有未渲染的 mermaid 占位块；失败保留代码块回退 */
@@ -577,16 +496,19 @@ async function renderMermaidBlocks() {
 .doc-content { position: relative; }
 .doc-editor { font-family: var(--font-mono, Consolas, monospace); font-size: 13px; line-height: 1.7; min-height: 60vh; }
 .markdown-body { padding-bottom: 40px; }
-.arch-h1 { font-size: 20px; margin: 18px 0 10px; color: var(--c-text, #1e293b); }
-.arch-h2 { font-size: 17px; margin: 16px 0 8px; color: var(--c-text, #1e293b); }
-.arch-h3 { font-size: 15px; margin: 14px 0 6px; color: var(--c-text, #1e293b); }
-.arch-h4 { font-size: 14px; margin: 12px 0 6px; color: var(--c-text, #1e293b); }
-.arch-p { font-size: 13px; line-height: 1.75; color: var(--c-text, #1e293b); margin: 6px 0; }
-.arch-li { font-size: 13px; line-height: 1.7; color: var(--c-text, #1e293b); margin-left: 18px; }
-.arch-code { background: var(--c-border-light, #f1f5f9); border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.6; overflow-x: auto; color: var(--c-text, #1e293b); }
-.arch-table { border-collapse: collapse; margin: 8px 0; width: 100%; font-size: 12px; }
-.arch-table th, .arch-table td { border: 1px solid var(--c-border, #e2e8f0); padding: 6px 10px; text-align: left; }
-.arch-table th { background: var(--c-border-light, #f1f5f9); font-weight: 500; }
+/* v-html 内容不带 data-v 属性，scoped 下必须用 :deep() 命中。
+   基础排版由全局 .md-body 提供，此处仅覆盖 arch 页的字号与配色。 */
+.markdown-body :deep(h1) { font-size: 20px; margin: 18px 0 10px; color: var(--c-text, #1e293b); }
+.markdown-body :deep(h2) { font-size: 17px; margin: 16px 0 8px; color: var(--c-text, #1e293b); }
+.markdown-body :deep(h3) { font-size: 15px; margin: 14px 0 6px; color: var(--c-text, #1e293b); }
+.markdown-body :deep(h4) { font-size: 14px; margin: 12px 0 6px; color: var(--c-text, #1e293b); }
+.markdown-body :deep(p) { font-size: 13px; line-height: 1.75; color: var(--c-text, #1e293b); margin: 6px 0; }
+.markdown-body :deep(li) { font-size: 13px; line-height: 1.7; color: var(--c-text, #1e293b); }
+.markdown-body :deep(pre) { background: var(--c-border-light, #f1f5f9); border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.6; overflow-x: auto; color: var(--c-text, #1e293b); }
+.markdown-body :deep(pre code) { background: none; padding: 0; font-size: 12px; color: var(--c-text, #1e293b); }
+.markdown-body :deep(table) { border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+.markdown-body :deep(th), .markdown-body :deep(td) { border: 1px solid var(--c-border, #e2e8f0); padding: 6px 10px; text-align: left; }
+.markdown-body :deep(th) { background: var(--c-border-light, #f1f5f9); font-weight: 500; }
 .arch-mermaid { margin: 12px 0; background: var(--c-surface, #fff); border: 1px solid var(--c-border, #e2e8f0); border-radius: 10px; padding: 12px; overflow-x: auto; }
 .mermaid-fallback { font-family: var(--font-mono, Consolas, monospace); font-size: 12px; white-space: pre; color: var(--c-text-muted, #64748b); }
 

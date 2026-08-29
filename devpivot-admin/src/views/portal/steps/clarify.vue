@@ -95,7 +95,7 @@
                   </el-icon>
                 </div>
                 <div class="message-content">
-                  <div class="message-bubble" v-html="formatMessage(msg.content)"></div>
+                  <div class="message-bubble md-body" v-html="renderMarkdown(msg.content)"></div>
                   <div class="message-time"><span class="message-author">{{ msg.author }}</span> · {{ msg.timestamp }}
                   </div>
                   <div class="message-options" v-if="msg.options">
@@ -154,7 +154,7 @@
                         <div class="resp-body" v-overflow>
                           <div class="response-content">
                             <span v-if="resp.status === 'loading' && !resp.content" class="thinking">思考中…</span>
-                            <span v-else v-html="formatMessage(resp.content)"></span>
+                            <div v-else class="md-body" v-html="renderMarkdown(resp.content)"></div>
                           </div>
                           <div class="resp-fade"></div>
                           <button class="view-more" @click="openResponseDetail(resp)">查看完整回答 ›</button>
@@ -349,7 +349,7 @@
     <el-drawer v-model="responseDetail.visible" :title="responseDetail.title" direction="rtl" size="480px"
       :with-header="true" @close="onDetailClose">
       <div class="response-detail" @mouseup="onDetailMouseup" @scroll="retainBtn.visible = false">
-        <div class="response-detail-content" v-html="formatMessage(responseDetail.content)"></div>
+        <div class="response-detail-content md-body" v-html="renderMarkdown(responseDetail.content)"></div>
       </div>
       <button v-show="retainBtn.visible" class="retain-floating"
         :style="{ top: retainBtn.y + 'px', left: retainBtn.x + 'px' }" @mousedown.prevent
@@ -370,7 +370,7 @@
                 <span class="conclusion-q" v-if="a.question">针对：{{ a.question }}</span>
                 <span class="conclusion-time" v-if="a.time">{{ a.time }}</span>
               </div>
-              <div class="conclusion-content" v-html="formatMessage(a.content)"></div>
+              <div class="conclusion-content md-body" v-html="renderMarkdown(a.content)"></div>
             </div>
           </section>
 
@@ -453,6 +453,7 @@ import {
   restoreClarifyVersion,
   nextClarifyQuestion
 } from '@/api/ai/clarify'
+import { renderMarkdown } from '@/utils/markdown'
 
 // 澄清访谈问卷（引导式结构化访谈，属产品设计，非 AI 假数据；AI 回答由后端真实返回）
 // questionScript 仅作首屏播种的 3 道示例题（并发/部署/移动端），避免首屏等待接口；
@@ -1237,13 +1238,6 @@ const vOverflow = {
   updated(el) {
     el.classList.toggle('is-overflow', el.scrollHeight > el.clientHeight + 1)
   }
-}
-
-function formatMessage(content) {
-  if (!content) return ''
-  return content
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br>')
 }
 
 function scrollToBottom() {
@@ -2291,6 +2285,9 @@ onMounted(async () => {
 .conclusion-content :deep(strong) {
   color: var(--text-0);
 }
+
+/* .md-body 的 Markdown 排版样式见全局 src/assets/styles/markdown.scss
+   （v-html 内容不带 data-v 属性，scoped 命中不了，故收敛为全局样式） */
 
 .conclusion-open {
   font-size: 13px;

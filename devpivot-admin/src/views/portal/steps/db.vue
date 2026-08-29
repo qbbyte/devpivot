@@ -196,7 +196,7 @@
                 </div>
 
                 <!-- 原文视图 -->
-                <div v-show="activeTab === 'md' && !isEditing && finalContent.trim()" ref="previewRef" class="doc-markdown markdown-body" v-html="renderMarkdown(finalContent)"></div>
+                <div v-show="activeTab === 'md' && !isEditing && finalContent.trim()" ref="previewRef" class="doc-markdown markdown-body md-body" v-html="renderMarkdown(finalContent)"></div>
                 <div v-show="activeTab === 'md' && isEditing" class="db-editor">
                   <el-input v-model="finalContent" type="textarea" :rows="20" resize="none" placeholder="在此编辑数据库设计文档（Markdown）…" />
                 </div>
@@ -244,7 +244,7 @@
                   <el-icon><component :is="msg.role === 'ai' ? 'Cpu' : 'UserFilled'" /></el-icon>
                 </div>
                 <div class="msg-bubble">
-                  <div class="msg-text" v-html="msg.role === 'ai' ? renderMarkdown(msg.content) : escapeHtml(msg.content)"></div>
+                  <div class="msg-text md-body" v-html="msg.role === 'ai' ? renderMarkdown(msg.content) : escapeHtml(msg.content)"></div>
                 </div>
               </div>
               <div v-if="chatGenerating" class="chat-msg ai">
@@ -365,6 +365,7 @@ import { Lock } from '@element-plus/icons-vue'
 import { getDbModels, getDbDoc, saveDbDoc, generateDb, submitDb } from '@/api/ai/db'
 import HistoryEntry from '@/views/portal/components/HistoryEntry.vue'
 import { sendChatMessage } from '@/api/ai/chat'
+import { renderMarkdown } from '@/utils/markdown'
 
 const { proxy } = getCurrentInstance()
 const router = useRouter()
@@ -682,43 +683,8 @@ function scrollPreview() {
   })
 }
 
-/* 轻量 Markdown 渲染 */
+/* HTML 转义（SQL 高亮等非 Markdown 场景使用） */
 function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
-function inlineMd(s) {
-  return s
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-}
-function renderMarkdown(md) {
-  if (!md) return ''
-  const lines = escapeHtml(md).split('\n')
-  let html = ''
-  let inUl = false, inOl = false
-  const closeLists = () => {
-    if (inUl) { html += '</ul>'; inUl = false }
-    if (inOl) { html += '</ol>'; inOl = false }
-  }
-  for (const line of lines) {
-    const h = line.match(/^(#{1,3})\s+(.*)$/)
-    if (h) { closeLists(); const lvl = h[1].length; html += `<h${lvl}>${inlineMd(h[2])}</h${lvl}>`; continue }
-    const bq = line.match(/^>\s?(.*)$/)
-    if (bq) { closeLists(); html += `<blockquote>${inlineMd(bq[1])}</blockquote>`; continue }
-    if (/^\s*[-*]\s+/.test(line)) {
-      if (!inUl) { closeLists(); html += '<ul>'; inUl = true }
-      if (inOl) { html += '</ol>'; inOl = false }
-      html += `<li>${inlineMd(line.replace(/^\s*[-*]\s+/, ''))}</li>`; continue
-    }
-    if (/^\s*\d+\.\s+/.test(line)) {
-      if (!inOl) { closeLists(); html += '<ol>'; inOl = true }
-      if (inUl) { html += '</ul>'; inUl = false }
-      html += `<li>${inlineMd(line.replace(/^\s*\d+\.\s+/, ''))}</li>`; continue
-    }
-    if (line.trim() === '') { closeLists(); continue }
-    closeLists(); html += `<p>${inlineMd(line)}</p>`
-  }
-  closeLists()
-  return html
-}
 
 /* ============ DDL / 结构化解析 ============ */
 
@@ -1695,16 +1661,23 @@ onMounted(() => {
 @keyframes db-spin { to { transform: rotate(360deg); } }
 
 /* Markdown 渲染 */
+/* v-html 插入的内容不带 data-v 属性，scoped 下必须用 :deep() 才能命中 */
 .markdown-body { padding: 2px 4px; font-size: 14px; line-height: 1.75; color: #1d2129; }
-.markdown-body h1 { font-size: 20px; margin: 4px 0 10px; padding-bottom: 8px; border-bottom: 2px solid #eef0f3; color: #1d2129; }
-.markdown-body h2 { font-size: 17px; margin: 18px 0 8px; color: #272e3b; font-weight: 600; }
-.markdown-body h3 { font-size: 15px; margin: 14px 0 6px; color: #333d4d; font-weight: 600; }
-.markdown-body p { margin: 6px 0; }
-.markdown-body ul, .markdown-body ol { margin: 6px 0; padding-left: 20px; }
-.markdown-body li { margin: 3px 0; }
-.markdown-body blockquote { margin: 10px 0; padding: 8px 14px; background: linear-gradient(135deg, #f7f8fb 0%, #f0f2f5 100%); border-left: 3px solid #3370ff; color: #4e5969; border-radius: 0 8px 8px 0; }
-.markdown-body code { background: #f0f1f4; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; color: #d6326e; font-family: 'SF Mono', Consolas, monospace; }
-.markdown-body strong { color: #1d2129; font-weight: 600; }
+.markdown-body :deep(h1) { font-size: 20px; margin: 4px 0 10px; padding-bottom: 8px; border-bottom: 2px solid #eef0f3; color: #1d2129; }
+.markdown-body :deep(h2) { font-size: 17px; margin: 18px 0 8px; color: #272e3b; font-weight: 600; }
+.markdown-body :deep(h3) { font-size: 15px; margin: 14px 0 6px; color: #333d4d; font-weight: 600; }
+.markdown-body :deep(p) { margin: 6px 0; }
+.markdown-body :deep(ul), .markdown-body :deep(ol) { margin: 6px 0; padding-left: 20px; }
+.markdown-body :deep(li) { margin: 3px 0; }
+.markdown-body :deep(blockquote) { margin: 10px 0; padding: 8px 14px; background: linear-gradient(135deg, #f7f8fb 0%, #f0f2f5 100%); border-left: 3px solid #3370ff; color: #4e5969; border-radius: 0 8px 8px 0; }
+.markdown-body :deep(code) { background: #f0f1f4; padding: 1px 6px; border-radius: 4px; font-size: 12.5px; color: #d6326e; font-family: 'SF Mono', Consolas, monospace; }
+.markdown-body :deep(strong) { color: #1d2129; font-weight: 600; }
+.markdown-body :deep(table) { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 13.5px; }
+.markdown-body :deep(th), .markdown-body :deep(td) { border: 1px solid #e5e6eb; padding: 7px 12px; text-align: left; }
+.markdown-body :deep(th) { background: #f7f8fa; font-weight: 600; color: #1d2129; }
+.markdown-body :deep(tr:nth-child(even) td) { background: #fafbfc; }
+.markdown-body :deep(pre) { background: #f7f8fa; border-radius: 6px; padding: 12px 14px; overflow-x: auto; margin: 10px 0; }
+.markdown-body :deep(pre code) { background: none; padding: 0; color: #1d2129; font-size: 13px; line-height: 1.55; }
 
 /* 中间可拖拽分隔条 */
 .split-divider {

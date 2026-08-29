@@ -5,6 +5,7 @@
 @use './sidebar.scss';
 @use './btn.scss';
 @use './ruoyi.scss';
+@use './markdown.scss'; // Markdown 渲染内容排版（renderMarkdown + .md-body）
 
 body {
   height: 100%;
