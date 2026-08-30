@@ -90,4 +90,11 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <delete id="deleteAiArchDocByDocId" parameterType="Long">
         delete from ai_arch_doc where doc_id = #{docId}
     </delete>
+
+    <delete id="deleteAiArchDocByDocIds" parameterType="String">
+        delete from ai_arch_doc where doc_id in
+        <foreach item="docId" collection="array" open="(" separator="," close=")">
+            #{docId}
+        </foreach>
+    </delete>
 </mapper>

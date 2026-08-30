@@ -32,6 +32,21 @@
         where project_id = #{projectId} and del_flag = '0'
     </select>
 
+    <select id="selectAiClarifySessionList" parameterType="AiClarifySession" resultMap="AiClarifySessionResult">
+        <include refid="selectAiClarifySessionVo"/>
+        <where>
+            and del_flag = '0'
+            <if test="projectId != null"> and project_id = #{projectId}</if>
+            <if test="status != null and status != ''"> and status = #{status}</if>
+        </where>
+        order by session_id desc
+    </select>
+
+    <select id="selectAiClarifySessionBySessionId" parameterType="Long" resultMap="AiClarifySessionResult">
+        <include refid="selectAiClarifySessionVo"/>
+        where session_id = #{sessionId} and del_flag = '0'
+    </select>
+
     <insert id="insertAiClarifySession" parameterType="AiClarifySession" useGeneratedKeys="true" keyProperty="sessionId">
         insert into ai_clarify_session
         <trim prefix="(" suffix=")" suffixOverrides=",">

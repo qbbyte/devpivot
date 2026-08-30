@@ -13,11 +13,27 @@ public interface AiClarifySessionMapper
 {
     /**
      * 根据项目ID查询澄清会话
-     * 
+     *
      * @param projectId 项目ID
      * @return 澄清会话
      */
     public AiClarifySession selectAiClarifySessionByProjectId(Long projectId);
+
+    /**
+     * 查询澄清会话列表（管理端，按项目/状态过滤）
+     *
+     * @param aiClarifySession 查询条件
+     * @return 澄清会话集合
+     */
+    public List<AiClarifySession> selectAiClarifySessionList(AiClarifySession aiClarifySession);
+
+    /**
+     * 根据会话ID查询澄清会话
+     *
+     * @param sessionId 会话ID
+     * @return 澄清会话
+     */
+    public AiClarifySession selectAiClarifySessionBySessionId(Long sessionId);
 
     /**
      * 新增AI澄清会话

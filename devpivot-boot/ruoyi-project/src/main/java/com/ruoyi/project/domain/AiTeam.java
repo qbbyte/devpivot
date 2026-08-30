@@ -42,6 +42,9 @@ public class AiTeam extends BaseEntity
     /** 成员数(非数据库字段) */
     private Integer memberCount;
 
+    /** 关联项目数(非数据库字段,管理端列表) */
+    private Integer projectCount;
+
     /** 当前用户未读消息数(非数据库字段) */
     private Integer unreadCount;
 
@@ -80,6 +83,9 @@ public class AiTeam extends BaseEntity
 
     public void setMemberCount(Integer memberCount) { this.memberCount = memberCount; }
     public Integer getMemberCount() { return memberCount; }
+
+    public void setProjectCount(Integer projectCount) { this.projectCount = projectCount; }
+    public Integer getProjectCount() { return projectCount; }
 
     public void setUnreadCount(Integer unreadCount) { this.unreadCount = unreadCount; }
     public Integer getUnreadCount() { return unreadCount; }

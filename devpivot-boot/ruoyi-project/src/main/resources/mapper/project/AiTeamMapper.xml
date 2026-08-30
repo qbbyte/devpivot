@@ -20,6 +20,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="myRole"        column="my_role"    />
         <result property="memberCount"   column="member_count"/>
         <result property="unreadCount"   column="unread_count"/>
+        <result property="projectCount"  column="project_count"/>
     </resultMap>
 
     <resultMap type="AiTeamMember" id="AiTeamMemberResult">
@@ -91,6 +92,21 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         from ai_team t
         join ai_team_member m on t.team_id = m.team_id
         where m.user_id = #{userId} and t.del_flag = '0' and t.status = '0'
+        order by t.create_time desc
+    </select>
+
+    <!-- 管理端：全量团队列表(带成员数,支持团队名/状态过滤) -->
+    <select id="selectAllTeams" parameterType="AiTeam" resultMap="AiTeamResult">
+        select t.team_id, t.team_name, t.description, t.owner_id, t.invite_code, t.status, t.del_flag,
+               t.create_by, t.create_time, t.update_by, t.update_time, t.remark,
+               (select count(*) from ai_team_member tm where tm.team_id = t.team_id) as member_count,
+               (select count(*) from ai_team_project tp where tp.team_id = t.team_id) as project_count
+        from ai_team t
+        <where>
+            t.del_flag = '0'
+            <if test="teamName != null and teamName != ''"> and t.team_name like concat('%', #{teamName}, '%')</if>
+            <if test="status != null and status != ''"> and t.status = #{status}</if>
+        </where>
         order by t.create_time desc
     </select>
 

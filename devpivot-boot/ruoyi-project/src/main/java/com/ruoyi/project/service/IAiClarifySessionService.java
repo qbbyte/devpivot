@@ -1,22 +1,39 @@
 package com.ruoyi.project.service;
 
+import java.util.List;
 import com.ruoyi.project.domain.AiClarifySession;
 
 /**
  * AI澄清会话Service接口
- * 
+ *
  * @author devpivot
  * @date 2026-08-05
  */
-public interface IAiClarifySessionService 
+public interface IAiClarifySessionService
 {
     /**
      * 获取或创建项目的澄清会话
-     * 
+     *
      * @param projectId 项目ID
      * @return 澄清会话（不存在则新建并返回空会话）
      */
     public AiClarifySession getOrCreateSession(Long projectId);
+
+    /**
+     * 查询澄清会话列表（管理端，按项目/状态过滤）
+     *
+     * @param aiClarifySession 查询条件
+     * @return 澄清会话集合
+     */
+    public List<AiClarifySession> selectAiClarifySessionList(AiClarifySession aiClarifySession);
+
+    /**
+     * 根据会话ID查询澄清会话详情
+     *
+     * @param sessionId 会话ID
+     * @return 澄清会话
+     */
+    public AiClarifySession selectAiClarifySessionBySessionId(Long sessionId);
 
     /**
      * 保存会话的对话/采纳/保留数据（按项目维度 upsert）

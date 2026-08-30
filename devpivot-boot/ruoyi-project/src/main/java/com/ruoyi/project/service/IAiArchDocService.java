@@ -50,4 +50,12 @@ public interface IAiArchDocService
      * @return 结果
      */
     public int deleteAiArchDocByDocId(Long docId);
+
+    /**
+     * 批量删除系统架构设计文档
+     *
+     * @param docIds 需要删除的文档主键集合
+     * @return 结果
+     */
+    public int deleteAiArchDocByDocIds(Long[] docIds);
 }

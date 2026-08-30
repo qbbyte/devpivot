@@ -21,6 +21,9 @@ public interface AiTeamMapper
     /** 我的团队列表(带当前用户角色 myRole 与成员数 memberCount) */
     List<AiTeam> selectMyTeams(@Param("userId") Long userId);
 
+    /** 管理端：全量团队列表(带成员数/项目数,支持团队名/状态过滤) */
+    List<AiTeam> selectAllTeams(AiTeam team);
+
     /** 团队详情基础(带 myRole 与 memberCount) */
     AiTeam selectTeamDetail(@Param("teamId") Long teamId, @Param("userId") Long userId);
 

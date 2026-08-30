@@ -51,4 +51,10 @@ public class AiArchDocServiceImpl implements IAiArchDocService
     {
         return aiArchDocMapper.deleteAiArchDocByDocId(docId);
     }
+
+    @Override
+    public int deleteAiArchDocByDocIds(Long[] docIds)
+    {
+        return aiArchDocMapper.deleteAiArchDocByDocIds(docIds);
+    }
 }

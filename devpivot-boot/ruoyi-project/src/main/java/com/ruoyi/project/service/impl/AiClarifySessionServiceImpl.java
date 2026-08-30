@@ -1,6 +1,7 @@
 package com.ruoyi.project.service.impl;
 
 import java.util.Date;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +43,18 @@ public class AiClarifySessionServiceImpl implements IAiClarifySessionService
         session.setCreateTime(DateUtils.getNowDate());
         aiClarifySessionMapper.insertAiClarifySession(session);
         return session;
+    }
+
+    @Override
+    public List<AiClarifySession> selectAiClarifySessionList(AiClarifySession aiClarifySession)
+    {
+        return aiClarifySessionMapper.selectAiClarifySessionList(aiClarifySession);
+    }
+
+    @Override
+    public AiClarifySession selectAiClarifySessionBySessionId(Long sessionId)
+    {
+        return aiClarifySessionMapper.selectAiClarifySessionBySessionId(sessionId);
     }
 
     @Override
