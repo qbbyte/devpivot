@@ -53,4 +53,31 @@ public interface IAiArtifactVersionService
      * @return {summary:{added,removed,modified}, detail:[{path,op,oldValue,newValue}]}
      */
     Map<String, Object> diffVersions(Long fromId, Long toId);
+
+    /* ============================ 管理端（功能级鉴权，不走项目级 ProjectAccessService） ============================ */
+
+    /**
+     * 管理端版本列表：projectId 可空（全局查询），不做项目成员校验
+     */
+    List<AiArtifactVersion> selectAdminVersionList(Long projectId, String stage, String status);
+
+    /**
+     * 管理端版本详情（含快照）
+     */
+    AiArtifactVersion selectAdminVersionDetail(Long versionId);
+
+    /**
+     * 管理端发布版本（DRAFT -> RELEASED）
+     */
+    AiArtifactVersion releaseAdminVersion(Long versionId);
+
+    /**
+     * 管理端还原版本：快照写回业务表并自动生成新版本
+     */
+    AiArtifactVersion restoreAdminVersion(Long versionId);
+
+    /**
+     * 管理端删除版本
+     */
+    int deleteAdminVersion(Long versionId);
 }

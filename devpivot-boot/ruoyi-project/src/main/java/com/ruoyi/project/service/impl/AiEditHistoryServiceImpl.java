@@ -44,6 +44,17 @@ public class AiEditHistoryServiceImpl implements IAiEditHistoryService
         {
             access.assertReader(query.getProjectId());
         }
+        return doSelectHistoryList(query, startTime, endTime);
+    }
+
+    @Override
+    public List<AiEditHistory> selectAdminHistoryList(AiEditHistory query, Date startTime, Date endTime)
+    {
+        return doSelectHistoryList(query, startTime, endTime);
+    }
+
+    private List<AiEditHistory> doSelectHistoryList(AiEditHistory query, Date startTime, Date endTime)
+    {
         Map<String, Object> params = query.getParams();
         if (params == null)
         {

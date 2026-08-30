@@ -32,7 +32,7 @@ public class AiEditHistoryController extends BaseController
     public TableDataInfo list(AiEditHistory aiEditHistory)
     {
         startPage();
-        List<AiEditHistory> list = aiEditHistoryService.selectHistoryList(aiEditHistory, null, null);
+        List<AiEditHistory> list = aiEditHistoryService.selectAdminHistoryList(aiEditHistory, null, null);
         return getDataTable(list);
     }
 }

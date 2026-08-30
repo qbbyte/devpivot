@@ -32,4 +32,9 @@ public interface IAiEditHistoryService
      * 成员贡献聚合（按人：操作次数/版本操作/最近活跃）
      */
     List<Map<String, Object>> aggregateByOperator(Long projectId, Date startTime);
+
+    /**
+     * 管理端查询修改记录列表：不做项目成员校验（功能级鉴权由 Controller @PreAuthorize 兜底）
+     */
+    List<AiEditHistory> selectAdminHistoryList(AiEditHistory query, Date startTime, Date endTime);
 }

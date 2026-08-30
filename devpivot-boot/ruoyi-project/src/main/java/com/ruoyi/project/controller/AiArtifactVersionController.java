@@ -42,7 +42,7 @@ public class AiArtifactVersionController extends BaseController
                               @RequestParam(value = "status", required = false) String status)
     {
         startPage();
-        List<AiArtifactVersion> list = aiArtifactVersionService.selectVersionList(projectId, stage, status);
+        List<AiArtifactVersion> list = aiArtifactVersionService.selectAdminVersionList(projectId, stage, status);
         return getDataTable(list);
     }
 
@@ -53,7 +53,7 @@ public class AiArtifactVersionController extends BaseController
     @GetMapping(value = "/{versionId}")
     public AjaxResult getInfo(@PathVariable("versionId") Long versionId)
     {
-        return success(aiArtifactVersionService.selectVersionDetail(versionId));
+        return success(aiArtifactVersionService.selectAdminVersionDetail(versionId));
     }
 
     /**
@@ -64,7 +64,7 @@ public class AiArtifactVersionController extends BaseController
     @PutMapping("/{versionId}/release")
     public AjaxResult release(@PathVariable("versionId") Long versionId)
     {
-        return success(aiArtifactVersionService.releaseVersion(versionId));
+        return success(aiArtifactVersionService.releaseAdminVersion(versionId));
     }
 
     /**
@@ -75,7 +75,7 @@ public class AiArtifactVersionController extends BaseController
     @PutMapping("/{versionId}/restore")
     public AjaxResult restore(@PathVariable("versionId") Long versionId)
     {
-        return success(aiArtifactVersionService.restoreVersion(versionId));
+        return success(aiArtifactVersionService.restoreAdminVersion(versionId));
     }
 
     /**
@@ -86,6 +86,6 @@ public class AiArtifactVersionController extends BaseController
 	@DeleteMapping("/{versionId}")
     public AjaxResult remove(@PathVariable Long versionId)
     {
-        return toAjax(aiArtifactVersionService.deleteVersion(versionId));
+        return toAjax(aiArtifactVersionService.deleteAdminVersion(versionId));
     }
 }

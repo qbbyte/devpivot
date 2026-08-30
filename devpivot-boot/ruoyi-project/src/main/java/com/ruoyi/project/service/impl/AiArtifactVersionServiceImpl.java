@@ -66,6 +66,7 @@ public class AiArtifactVersionServiceImpl implements IAiArtifactVersionService
     @Transactional
     public AiArtifactVersion saveVersion(Long projectId, Map<String, Object> body)
     {
+        access.assertWriter(projectId);
         return createVersion(projectId, body, true);
     }
 
@@ -75,14 +76,7 @@ public class AiArtifactVersionServiceImpl implements IAiArtifactVersionService
     {
         AiArtifactVersion v = requireVersion(versionId);
         access.assertWriter(v.getProjectId());
-        if (STATUS_RELEASED.equals(v.getStatus()))
-        {
-            return v;
-        }
-        versionMapper.updateStatus(versionId, STATUS_RELEASED, SecurityUtils.getUsername(), DateUtils.getNowDate());
-        v.setStatus(STATUS_RELEASED);
-        recorder.recordVersion(v, "RELEASE", "发布了版本 " + v.getVersionNo());
-        return v;
+        return doRelease(v);
     }
 
     @Override
@@ -91,23 +85,7 @@ public class AiArtifactVersionServiceImpl implements IAiArtifactVersionService
     {
         AiArtifactVersion src = requireVersion(versionId);
         access.assertWriter(src.getProjectId());
-        if (!STATUS_RELEASED.equals(src.getStatus()))
-        {
-            throw new ServiceException("仅正式版本可还原");
-        }
-        writeBackToBiz(src);
-        // 还原自动生成新版本（版本链）：跳过判重，还原动作本身即有效建档
-        Map<String, Object> cmd = new HashMap<>(6);
-        cmd.put("stage", src.getStage());
-        cmd.put("artifactType", src.getArtifactType());
-        cmd.put("versionName", "还原自 " + src.getVersionNo());
-        cmd.put("snapshot", src.getSnapshot());
-        cmd.put("sourceType", "RESTORE");
-        cmd.put("sourceModel", src.getSourceModel());
-        cmd.put("parentVersionId", src.getVersionId());
-        AiArtifactVersion next = createVersion(src.getProjectId(), cmd, false);
-        recorder.recordVersion(next, "RESTORE", "将 " + src.getVersionNo() + " 还原为 " + next.getVersionNo());
-        return next;
+        return doRestore(src);
     }
 
     @Override
@@ -116,8 +94,46 @@ public class AiArtifactVersionServiceImpl implements IAiArtifactVersionService
     {
         AiArtifactVersion v = requireVersion(versionId);
         access.assertManager(v.getProjectId());
-        recorder.recordVersion(v, "DELETE", "删除了版本 " + v.getVersionNo());
-        return versionMapper.deleteAiArtifactVersionByVersionId(versionId);
+        return doDelete(v);
+    }
+
+    /* ============================ 管理端（功能级鉴权，由 Controller @PreAuthorize 兜底） ============================ */
+
+    @Override
+    public List<AiArtifactVersion> selectAdminVersionList(Long projectId, String stage, String status)
+    {
+        AiArtifactVersion query = new AiArtifactVersion();
+        query.setProjectId(projectId);
+        query.setStage(stage);
+        query.setStatus(status);
+        return versionMapper.selectAiArtifactVersionList(query);
+    }
+
+    @Override
+    public AiArtifactVersion selectAdminVersionDetail(Long versionId)
+    {
+        return requireVersion(versionId);
+    }
+
+    @Override
+    @Transactional
+    public AiArtifactVersion releaseAdminVersion(Long versionId)
+    {
+        return doRelease(requireVersion(versionId));
+    }
+
+    @Override
+    @Transactional
+    public AiArtifactVersion restoreAdminVersion(Long versionId)
+    {
+        return doRestore(requireVersion(versionId));
+    }
+
+    @Override
+    @Transactional
+    public int deleteAdminVersion(Long versionId)
+    {
+        return doDelete(requireVersion(versionId));
     }
 
     /* ============================ 查询 ============================ */
@@ -152,14 +168,57 @@ public class AiArtifactVersionServiceImpl implements IAiArtifactVersionService
 
     /* ============================ 内部方法 ============================ */
 
+    /** 发布版本（门户端/管理端共用，调用方自行完成鉴权） */
+    private AiArtifactVersion doRelease(AiArtifactVersion v)
+    {
+        if (STATUS_RELEASED.equals(v.getStatus()))
+        {
+            return v;
+        }
+        versionMapper.updateStatus(v.getVersionId(), STATUS_RELEASED, SecurityUtils.getUsername(), DateUtils.getNowDate());
+        v.setStatus(STATUS_RELEASED);
+        recorder.recordVersion(v, "RELEASE", "发布了版本 " + v.getVersionNo());
+        return v;
+    }
+
+    /** 还原版本（门户端/管理端共用，调用方自行完成鉴权） */
+    private AiArtifactVersion doRestore(AiArtifactVersion src)
+    {
+        if (!STATUS_RELEASED.equals(src.getStatus()))
+        {
+            throw new ServiceException("仅正式版本可还原");
+        }
+        writeBackToBiz(src);
+        // 还原自动生成新版本（版本链）：跳过判重，还原动作本身即有效建档
+        Map<String, Object> cmd = new HashMap<>(6);
+        cmd.put("stage", src.getStage());
+        cmd.put("artifactType", src.getArtifactType());
+        cmd.put("versionName", "还原自 " + src.getVersionNo());
+        cmd.put("snapshot", src.getSnapshot());
+        cmd.put("sourceType", "RESTORE");
+        cmd.put("sourceModel", src.getSourceModel());
+        cmd.put("parentVersionId", src.getVersionId());
+        AiArtifactVersion next = createVersion(src.getProjectId(), cmd, false);
+        recorder.recordVersion(next, "RESTORE", "将 " + src.getVersionNo() + " 还原为 " + next.getVersionNo());
+        return next;
+    }
+
+    /** 删除版本（门户端/管理端共用，调用方自行完成鉴权） */
+    private int doDelete(AiArtifactVersion v)
+    {
+        recorder.recordVersion(v, "DELETE", "删除了版本 " + v.getVersionNo());
+        return versionMapper.deleteAiArtifactVersionByVersionId(v.getVersionId());
+    }
+
     /**
      * 版本建档（保存/还原共用）
+     * <p>
+     * 注：项目级鉴权由入口方法（saveVersion）收口，此处不再重复校验
      *
      * @param dedupe 是否与最近 RELEASED 快照判重（保存=true，还原=false）
      */
     private AiArtifactVersion createVersion(Long projectId, Map<String, Object> body, boolean dedupe)
     {
-        access.assertWriter(projectId);
         String stage = str(body.get("stage"));
         String snapshot = str(body.get("snapshot"));
         if (stage == null || stage.isEmpty())
