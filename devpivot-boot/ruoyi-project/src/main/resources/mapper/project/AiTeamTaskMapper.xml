@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.project.mapper.AiTeamTaskMapper">
+
+    <resultMap id="AiTeamTaskResult" type="com.ruoyi.project.domain.AiTeamTask">
+        <result property="id" column="id"/>
+        <result property="teamId" column="team_id"/>
+        <result property="projectId" column="project_id"/>
+        <result property="stage" column="stage"/>
+        <result property="title" column="title"/>
+        <result property="description" column="description"/>
+        <result property="assigneeId" column="assignee_id"/>
+        <result property="priority" column="priority"/>
+        <result property="status" column="status"/>
+        <result property="dueAt" column="due_at"/>
+        <result property="assigneeName" column="assignee_name"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        t.id, t.team_id, t.project_id, t.stage, t.title, t.description,
+        t.assignee_id, t.priority, t.status, t.due_at, t.create_by, t.create_time,
+        t.update_by, t.update_time, t.remark, su.nick_name AS assignee_name
+    </sql>
+
+    <select id="selectTaskList" resultMap="AiTeamTaskResult">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM ai_team_task t
+        LEFT JOIN sys_user su ON t.assignee_id = su.user_id
+        WHERE t.team_id = #{teamId}
+        <if test="stage != null and stage != ''">
+            AND t.stage = #{stage}
+        </if>
+        <if test="status != null and status != ''">
+            AND t.status = #{status}
+        </if>
+        <if test="assigneeId != null">
+            AND t.assignee_id = #{assigneeId}
+        </if>
+        ORDER BY t.status ASC, t.due_at ASC, t.id DESC
+    </select>
+
+    <select id="selectTaskById" resultMap="AiTeamTaskResult">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM ai_team_task t
+        LEFT JOIN sys_user su ON t.assignee_id = su.user_id
+        WHERE t.id = #{id}
+    </select>
+
+    <insert id="insertTask" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO ai_team_task
+        (team_id, project_id, stage, title, description, assignee_id, priority, status, due_at,
+         create_by, create_time, update_by, update_time, remark)
+        VALUES
+        (#{teamId}, #{projectId}, #{stage}, #{title}, #{description}, #{assigneeId}, #{priority}, #{status}, #{dueAt},
+         #{createBy}, #{createTime}, #{updateBy}, #{updateTime}, #{remark})
+    </insert>
+
+    <update id="updateTask">
+        UPDATE ai_team_task
+        <set>
+            <if test="projectId != null">project_id = #{projectId},</if>
+            <if test="stage != null">stage = #{stage},</if>
+            <if test="title != null">title = #{title},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="assigneeId != null">assignee_id = #{assigneeId},</if>
+            <if test="priority != null">priority = #{priority},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="dueAt != null">due_at = #{dueAt},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_by = #{updateBy},
+            update_time = #{updateTime}
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteTask">
+        DELETE FROM ai_team_task WHERE id = #{id}
+    </delete>
+</mapper>
