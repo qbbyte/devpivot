@@ -97,24 +97,6 @@
             </div>
           </div>
 
-          <div class="aside-block">
-            <h3 class="aside-title">快捷入口</h3>
-            <div class="quick-list">
-              <button class="quick-item" @click="goCreate">
-                <span class="quick-icon qi-primary"><el-icon><Plus /></el-icon></span>
-                <span class="quick-text"><strong>新建项目</strong><em>开启新一轮 AI 需求设计</em></span>
-              </button>
-              <button class="quick-item" @click="router.push('/portal/team')">
-                <span class="quick-icon qi-indigo"><el-icon><User /></el-icon></span>
-                <span class="quick-text"><strong>我的团队</strong><em>成员协作与 Git 仓库统计</em></span>
-              </button>
-              <button v-hasRole="['admin']" class="quick-item" @click="router.push('/index')">
-                <span class="quick-icon qi-neutral"><el-icon><Setting /></el-icon></span>
-                <span class="quick-text"><strong>管理后台</strong><em>系统配置与全局模型设置</em></span>
-              </button>
-            </div>
-          </div>
-
           <div v-if="recentProjects.length" class="aside-block">
             <h3 class="aside-title">最近更新</h3>
             <div class="recent-list">
@@ -145,7 +127,7 @@
 <script setup name="Portal">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Loading, CircleCheck, FolderOpened, Plus, User, Setting, ArrowDown } from '@element-plus/icons-vue'
+import { Search, Loading, CircleCheck, FolderOpened, Plus, ArrowDown } from '@element-plus/icons-vue'
 import { listMyProject } from '@/api/ai/project'
 import { useDict } from '@/utils/dict'
 import useUserStore from '@/store/modules/user'
@@ -312,8 +294,8 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 28px;
-  padding: 30px 34px;
+  margin-bottom: 18px;
+  padding: 26px 30px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--c-border);
   background: linear-gradient(120deg, var(--c-primary-bg) 0%, var(--c-bg) 45%, #eff6ff 100%);
@@ -393,7 +375,7 @@ onMounted(() => {
 .portal-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 20px;
+  gap: 16px;
   align-items: start;
 }
 .portal-main-col {
@@ -469,61 +451,6 @@ onMounted(() => {
   font-size: 12px;
   color: var(--c-text-muted);
   margin-top: 1px;
-}
-
-/* 快捷入口 */
-.quick-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.quick-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-  border: 1px solid var(--c-border-light);
-  background: var(--c-surface);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease;
-}
-.quick-item:hover {
-  border-color: var(--c-primary-light);
-  background: var(--c-primary-bg);
-}
-.quick-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.qi-primary { background: var(--c-primary-bg); color: var(--c-primary); }
-.qi-indigo { background: #e8f4ff; color: #0284c7; }
-.qi-neutral { background: #f1f5f9; color: var(--c-text-muted); }
-.quick-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.quick-text strong {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--c-text);
-}
-.quick-text em {
-  font-style: normal;
-  font-size: 11px;
-  color: var(--c-text-subtle);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* 最近更新 */

@@ -291,6 +291,18 @@
               </div>
             </div>
           </el-tab-pane>
+          <!-- 任务 -->
+          <el-tab-pane label="任务" name="tasks">
+            <div class="tab-pane-inner">
+              <TaskBoard
+                v-if="activeTeam"
+                :team-id="activeTeam.teamId"
+                :members="activeTeam.members || []"
+                :current-user-id="currentUserId"
+                :my-role="activeTeam.myRole || 'MEMBER'"
+              />
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </section>
 
@@ -560,6 +572,7 @@ import { getProtoPages } from '@/api/ai/proto'
 import { protoToHtml } from '@/utils/protoHtml'
 import { listTeamProjectRepos } from '@/api/ai/teamGit'
 import { subscribeTeam, unsubscribeTeam, disconnectWs, setOnReconnect } from '@/api/ai/teamWs'
+import TaskBoard from './components/TaskBoard.vue'
 
 const router = useRouter()
 const userStore = useUserStore()

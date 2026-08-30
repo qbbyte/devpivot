@@ -179,6 +179,67 @@ export function getProjectPhases(projectId) {
   })
 }
 
+// ===== 团队任务分配 =====
+// 团队任务列表(支持 stage/status/assigneeId 过滤)
+export function listTeamTasks(teamId, params) {
+  return request({
+    url: '/team/' + teamId + '/task',
+    method: 'get',
+    params: params
+  })
+}
+
+// 创建任务(仅 OWNER/ADMIN)
+export function createTeamTask(teamId, data) {
+  return request({
+    url: '/team/' + teamId + '/task',
+    method: 'post',
+    data: data
+  })
+}
+
+// 编辑任务 / 改派
+export function updateTeamTask(teamId, id, data) {
+  return request({
+    url: '/team/' + teamId + '/task/' + id,
+    method: 'put',
+    data: data
+  })
+}
+
+// 认领任务
+export function claimTeamTask(teamId, id) {
+  return request({
+    url: '/team/' + teamId + '/task/' + id + '/claim',
+    method: 'post'
+  })
+}
+
+// 提交复核
+export function submitTeamTask(teamId, id) {
+  return request({
+    url: '/team/' + teamId + '/task/' + id + '/submit',
+    method: 'post'
+  })
+}
+
+// 复核通过/打回(approved 布尔)
+export function reviewTeamTask(teamId, id, approved) {
+  return request({
+    url: '/team/' + teamId + '/task/' + id + '/review',
+    method: 'post',
+    params: { approved }
+  })
+}
+
+// 删除任务(仅 OWNER/ADMIN)
+export function deleteTeamTask(teamId, id) {
+  return request({
+    url: '/team/' + teamId + '/task/' + id,
+    method: 'delete'
+  })
+}
+
 // 项目产物概览(聚合各阶段产物文本)，「产物」按钮弹窗展示/下载用
 export function getProjectArtifacts(projectId) {
   return request({

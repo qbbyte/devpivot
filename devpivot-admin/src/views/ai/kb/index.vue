@@ -422,3 +422,11 @@ function handleClearLogs() {
 
 getList()
 </script>
+
+<style scoped>
+/* 知识库页面去掉左右留白，上下保留 */
+.app-container {
+  padding-left: 0;
+  padding-right: 0;
+}
+</style>
