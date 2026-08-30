@@ -9,8 +9,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="场景类型(CLARIFY/PRD/TECH/DB/CHECK/POLISH)" prop="sceneType">
-        <el-select v-model="queryParams.sceneType" placeholder="请选择场景类型(CLARIFY/PRD/TECH/DB/CHECK/POLISH)" clearable>
+      <el-form-item label="场景类型" prop="sceneType">
+        <el-select v-model="queryParams.sceneType" placeholder="请选择场景类型" clearable>
           <el-option
             v-for="dict in ai_scene_type"
             :key="dict.value"
@@ -27,8 +27,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="是否默认(Y/N)" prop="isDefault">
-        <el-select v-model="queryParams.isDefault" placeholder="请选择是否默认(Y/N)" clearable>
+      <el-form-item label="是否默认" prop="isDefault">
+        <el-select v-model="queryParams.isDefault" placeholder="请选择是否默认" clearable>
           <el-option
             v-for="dict in sys_yes_no"
             :key="dict.value"
@@ -37,8 +37,8 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="是否启用(0启用 1停用)" prop="isEnabled">
-        <el-select v-model="queryParams.isEnabled" placeholder="请选择是否启用(0启用 1停用)" clearable>
+      <el-form-item label="是否启用" prop="isEnabled">
+        <el-select v-model="queryParams.isEnabled" placeholder="请选择是否启用" clearable>
           <el-option
             v-for="dict in sys_normal_disable"
             :key="dict.value"
@@ -116,7 +116,7 @@
       <el-table-column label="模板名称" align="center" prop="templateName" width="160" />
       <el-table-column label="系统提示词(template_content)" align="left" prop="templateContent" show-overflow-tooltip />
       <el-table-column label="用户提示词(user_template)" align="left" prop="userTemplate" show-overflow-tooltip />
-      <el-table-column label="多模型差异化(JSON)" align="center" prop="modelSpecific" width="140" show-overflow-tooltip />
+      <el-table-column label="多模型差异化" align="center" prop="modelSpecific" width="140" show-overflow-tooltip />
       <el-table-column label="默认" align="center" prop="isDefault" width="70">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.isDefault"/>
@@ -191,12 +191,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="是否默认(Y/N)" prop="isDefault">
+            <el-form-item label="是否默认" prop="isDefault">
               <el-radio-group v-model="form.isDefault">
                 <el-radio
                   v-for="dict in sys_yes_no"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -207,7 +207,7 @@
                 <el-radio
                   v-for="dict in sys_normal_disable"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -357,6 +357,8 @@ function getList() {
   listTemplate(queryParams.value).then(response => {
     templateList.value = response.rows
     total.value = response.total
+    loading.value = false
+  }).catch(() => {
     loading.value = false
   })
 }

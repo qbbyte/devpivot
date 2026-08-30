@@ -17,8 +17,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="技术栈倾向(JAVA/PYTHON)" prop="techStack">
-        <el-select v-model="queryParams.techStack" placeholder="请选择技术栈倾向(JAVA/PYTHON)" clearable>
+      <el-form-item label="技术栈" prop="techStack">
+        <el-select v-model="queryParams.techStack" placeholder="请选择技术栈倾向" clearable style="width: 160px">
           <el-option
             v-for="dict in ai_tech_stack"
             :key="dict.value"
@@ -27,8 +27,8 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态(0草稿 1已确认)" prop="status">
-        <el-select v-model="queryParams.status" placeholder="请选择状态(0草稿 1已确认)" clearable>
+      <el-form-item label="状态" prop="status">
+        <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 160px">
           <el-option
             v-for="dict in ai_doc_status"
             :key="dict.value"
@@ -95,26 +95,24 @@
 
     <el-table v-loading="loading" :data="techdocList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="文档ID" align="center" prop="docId" />
-      <el-table-column label="项目ID" align="center" prop="projectId" />
-      <el-table-column label="文档标题" align="center" prop="docName" />
-      <el-table-column label="技术栈倾向(JAVA/PYTHON)" align="center" prop="techStack">
+      <el-table-column label="文档ID" align="center" prop="docId" width="80" />
+      <el-table-column label="项目ID" align="center" prop="projectId" width="80" />
+      <el-table-column label="文档标题" align="left" prop="docName" show-overflow-tooltip />
+      <el-table-column label="技术栈" align="center" prop="techStack" width="90">
         <template #default="scope">
           <dict-tag :options="ai_tech_stack" :value="scope.row.techStack"/>
         </template>
       </el-table-column>
-      <el-table-column label="文档内容(Markdown)" align="center" prop="content" />
-      <el-table-column label="多模型对比差异结果(JSON)" align="center" prop="diffResult" />
-      <el-table-column label="各模型生成结果及融合来源(JSON)" align="center" prop="multiSource" />
-      <el-table-column label="状态(0草稿 1已确认)" align="center" prop="status">
+      <el-table-column label="状态" align="center" prop="status" width="90">
         <template #default="scope">
           <dict-tag :options="ai_doc_status" :value="scope.row.status"/>
         </template>
       </el-table-column>
-      <el-table-column label="生成模型" align="center" prop="sourceModel" />
-      <el-table-column label="备注" align="center" prop="remark" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+      <el-table-column label="生成模型" align="center" prop="sourceModel" width="140" show-overflow-tooltip />
+      <el-table-column label="创建时间" align="center" prop="createTime" width="160" />
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="200">
         <template #default="scope">
+          <el-button link type="primary" icon="View" @click="handleView(scope.row)" v-hasPermi="['system:techdoc:query']">查看</el-button>
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:techdoc:edit']">修改</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:techdoc:remove']">删除</el-button>
         </template>
@@ -130,22 +128,17 @@
     />
 
     <!-- 添加或修改技术方案文档对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog :title="title" v-model="open" width="780px" append-to-body>
       <el-form ref="techdocRef" :model="form" :rules="rules" label-width="100px">
         <el-row>
-          <el-col :span="24">
+          <el-col :span="12">
             <el-form-item label="项目ID" prop="projectId">
               <el-input v-model="form.projectId" placeholder="请输入项目ID" />
             </el-form-item>
           </el-col>
-          <el-col :span="24">
-            <el-form-item label="文档标题" prop="docName">
-              <el-input v-model="form.docName" placeholder="请输入文档标题" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="技术栈倾向(JAVA/PYTHON)" prop="techStack">
-              <el-select v-model="form.techStack" placeholder="请选择技术栈倾向(JAVA/PYTHON)">
+          <el-col :span="12">
+            <el-form-item label="技术栈" prop="techStack">
+              <el-select v-model="form.techStack" placeholder="请选择技术栈倾向" style="width: 100%">
                 <el-option
                   v-for="dict in ai_tech_stack"
                   :key="dict.value"
@@ -156,32 +149,27 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="文档内容(Markdown)">
+            <el-form-item label="文档标题" prop="docName">
+              <el-input v-model="form.docName" placeholder="请输入文档标题" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="文档内容">
               <editor v-model="form.content" :min-height="192"/>
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="多模型对比差异结果(JSON)" prop="diffResult">
-              <el-input v-model="form.diffResult" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="各模型生成结果及融合来源(JSON)" prop="multiSource">
-              <el-input v-model="form.multiSource" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="状态(0草稿 1已确认)" prop="status">
+            <el-form-item label="状态" prop="status">
               <el-radio-group v-model="form.status">
                 <el-radio
                   v-for="dict in ai_doc_status"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
-          <el-col :span="24">
+          <el-col :span="12">
             <el-form-item label="生成模型" prop="sourceModel">
               <el-input v-model="form.sourceModel" placeholder="请输入生成模型" />
             </el-form-item>
@@ -200,6 +188,27 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 查看文档详情对话框 -->
+    <el-dialog title="技术方案文档详情" v-model="viewOpen" width="860px" append-to-body>
+      <div class="view-meta">
+        <span>文档ID：{{ viewForm.docId }}</span>
+        <span>项目ID：{{ viewForm.projectId }}</span>
+        <span>生成模型：{{ viewForm.sourceModel || '-' }}</span>
+        <span>创建时间：{{ viewForm.createTime }}</span>
+      </div>
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="文档内容" name="content">
+          <el-input v-model="viewForm.content" type="textarea" :rows="16" readonly />
+        </el-tab-pane>
+        <el-tab-pane label="模型对比差异" name="diff">
+          <el-input v-model="prettyDiff" type="textarea" :rows="16" readonly placeholder="暂无对比差异数据" />
+        </el-tab-pane>
+        <el-tab-pane label="融合来源" name="source">
+          <el-input v-model="prettyMulti" type="textarea" :rows="16" readonly placeholder="暂无融合来源数据" />
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
   </div>
 </template>
 
@@ -211,6 +220,7 @@ const { ai_tech_stack, ai_doc_status } = useDict('ai_tech_stack', 'ai_doc_status
 
 const techdocList = ref([])
 const open = ref(false)
+const viewOpen = ref(false)
 const loading = ref(true)
 const showSearch = ref(true)
 const ids = ref([])
@@ -218,6 +228,8 @@ const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
+const viewForm = ref({})
+const activeTab = ref("content")
 
 const data = reactive({
   form: {},
@@ -227,9 +239,6 @@ const data = reactive({
     projectId: undefined,
     docName: undefined,
     techStack: undefined,
-    content: undefined,
-    diffResult: undefined,
-    multiSource: undefined,
     status: undefined,
     sourceModel: undefined,
   },
@@ -242,12 +251,27 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data)
 
+/** JSON 美化展示（非 JSON 原样返回） */
+function prettyJson(text) {
+  if (!text) return ''
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch (e) {
+    return text
+  }
+}
+
+const prettyDiff = computed(() => prettyJson(viewForm.value.diffResult))
+const prettyMulti = computed(() => prettyJson(viewForm.value.multiSource))
+
 /** 查询技术方案文档列表 */
 function getList() {
   loading.value = true
   listTechdoc(queryParams.value).then(response => {
     techdocList.value = response.rows
     total.value = response.total
+    loading.value = false
+  }).catch(() => {
     loading.value = false
   })
 }
@@ -316,6 +340,15 @@ function handleUpdate(row) {
   })
 }
 
+/** 查看详情按钮操作 */
+function handleView(row) {
+  getTechdoc(row.docId).then(response => {
+    viewForm.value = response.data
+    activeTab.value = "content"
+    viewOpen.value = true
+  })
+}
+
 /** 提交按钮 */
 function submitForm() {
   proxy.$refs["techdocRef"].validate(valid => {
@@ -357,3 +390,14 @@ function handleExport() {
 
 getList()
 </script>
+
+<style lang="scss" scoped>
+.view-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #909399;
+}
+</style>

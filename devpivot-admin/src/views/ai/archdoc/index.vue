@@ -224,6 +224,8 @@ function getList() {
     archdocList.value = response.rows
     total.value = response.total
     loading.value = false
+  }).catch(() => {
+    loading.value = false
   })
 }
 

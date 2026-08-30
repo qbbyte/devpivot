@@ -43,8 +43,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="是否为空(Y/N)" prop="nullable">
-        <el-select v-model="queryParams.nullable" placeholder="请选择是否为空(Y/N)" clearable>
+      <el-form-item label="是否为空" prop="nullable">
+        <el-select v-model="queryParams.nullable" placeholder="请选择是否为空" clearable>
           <el-option
             v-for="dict in sys_yes_no"
             :key="dict.value"
@@ -61,8 +61,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="是否主键(Y/N)" prop="isPk">
-        <el-select v-model="queryParams.isPk" placeholder="请选择是否主键(Y/N)" clearable>
+      <el-form-item label="是否主键" prop="isPk">
+        <el-select v-model="queryParams.isPk" placeholder="请选择是否主键" clearable>
           <el-option
             v-for="dict in sys_yes_no"
             :key="dict.value"
@@ -87,8 +87,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="是否唯一约束(Y/N)" prop="isUnique">
-        <el-select v-model="queryParams.isUnique" placeholder="请选择是否唯一约束(Y/N)" clearable>
+      <el-form-item label="是否唯一约束" prop="isUnique">
+        <el-select v-model="queryParams.isUnique" placeholder="请选择是否唯一约束" clearable>
           <el-option
             v-for="dict in sys_yes_no"
             :key="dict.value"
@@ -97,8 +97,8 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="索引类型(NORMAL普通/UNIQUE唯一/UNION联合)" prop="indexType">
-        <el-select v-model="queryParams.indexType" placeholder="请选择索引类型(NORMAL普通/UNIQUE唯一/UNION联合)" clearable>
+      <el-form-item label="索引类型" prop="indexType">
+        <el-select v-model="queryParams.indexType" placeholder="请选择索引类型" clearable>
           <el-option
             v-for="dict in ai_index_type"
             :key="dict.value"
@@ -175,25 +175,25 @@
         </template>
       </el-table-column>
       <el-table-column label="长度" align="center" prop="columnLength" />
-      <el-table-column label="是否为空(Y/N)" align="center" prop="nullable">
+      <el-table-column label="是否为空" align="center" prop="nullable">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.nullable"/>
         </template>
       </el-table-column>
       <el-table-column label="默认值" align="center" prop="defaultValue" />
-      <el-table-column label="是否主键(Y/N)" align="center" prop="isPk">
+      <el-table-column label="是否主键" align="center" prop="isPk">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.isPk"/>
         </template>
       </el-table-column>
       <el-table-column label="外键关联表" align="center" prop="fkTable" />
       <el-table-column label="外键关联字段" align="center" prop="fkColumn" />
-      <el-table-column label="是否唯一约束(Y/N)" align="center" prop="isUnique">
+      <el-table-column label="是否唯一约束" align="center" prop="isUnique">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.isUnique"/>
         </template>
       </el-table-column>
-      <el-table-column label="索引类型(NORMAL普通/UNIQUE唯一/UNION联合)" align="center" prop="indexType">
+      <el-table-column label="索引类型" align="center" prop="indexType">
         <template #default="scope">
           <dict-tag :options="ai_index_type" :value="scope.row.indexType"/>
         </template>
@@ -253,12 +253,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="是否为空(Y/N)" prop="nullable">
+            <el-form-item label="是否为空" prop="nullable">
               <el-radio-group v-model="form.nullable">
                 <el-radio
                   v-for="dict in sys_yes_no"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -269,12 +269,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="是否主键(Y/N)" prop="isPk">
+            <el-form-item label="是否主键" prop="isPk">
               <el-radio-group v-model="form.isPk">
                 <el-radio
                   v-for="dict in sys_yes_no"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -290,19 +290,19 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="是否唯一约束(Y/N)" prop="isUnique">
+            <el-form-item label="是否唯一约束" prop="isUnique">
               <el-radio-group v-model="form.isUnique">
                 <el-radio
                   v-for="dict in sys_yes_no"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="索引类型(NORMAL普通/UNIQUE唯一/UNION联合)" prop="indexType">
-              <el-select v-model="form.indexType" placeholder="请选择索引类型(NORMAL普通/UNIQUE唯一/UNION联合)">
+            <el-form-item label="索引类型" prop="indexType">
+              <el-select v-model="form.indexType" placeholder="请选择索引类型">
                 <el-option
                   v-for="dict in ai_index_type"
                   :key="dict.value"
@@ -387,6 +387,8 @@ function getList() {
   listColumn(queryParams.value).then(response => {
     columnList.value = response.rows
     total.value = response.total
+    loading.value = false
+  }).catch(() => {
     loading.value = false
   })
 }

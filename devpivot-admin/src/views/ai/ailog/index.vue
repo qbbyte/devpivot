@@ -9,10 +9,10 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="并行任务ID(单模型为空)" prop="taskId">
+      <el-form-item label="并行任务ID" prop="taskId">
         <el-input
           v-model="queryParams.taskId"
-          placeholder="请输入并行任务ID(单模型为空)"
+          placeholder="请输入并行任务ID"
           clearable
           @keyup.enter="handleQuery"
         />
@@ -59,8 +59,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="是否命中缓存(Y/N)" prop="cacheHit">
-        <el-select v-model="queryParams.cacheHit" placeholder="请选择是否命中缓存(Y/N)" clearable>
+      <el-form-item label="命中缓存" prop="cacheHit">
+        <el-select v-model="queryParams.cacheHit" placeholder="请选择命中缓存" clearable>
           <el-option
             v-for="dict in sys_yes_no"
             :key="dict.value"
@@ -69,8 +69,8 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="状态(0成功 1失败 2超时 3降级)" prop="status">
-        <el-select v-model="queryParams.status" placeholder="请选择状态(0成功 1失败 2超时 3降级)" clearable>
+      <el-form-item label="状态" prop="status">
+        <el-select v-model="queryParams.status" placeholder="请选择状态" clearable>
           <el-option
             v-for="dict in ai_call_status"
             :key="dict.value"
@@ -155,7 +155,7 @@
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="日志ID" align="center" prop="logId" />
       <el-table-column label="项目ID" align="center" prop="projectId" />
-      <el-table-column label="并行任务ID(单模型为空)" align="center" prop="taskId" />
+      <el-table-column label="并行任务ID" align="center" prop="taskId" />
       <el-table-column label="场景类型" align="center" prop="taskType">
         <template #default="scope">
           <dict-tag :options="ai_scene_type" :value="scope.row.taskType"/>
@@ -165,12 +165,12 @@
       <el-table-column label="输入token" align="center" prop="reqTokens" />
       <el-table-column label="输出token" align="center" prop="respTokens" />
       <el-table-column label="费用" align="center" prop="cost" />
-      <el-table-column label="是否命中缓存(Y/N)" align="center" prop="cacheHit">
+      <el-table-column label="命中缓存" align="center" prop="cacheHit">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.cacheHit"/>
         </template>
       </el-table-column>
-      <el-table-column label="状态(0成功 1失败 2超时 3降级)" align="center" prop="status">
+      <el-table-column label="状态" align="center" prop="status">
         <template #default="scope">
           <dict-tag :options="ai_call_status" :value="scope.row.status"/>
         </template>
@@ -214,8 +214,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="并行任务ID(单模型为空)" prop="taskId">
-              <el-input v-model="form.taskId" placeholder="请输入并行任务ID(单模型为空)" />
+            <el-form-item label="并行任务ID" prop="taskId">
+              <el-input v-model="form.taskId" placeholder="请输入并行任务ID" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -251,23 +251,23 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="是否命中缓存(Y/N)" prop="cacheHit">
+            <el-form-item label="命中缓存" prop="cacheHit">
               <el-radio-group v-model="form.cacheHit">
                 <el-radio
                   v-for="dict in sys_yes_no"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="状态(0成功 1失败 2超时 3降级)" prop="status">
+            <el-form-item label="状态" prop="status">
               <el-radio-group v-model="form.status">
                 <el-radio
                   v-for="dict in ai_call_status"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -366,6 +366,8 @@ function getList() {
   listAilog(queryParams.value).then(response => {
     ailogList.value = response.rows
     total.value = response.total
+    loading.value = false
+  }).catch(() => {
     loading.value = false
   })
 }

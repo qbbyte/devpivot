@@ -9,8 +9,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="组件类型(LAYOUT布局/NAV导航/FORM表单/VIEW展示/BASE基础)" prop="compType">
-        <el-select v-model="queryParams.compType" placeholder="请选择组件类型(LAYOUT布局/NAV导航/FORM表单/VIEW展示/BASE基础)" clearable>
+      <el-form-item label="组件类型" prop="compType">
+        <el-select v-model="queryParams.compType" placeholder="请选择组件类型" clearable>
           <el-option
             v-for="dict in ai_comp_type"
             :key="dict.value"
@@ -35,8 +35,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="字段类型(STRING/NUMBER/DATE/.../JSON)" prop="fieldType">
-        <el-select v-model="queryParams.fieldType" placeholder="请选择字段类型(STRING/NUMBER/DATE/.../JSON)" clearable>
+      <el-form-item label="字段类型" prop="fieldType">
+        <el-select v-model="queryParams.fieldType" placeholder="请选择字段类型" clearable>
           <el-option
             v-for="dict in ai_field_type"
             :key="dict.value"
@@ -45,8 +45,8 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="是否必填(Y/N)" prop="required">
-        <el-select v-model="queryParams.required" placeholder="请选择是否必填(Y/N)" clearable>
+      <el-form-item label="是否必填" prop="required">
+        <el-select v-model="queryParams.required" placeholder="请选择是否必填" clearable>
           <el-option
             v-for="dict in sys_yes_no"
             :key="dict.value"
@@ -63,18 +63,18 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="栅格宽度占比(1-12)" prop="widthSpan">
+      <el-form-item label="栅格宽度" prop="widthSpan">
         <el-input
           v-model="queryParams.widthSpan"
-          placeholder="请输入栅格宽度占比(1-12)"
+          placeholder="请输入栅格宽度"
           clearable
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="父组件ID(支持嵌套)" prop="parentId">
+      <el-form-item label="父组件ID" prop="parentId">
         <el-input
           v-model="queryParams.parentId"
-          placeholder="请输入父组件ID(支持嵌套)"
+          placeholder="请输入父组件ID"
           clearable
           @keyup.enter="handleQuery"
         />
@@ -139,29 +139,29 @@
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="组件ID" align="center" prop="compId" />
       <el-table-column label="所属页面ID" align="center" prop="pageId" />
-      <el-table-column label="组件类型(LAYOUT布局/NAV导航/FORM表单/VIEW展示/BASE基础)" align="center" prop="compType">
+      <el-table-column label="组件类型" align="center" prop="compType">
         <template #default="scope">
           <dict-tag :options="ai_comp_type" :value="scope.row.compType"/>
         </template>
       </el-table-column>
       <el-table-column label="组件显示名称" align="center" prop="compName" />
       <el-table-column label="绑定字段名" align="center" prop="fieldName" />
-      <el-table-column label="字段类型(STRING/NUMBER/DATE/.../JSON)" align="center" prop="fieldType">
+      <el-table-column label="字段类型" align="center" prop="fieldType">
         <template #default="scope">
           <dict-tag :options="ai_field_type" :value="scope.row.fieldType"/>
         </template>
       </el-table-column>
-      <el-table-column label="是否必填(Y/N)" align="center" prop="required">
+      <el-table-column label="是否必填" align="center" prop="required">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.required"/>
         </template>
       </el-table-column>
       <el-table-column label="默认值" align="center" prop="defaultValue" />
-      <el-table-column label="校验规则(JSON)" align="center" prop="validateRule" />
-      <el-table-column label="栅格宽度占比(1-12)" align="center" prop="widthSpan" />
-      <el-table-column label="业务说明" align="center" prop="bizDesc" />
-      <el-table-column label="交互说明" align="center" prop="interactDesc" />
-      <el-table-column label="父组件ID(支持嵌套)" align="center" prop="parentId" />
+      <el-table-column label="校验规则" align="center" prop="validateRule" width="120" show-overflow-tooltip />
+      <el-table-column label="栅格宽度" align="center" prop="widthSpan" />
+      <el-table-column label="业务说明" align="center" prop="bizDesc" show-overflow-tooltip />
+      <el-table-column label="交互说明" align="center" prop="interactDesc" show-overflow-tooltip />
+      <el-table-column label="父组件ID" align="center" prop="parentId" />
       <el-table-column label="排序" align="center" prop="sort" />
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
@@ -190,8 +190,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="组件类型(LAYOUT布局/NAV导航/FORM表单/VIEW展示/BASE基础)" prop="compType">
-              <el-select v-model="form.compType" placeholder="请选择组件类型(LAYOUT布局/NAV导航/FORM表单/VIEW展示/BASE基础)">
+            <el-form-item label="组件类型" prop="compType">
+              <el-select v-model="form.compType" placeholder="请选择组件类型">
                 <el-option
                   v-for="dict in ai_comp_type"
                   :key="dict.value"
@@ -212,8 +212,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="字段类型(STRING/NUMBER/DATE/.../JSON)" prop="fieldType">
-              <el-select v-model="form.fieldType" placeholder="请选择字段类型(STRING/NUMBER/DATE/.../JSON)">
+            <el-form-item label="字段类型" prop="fieldType">
+              <el-select v-model="form.fieldType" placeholder="请选择字段类型">
                 <el-option
                   v-for="dict in ai_field_type"
                   :key="dict.value"
@@ -224,12 +224,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="是否必填(Y/N)" prop="required">
+            <el-form-item label="是否必填" prop="required">
               <el-radio-group v-model="form.required">
                 <el-radio
                   v-for="dict in sys_yes_no"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -240,8 +240,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="栅格宽度占比(1-12)" prop="widthSpan">
-              <el-input v-model="form.widthSpan" placeholder="请输入栅格宽度占比(1-12)" />
+            <el-form-item label="栅格宽度" prop="widthSpan">
+              <el-input v-model="form.widthSpan" placeholder="请输入栅格宽度" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -255,8 +255,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="父组件ID(支持嵌套)" prop="parentId">
-              <el-input v-model="form.parentId" placeholder="请输入父组件ID(支持嵌套)" />
+            <el-form-item label="父组件ID" prop="parentId">
+              <el-input v-model="form.parentId" placeholder="请输入父组件ID" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -331,6 +331,8 @@ function getList() {
   listComponent(queryParams.value).then(response => {
     componentList.value = response.rows
     total.value = response.total
+    loading.value = false
+  }).catch(() => {
     loading.value = false
   })
 }

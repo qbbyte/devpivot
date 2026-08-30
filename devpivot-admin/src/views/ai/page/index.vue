@@ -25,8 +25,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="状态(0草稿 1已确认)" prop="status">
-        <el-select v-model="queryParams.status" placeholder="请选择状态(0草稿 1已确认)" clearable>
+      <el-form-item label="状态" prop="status">
+        <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 160px">
           <el-option
             v-for="dict in ai_doc_status"
             :key="dict.value"
@@ -35,10 +35,10 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="生成来源(人工/AI生成)" prop="sourceModel">
+      <el-form-item label="生成来源" prop="sourceModel">
         <el-input
           v-model="queryParams.sourceModel"
-          placeholder="请输入生成来源(人工/AI生成)"
+          placeholder="请输入生成来源"
           clearable
           @keyup.enter="handleQuery"
         />
@@ -93,26 +93,26 @@
 
     <el-table v-loading="loading" :data="pageList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="页面ID" align="center" prop="pageId" />
-      <el-table-column label="项目ID" align="center" prop="projectId" />
-      <el-table-column label="页面名称" align="center" prop="pageName" />
-      <el-table-column label="页面说明" align="center" prop="pageDesc" />
-      <el-table-column label="画布布局数据(JSON: 组件树/栅格/坐标)" align="center" prop="layout" />
-      <el-table-column label="状态(0草稿 1已确认)" align="center" prop="status">
+      <el-table-column label="页面ID" align="center" prop="pageId" width="80" />
+      <el-table-column label="项目ID" align="center" prop="projectId" width="80" />
+      <el-table-column label="页面名称" align="left" prop="pageName" show-overflow-tooltip />
+      <el-table-column label="页面说明" align="left" prop="pageDesc" show-overflow-tooltip />
+      <el-table-column label="状态" align="center" prop="status" width="90">
         <template #default="scope">
           <dict-tag :options="ai_doc_status" :value="scope.row.status"/>
         </template>
       </el-table-column>
-      <el-table-column label="生成来源(人工/AI生成)" align="center" prop="sourceModel" />
-      <el-table-column label="备注" align="center" prop="remark" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+      <el-table-column label="生成来源" align="center" prop="sourceModel" width="120" show-overflow-tooltip />
+      <el-table-column label="创建时间" align="center" prop="createTime" width="160" />
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="200">
         <template #default="scope">
+          <el-button link type="primary" icon="View" @click="handleView(scope.row)" v-hasPermi="['system:page:query']">查看</el-button>
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:page:edit']">修改</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:page:remove']">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
-    
+
     <pagination
       v-show="total>0"
       :total="total"
@@ -122,15 +122,15 @@
     />
 
     <!-- 添加或修改原型页面对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog :title="title" v-model="open" width="780px" append-to-body>
       <el-form ref="pageRef" :model="form" :rules="rules" label-width="100px">
         <el-row>
-          <el-col :span="24">
+          <el-col :span="12">
             <el-form-item label="项目ID" prop="projectId">
               <el-input v-model="form.projectId" placeholder="请输入项目ID" />
             </el-form-item>
           </el-col>
-          <el-col :span="24">
+          <el-col :span="12">
             <el-form-item label="页面名称" prop="pageName">
               <el-input v-model="form.pageName" placeholder="请输入页面名称" />
             </el-form-item>
@@ -140,25 +140,20 @@
               <el-input v-model="form.pageDesc" placeholder="请输入页面说明" />
             </el-form-item>
           </el-col>
-          <el-col :span="24">
-            <el-form-item label="画布布局数据(JSON: 组件树/栅格/坐标)" prop="layout">
-              <el-input v-model="form.layout" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="状态(0草稿 1已确认)" prop="status">
+          <el-col :span="12">
+            <el-form-item label="状态" prop="status">
               <el-radio-group v-model="form.status">
                 <el-radio
                   v-for="dict in ai_doc_status"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
-          <el-col :span="24">
-            <el-form-item label="生成来源(人工/AI生成)" prop="sourceModel">
-              <el-input v-model="form.sourceModel" placeholder="请输入生成来源(人工/AI生成)" />
+          <el-col :span="12">
+            <el-form-item label="生成来源" prop="sourceModel">
+              <el-input v-model="form.sourceModel" placeholder="请输入生成来源" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -175,6 +170,24 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 查看原型页面详情对话框 -->
+    <el-dialog title="原型页面详情" v-model="viewOpen" width="860px" append-to-body>
+      <div class="view-meta">
+        <span>页面ID：{{ viewForm.pageId }}</span>
+        <span>项目ID：{{ viewForm.projectId }}</span>
+        <span>生成来源：{{ viewForm.sourceModel || '-' }}</span>
+        <span>创建时间：{{ viewForm.createTime }}</span>
+      </div>
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="布局数据" name="layout">
+          <el-input v-model="prettyLayout" type="textarea" :rows="16" readonly placeholder="暂无布局数据" />
+        </el-tab-pane>
+        <el-tab-pane label="备注" name="remark">
+          <el-input v-model="viewForm.remark" type="textarea" :rows="16" readonly placeholder="暂无备注" />
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
   </div>
 </template>
 
@@ -186,6 +199,7 @@ const { ai_doc_status } = useDict('ai_doc_status')
 
 const pageList = ref([])
 const open = ref(false)
+const viewOpen = ref(false)
 const loading = ref(true)
 const showSearch = ref(true)
 const ids = ref([])
@@ -193,6 +207,8 @@ const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
+const viewForm = ref({})
+const activeTab = ref("layout")
 
 const data = reactive({
   form: {},
@@ -202,7 +218,6 @@ const data = reactive({
     projectId: undefined,
     pageName: undefined,
     pageDesc: undefined,
-    layout: undefined,
     status: undefined,
     sourceModel: undefined,
   },
@@ -215,12 +230,26 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data)
 
+/** JSON 美化展示（非 JSON 原样返回） */
+function prettyJson(text) {
+  if (!text) return ''
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch (e) {
+    return text
+  }
+}
+
+const prettyLayout = computed(() => prettyJson(viewForm.value.layout))
+
 /** 查询原型页面列表 */
 function getList() {
   loading.value = true
   listPage(queryParams.value).then(response => {
     pageList.value = response.rows
     total.value = response.total
+    loading.value = false
+  }).catch(() => {
     loading.value = false
   })
 }
@@ -287,6 +316,15 @@ function handleUpdate(row) {
   })
 }
 
+/** 查看详情按钮操作 */
+function handleView(row) {
+  getPage(row.pageId).then(response => {
+    viewForm.value = response.data
+    activeTab.value = "layout"
+    viewOpen.value = true
+  })
+}
+
 /** 提交按钮 */
 function submitForm() {
   proxy.$refs["pageRef"].validate(valid => {
@@ -328,3 +366,14 @@ function handleExport() {
 
 getList()
 </script>
+
+<style lang="scss" scoped>
+.view-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #909399;
+}
+</style>

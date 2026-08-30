@@ -9,16 +9,16 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="类别(ROLE角色权限/BUSINESS业务流程/DATA数据规则/BOUNDARY边界场景)" prop="category">
+      <el-form-item label="类别" prop="category">
         <el-input
           v-model="queryParams.category"
-          placeholder="请输入类别(ROLE角色权限/BUSINESS业务流程/DATA数据规则/BOUNDARY边界场景)"
+          placeholder="请输入类别"
           clearable
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="状态(0待回答 1已回答 2已跳过)" prop="status">
-        <el-select v-model="queryParams.status" placeholder="请选择状态(0待回答 1已回答 2已跳过)" clearable>
+      <el-form-item label="状态" prop="status">
+        <el-select v-model="queryParams.status" placeholder="请选择状态" clearable>
           <el-option
             v-for="dict in ai_clarify_status"
             :key="dict.value"
@@ -35,8 +35,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="多模型对比标记(0共识 1独有 2观点差异)" prop="highlightType">
-        <el-select v-model="queryParams.highlightType" placeholder="请选择多模型对比标记(0共识 1独有 2观点差异)" clearable>
+      <el-form-item label="多模型对比标记" prop="highlightType">
+        <el-select v-model="queryParams.highlightType" placeholder="请选择多模型对比标记" clearable>
           <el-option
             v-for="dict in ai_highlight_type"
             :key="dict.value"
@@ -45,8 +45,8 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="是否勾选合并进最终清单(Y/N)" prop="isMerged">
-        <el-select v-model="queryParams.isMerged" placeholder="请选择是否勾选合并进最终清单(Y/N)" clearable>
+      <el-form-item label="是否合并" prop="isMerged">
+        <el-select v-model="queryParams.isMerged" placeholder="请选择是否合并" clearable>
           <el-option
             v-for="dict in sys_yes_no"
             :key="dict.value"
@@ -107,22 +107,26 @@
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="记录ID" align="center" prop="recordId" />
       <el-table-column label="项目ID" align="center" prop="projectId" />
-      <el-table-column label="类别(ROLE角色权限/BUSINESS业务流程/DATA数据规则/BOUNDARY边界场景)" align="center" prop="category" />
-      <el-table-column label="问题内容" align="center" prop="question" />
-      <el-table-column label="用户回答" align="center" prop="answer" />
-      <el-table-column label="状态(0待回答 1已回答 2已跳过)" align="center" prop="status">
+      <el-table-column label="类别" align="center" prop="category" />
+      <el-table-column label="问题内容" align="center" prop="question" show-overflow-tooltip />
+      <el-table-column label="用户回答" align="center" prop="answer" show-overflow-tooltip />
+      <el-table-column label="状态" align="center" prop="status">
         <template #default="scope">
           <dict-tag :options="ai_clarify_status" :value="scope.row.status"/>
         </template>
       </el-table-column>
       <el-table-column label="提出该问题的模型" align="center" prop="sourceModel" />
-      <el-table-column label="多模型对比标记(0共识 1独有 2观点差异)" align="center" prop="highlightType">
+      <el-table-column label="多模型对比标记" align="center" prop="highlightType">
         <template #default="scope">
           <dict-tag :options="ai_highlight_type" :value="scope.row.highlightType"/>
         </template>
       </el-table-column>
-      <el-table-column label="语义一致命中该问题的模型列表" align="center" prop="modelList" />
-      <el-table-column label="是否勾选合并进最终清单(Y/N)" align="center" prop="isMerged">
+      <el-table-column label="命中模型" align="center" prop="modelList" show-overflow-tooltip>
+        <template #default="scope">
+          <span>{{ modelListText(scope.row.modelList) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="是否合并" align="center" prop="isMerged">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.isMerged"/>
         </template>
@@ -154,8 +158,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="类别(ROLE角色权限/BUSINESS业务流程/DATA数据规则/BOUNDARY边界场景)" prop="category">
-              <el-input v-model="form.category" placeholder="请输入类别(ROLE角色权限/BUSINESS业务流程/DATA数据规则/BOUNDARY边界场景)" />
+            <el-form-item label="类别" prop="category">
+              <el-input v-model="form.category" placeholder="请输入类别" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -169,12 +173,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="状态(0待回答 1已回答 2已跳过)" prop="status">
+            <el-form-item label="状态" prop="status">
               <el-radio-group v-model="form.status">
                 <el-radio
                   v-for="dict in ai_clarify_status"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -185,8 +189,8 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="多模型对比标记(0共识 1独有 2观点差异)" prop="highlightType">
-              <el-select v-model="form.highlightType" placeholder="请选择多模型对比标记(0共识 1独有 2观点差异)">
+            <el-form-item label="多模型对比标记" prop="highlightType">
+              <el-select v-model="form.highlightType" placeholder="请选择多模型对比标记">
                 <el-option
                   v-for="dict in ai_highlight_type"
                   :key="dict.value"
@@ -197,12 +201,12 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="是否勾选合并进最终清单(Y/N)" prop="isMerged">
+            <el-form-item label="是否合并" prop="isMerged">
               <el-radio-group v-model="form.isMerged">
                 <el-radio
                   v-for="dict in sys_yes_no"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -264,12 +268,25 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data)
 
+/** 模型列表(JSON数组)转文本展示 */
+function modelListText(text) {
+  if (!text) return '-'
+  try {
+    const arr = JSON.parse(text)
+    return Array.isArray(arr) ? arr.join(', ') : text
+  } catch (e) {
+    return text
+  }
+}
+
 /** 查询AI澄清问题记录列表 */
 function getList() {
   loading.value = true
   listClarify(queryParams.value).then(response => {
     clarifyList.value = response.rows
     total.value = response.total
+    loading.value = false
+  }).catch(() => {
     loading.value = false
   })
 }

@@ -9,8 +9,8 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="任务类型(CLARIFY/PRD/TECH/DB_CHECK)" prop="taskType">
-        <el-select v-model="queryParams.taskType" placeholder="请选择任务类型(CLARIFY/PRD/TECH/DB_CHECK)" clearable>
+      <el-form-item label="任务类型" prop="taskType">
+        <el-select v-model="queryParams.taskType" placeholder="请选择任务类型" clearable style="width: 160px">
           <el-option
             v-for="dict in ai_task_type"
             :key="dict.value"
@@ -19,8 +19,8 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="任务状态(0运行中 1完成 2部分失败 3失败)" prop="status">
-        <el-select v-model="queryParams.status" placeholder="请选择任务状态(0运行中 1完成 2部分失败 3失败)" clearable>
+      <el-form-item label="任务状态" prop="status">
+        <el-select v-model="queryParams.status" placeholder="请选择任务状态" clearable style="width: 160px">
           <el-option
             v-for="dict in ai_task_status"
             :key="dict.value"
@@ -28,22 +28,6 @@
             :value="dict.value"
           />
         </el-select>
-      </el-form-item>
-      <el-form-item label="预估token" prop="estTokens">
-        <el-input
-          v-model="queryParams.estTokens"
-          placeholder="请输入预估token"
-          clearable
-          @keyup.enter="handleQuery"
-        />
-      </el-form-item>
-      <el-form-item label="实际消耗token" prop="totalTokens">
-        <el-input
-          v-model="queryParams.totalTokens"
-          placeholder="请输入实际消耗token"
-          clearable
-          @keyup.enter="handleQuery"
-        />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
@@ -95,27 +79,27 @@
 
     <el-table v-loading="loading" :data="taskList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="任务ID" align="center" prop="taskId" />
-      <el-table-column label="项目ID" align="center" prop="projectId" />
-      <el-table-column label="任务类型(CLARIFY/PRD/TECH/DB_CHECK)" align="center" prop="taskType">
+      <el-table-column label="任务ID" align="center" prop="taskId" width="80" />
+      <el-table-column label="项目ID" align="center" prop="projectId" width="80" />
+      <el-table-column label="任务类型" align="center" prop="taskType" width="110">
         <template #default="scope">
           <dict-tag :options="ai_task_type" :value="scope.row.taskType"/>
         </template>
       </el-table-column>
-      <el-table-column label="参与模型列表(JSON)" align="center" prop="modelIds" />
-      <el-table-column label="请求参数(JSON)" align="center" prop="requestParams" />
-      <el-table-column label="融合汇总结果(JSON)" align="center" prop="resultSummary" />
-      <el-table-column label="差异比对结果(JSON)" align="center" prop="compareResult" />
-      <el-table-column label="任务状态(0运行中 1完成 2部分失败 3失败)" align="center" prop="status">
+      <el-table-column label="参与模型" align="center" prop="modelIds" width="140" show-overflow-tooltip>
+        <template #default="scope">{{ modelIdsText(scope.row.modelIds) }}</template>
+      </el-table-column>
+      <el-table-column label="任务状态" align="center" prop="status" width="90">
         <template #default="scope">
           <dict-tag :options="ai_task_status" :value="scope.row.status"/>
         </template>
       </el-table-column>
-      <el-table-column label="预估token" align="center" prop="estTokens" />
-      <el-table-column label="实际消耗token" align="center" prop="totalTokens" />
-      <el-table-column label="备注" align="center" prop="remark" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+      <el-table-column label="预估token" align="center" prop="estTokens" width="100" />
+      <el-table-column label="实际token" align="center" prop="totalTokens" width="100" />
+      <el-table-column label="创建时间" align="center" prop="createTime" width="160" />
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="200">
         <template #default="scope">
+          <el-button link type="primary" icon="View" @click="handleView(scope.row)" v-hasPermi="['system:task:query']">查看</el-button>
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:task:edit']">修改</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:task:remove']">删除</el-button>
         </template>
@@ -131,17 +115,17 @@
     />
 
     <!-- 添加或修改多模型并行任务对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog :title="title" v-model="open" width="780px" append-to-body>
       <el-form ref="taskRef" :model="form" :rules="rules" label-width="100px">
         <el-row>
-          <el-col :span="24">
+          <el-col :span="12">
             <el-form-item label="项目ID" prop="projectId">
               <el-input v-model="form.projectId" placeholder="请输入项目ID" />
             </el-form-item>
           </el-col>
-          <el-col :span="24">
-            <el-form-item label="任务类型(CLARIFY/PRD/TECH/DB_CHECK)" prop="taskType">
-              <el-select v-model="form.taskType" placeholder="请选择任务类型(CLARIFY/PRD/TECH/DB_CHECK)">
+          <el-col :span="12">
+            <el-form-item label="任务类型" prop="taskType">
+              <el-select v-model="form.taskType" placeholder="请选择任务类型" style="width: 100%">
                 <el-option
                   v-for="dict in ai_task_type"
                   :key="dict.value"
@@ -152,37 +136,22 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="请求参数(JSON)" prop="requestParams">
-              <el-input v-model="form.requestParams" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="融合汇总结果(JSON)" prop="resultSummary">
-              <el-input v-model="form.resultSummary" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="差异比对结果(JSON)" prop="compareResult">
-              <el-input v-model="form.compareResult" type="textarea" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="24">
-            <el-form-item label="任务状态(0运行中 1完成 2部分失败 3失败)" prop="status">
+            <el-form-item label="任务状态" prop="status">
               <el-radio-group v-model="form.status">
                 <el-radio
                   v-for="dict in ai_task_status"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
           </el-col>
-          <el-col :span="24">
+          <el-col :span="12">
             <el-form-item label="预估token" prop="estTokens">
               <el-input v-model="form.estTokens" placeholder="请输入预估token" />
             </el-form-item>
           </el-col>
-          <el-col :span="24">
+          <el-col :span="12">
             <el-form-item label="实际消耗token" prop="totalTokens">
               <el-input v-model="form.totalTokens" placeholder="请输入实际消耗token" />
             </el-form-item>
@@ -201,6 +170,31 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 查看任务详情对话框 -->
+    <el-dialog title="多模型任务详情" v-model="viewOpen" width="860px" append-to-body>
+      <div class="view-meta">
+        <span>任务ID：{{ viewForm.taskId }}</span>
+        <span>项目ID：{{ viewForm.projectId }}</span>
+        <span>预估token：{{ viewForm.estTokens }}</span>
+        <span>实际token：{{ viewForm.totalTokens }}</span>
+        <span>创建时间：{{ viewForm.createTime }}</span>
+      </div>
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="参与模型" name="models">
+          <el-input v-model="prettyModels" type="textarea" :rows="16" readonly placeholder="暂无模型列表" />
+        </el-tab-pane>
+        <el-tab-pane label="请求参数" name="params">
+          <el-input v-model="prettyParams" type="textarea" :rows="16" readonly placeholder="暂无请求参数" />
+        </el-tab-pane>
+        <el-tab-pane label="融合汇总结果" name="summary">
+          <el-input v-model="prettySummary" type="textarea" :rows="16" readonly placeholder="暂无融合汇总结果" />
+        </el-tab-pane>
+        <el-tab-pane label="差异比对结果" name="compare">
+          <el-input v-model="prettyCompare" type="textarea" :rows="16" readonly placeholder="暂无差异比对结果" />
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
   </div>
 </template>
 
@@ -212,6 +206,7 @@ const { ai_task_status, ai_task_type } = useDict('ai_task_status', 'ai_task_type
 
 const taskList = ref([])
 const open = ref(false)
+const viewOpen = ref(false)
 const loading = ref(true)
 const showSearch = ref(true)
 const ids = ref([])
@@ -219,6 +214,8 @@ const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
+const viewForm = ref({})
+const activeTab = ref("models")
 
 const data = reactive({
   form: {},
@@ -227,25 +224,45 @@ const data = reactive({
     pageSize: 10,
     projectId: undefined,
     taskType: undefined,
-    modelIds: undefined,
-    requestParams: undefined,
-    resultSummary: undefined,
-    compareResult: undefined,
     status: undefined,
-    estTokens: undefined,
-    totalTokens: undefined,
   },
   rules: {
     projectId: [
       { required: true, message: "项目ID不能为空", trigger: "blur" }
     ],
     taskType: [
-      { required: true, message: "任务类型(CLARIFY/PRD/TECH/DB_CHECK)不能为空", trigger: "change" }
+      { required: true, message: "任务类型不能为空", trigger: "change" }
     ],
   }
 })
 
 const { queryParams, form, rules } = toRefs(data)
+
+/** JSON 美化展示（非 JSON 原样返回） */
+function prettyJson(text) {
+  if (!text) return ''
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2)
+  } catch (e) {
+    return text
+  }
+}
+
+/** 参与模型列表简短展示（如 ["gpt4","claude"] → gpt4, claude） */
+function modelIdsText(text) {
+  if (!text) return '-'
+  try {
+    const arr = JSON.parse(text)
+    return Array.isArray(arr) ? arr.join(', ') : text
+  } catch (e) {
+    return text
+  }
+}
+
+const prettyModels = computed(() => prettyJson(viewForm.value.modelIds))
+const prettyParams = computed(() => prettyJson(viewForm.value.requestParams))
+const prettySummary = computed(() => prettyJson(viewForm.value.resultSummary))
+const prettyCompare = computed(() => prettyJson(viewForm.value.compareResult))
 
 /** 查询多模型并行任务列表 */
 function getList() {
@@ -253,6 +270,8 @@ function getList() {
   listTask(queryParams.value).then(response => {
     taskList.value = response.rows
     total.value = response.total
+    loading.value = false
+  }).catch(() => {
     loading.value = false
   })
 }
@@ -322,6 +341,15 @@ function handleUpdate(row) {
   })
 }
 
+/** 查看详情按钮操作 */
+function handleView(row) {
+  getTask(row.taskId).then(response => {
+    viewForm.value = response.data
+    activeTab.value = "models"
+    viewOpen.value = true
+  })
+}
+
 /** 提交按钮 */
 function submitForm() {
   proxy.$refs["taskRef"].validate(valid => {
@@ -363,3 +391,14 @@ function handleExport() {
 
 getList()
 </script>
+
+<style lang="scss" scoped>
+.view-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #909399;
+}
+</style>

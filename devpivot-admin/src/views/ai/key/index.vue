@@ -1,10 +1,10 @@
 <template>
   <div class="app-container">
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
-      <el-form-item label="用户ID(sys_user)" prop="userId">
+      <el-form-item label="用户ID" prop="userId">
         <el-input
           v-model="queryParams.userId"
-          placeholder="请输入用户ID(sys_user)"
+          placeholder="请输入用户ID"
           clearable
           @keyup.enter="handleQuery"
         />
@@ -17,16 +17,16 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="API密钥(加密存储)" prop="apiKey">
+      <el-form-item label="API密钥" prop="apiKey">
         <el-input
           v-model="queryParams.apiKey"
-          placeholder="请输入API密钥(加密存储)"
+          placeholder="请输入API密钥"
           clearable
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="是否启用(Y/N)" prop="isActive">
-        <el-select v-model="queryParams.isActive" placeholder="请选择是否启用(Y/N)" clearable>
+      <el-form-item label="是否启用" prop="isActive">
+        <el-select v-model="queryParams.isActive" placeholder="请选择是否启用" clearable>
           <el-option
             v-for="dict in sys_yes_no"
             :key="dict.value"
@@ -102,10 +102,10 @@
     <el-table v-loading="loading" :data="keyList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="密钥ID" align="center" prop="keyId" />
-      <el-table-column label="用户ID(sys_user)" align="center" prop="userId" />
+      <el-table-column label="用户ID" align="center" prop="userId" />
       <el-table-column label="供应商" align="center" prop="provider" />
       <el-table-column label="API密钥(脱敏)" align="center" prop="maskedApiKey" />
-      <el-table-column label="是否启用(Y/N)" align="center" prop="isActive">
+      <el-table-column label="是否启用" align="center" prop="isActive">
         <template #default="scope">
           <dict-tag :options="sys_yes_no" :value="scope.row.isActive"/>
         </template>
@@ -134,8 +134,8 @@
       <el-form ref="keyRef" :model="form" :rules="rules" label-width="100px">
         <el-row>
           <el-col :span="24">
-            <el-form-item label="用户ID(sys_user)" prop="userId">
-              <el-input v-model="form.userId" placeholder="请输入用户ID(sys_user)" />
+            <el-form-item label="用户ID" prop="userId">
+              <el-input v-model="form.userId" placeholder="请输入用户ID" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -144,17 +144,17 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="API密钥(加密存储)" prop="apiKey">
+            <el-form-item label="API密钥" prop="apiKey">
               <el-input v-model="form.apiKey" :placeholder="form.maskedApiKey ? ('当前：' + form.maskedApiKey + '，留空则保持原密钥') : '加密存储，请填写完整密钥'" />
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="是否启用(Y/N)" prop="isActive">
+            <el-form-item label="是否启用" prop="isActive">
               <el-radio-group v-model="form.isActive">
                 <el-radio
                   v-for="dict in sys_yes_no"
                   :key="dict.value"
-                  :label="dict.value"
+                  :value="dict.value"
                 >{{dict.label}}</el-radio>
               </el-radio-group>
             </el-form-item>
@@ -216,7 +216,7 @@ const data = reactive({
   },
   rules: {
     userId: [
-      { required: true, message: "用户ID(sys_user)不能为空", trigger: "blur" }
+      { required: true, message: "用户ID不能为空", trigger: "blur" }
     ],
   }
 })
@@ -229,6 +229,8 @@ function getList() {
   listKey(queryParams.value).then(response => {
     keyList.value = response.rows
     total.value = response.total
+    loading.value = false
+  }).catch(() => {
     loading.value = false
   })
 }
